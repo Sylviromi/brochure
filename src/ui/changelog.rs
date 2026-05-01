@@ -14,7 +14,7 @@ use ratatui::{
 
 use crate::app::App;
 
-use super::{BASE, BLUE, MAUVE, SUBTEXT0, SURFACE0, TEXT, border_set};
+use super::{BASE, BLUE, MAUVE, SUBTEXT0, SURFACE0, TEXT, border_set, PEACH};
 
 const CHANGELOG_JSON: &str = include_str!("../../changelog.json");
 
@@ -44,7 +44,7 @@ fn draw_about_block(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .border_set(border_set(app.user_data.border_rounded))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(SURFACE0))
+        .border_style(Style::default().fg(PEACH))
         .title(" About ")
         .bg(BASE);
     let inner = block.inner(area);
@@ -103,7 +103,7 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::default()
         .border_set(border_set(app.user_data.border_rounded))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(SURFACE0))
+        .border_style(Style::default().fg(PEACH))
         .title(" Changelog ")
         .bg(BASE);
     let inner = block.inner(area);
