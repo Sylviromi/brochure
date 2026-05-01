@@ -105,16 +105,16 @@ impl SettingsItem {
             Self::ClearArticleCache => Self::EagerArticleFetch,
             Self::EagerArticleFetch => Self::AutoFetchOnStart,
             Self::AutoFetchOnStart => Self::ArchivePolicy,
-            Self::ArchivePolicy => Self::BorderStyle,
-            Self::BorderStyle => Self::ScrollLoop,
-            Self::ScrollLoop => Self::ImportOpml,
+            Self::ArchivePolicy => Self::ScrollLoop,
+            Self::ScrollLoop => Self::BorderStyle,
+            Self::BorderStyle => Self::ImportOpml,
         }
     }
 
     /// Move to the previous settings item (wraps around).
     pub fn prev(self) -> Self {
         match self {
-            Self::ImportOpml => Self::ScrollLoop,
+            Self::ImportOpml => Self::BorderStyle,
             Self::ExportOpml => Self::ImportOpml,
             Self::ClearData => Self::ExportOpml,
             Self::SaveArticleContent => Self::ClearData,
@@ -122,8 +122,8 @@ impl SettingsItem {
             Self::EagerArticleFetch => Self::ClearArticleCache,
             Self::AutoFetchOnStart => Self::EagerArticleFetch,
             Self::ArchivePolicy => Self::AutoFetchOnStart,
-            Self::ScrollLoop => Self::BorderStyle,
-            Self::BorderStyle => Self::ArchivePolicy,
+            Self::ScrollLoop => Self::ArchivePolicy,
+            Self::BorderStyle => Self::ScrollLoop,
         }
     }
 }
