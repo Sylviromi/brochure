@@ -61,7 +61,6 @@ pub enum SettingsItem {
     EagerArticleFetch,
     AutoFetchOnStart,
     BorderStyle,
-    SavedCategoryEditor,
 }
 
 impl SettingsItem {
@@ -74,14 +73,13 @@ impl SettingsItem {
             Self::ClearArticleCache => Self::EagerArticleFetch,
             Self::EagerArticleFetch => Self::AutoFetchOnStart,
             Self::AutoFetchOnStart => Self::BorderStyle,
-            Self::BorderStyle => Self::SavedCategoryEditor,
-            Self::SavedCategoryEditor => Self::ImportOpml,
+            Self::BorderStyle => Self::ImportOpml,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            Self::ImportOpml => Self::SavedCategoryEditor,
+            Self::ImportOpml => Self::BorderStyle,
             Self::ExportOpml => Self::ImportOpml,
             Self::ClearData => Self::ExportOpml,
             Self::SaveArticleContent => Self::ClearData,
@@ -89,7 +87,6 @@ impl SettingsItem {
             Self::EagerArticleFetch => Self::ClearArticleCache,
             Self::AutoFetchOnStart => Self::EagerArticleFetch,
             Self::BorderStyle => Self::AutoFetchOnStart,
-            Self::SavedCategoryEditor => Self::BorderStyle,
         }
     }
 }

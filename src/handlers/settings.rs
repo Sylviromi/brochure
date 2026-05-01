@@ -61,10 +61,6 @@ pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
                 let state = if app.user_data.border_rounded { "ON" } else { "OFF" };
                 app.set_status(format!("Rounded Borders: {state}"));
             }
-            SettingsItem::SavedCategoryEditor => {
-                app.saved_cat_editor_cursor = 0;
-                app.state = AppState::SavedCategoryEditor;
-            }
         },
         _ => {}
     }
@@ -299,7 +295,7 @@ pub(super) fn handle_saved_category_editor(app: &mut App, key: KeyEvent) {
             }
         }
         KeyCode::Esc | KeyCode::Char('q') => {
-            app.state = AppState::SettingsList;
+            app.state = AppState::SavedCategoryList;
         }
         _ => {}
     }

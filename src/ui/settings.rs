@@ -81,19 +81,12 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
             on: auto_fetch,
         },
         Row::Spacer,
-        Row::SectionHeader { label: " Appearance", is_last: false },
+        Row::SectionHeader { label: " Appearance", is_last: true },
         Row::Toggle {
             item: SettingsItem::BorderStyle,
             label: "[ Rounded Borders ]",
-            in_last: false,
-            on: rounded,
-        },
-        Row::Spacer,
-        Row::SectionHeader { label: " Saved Articles", is_last: true },
-        Row::Item {
-            item: SettingsItem::SavedCategoryEditor,
-            label: "[ Saved Category Editor ]",
             in_last: true,
+            on: rounded,
         },
     ];
 

@@ -98,6 +98,10 @@ pub(super) fn handle_saved_feed_list(app: &mut App, key: KeyEvent) -> bool {
         KeyCode::Char('j') | KeyCode::Down => app.next(),
         KeyCode::Char('k') | KeyCode::Up => app.previous(),
         KeyCode::Enter => app.select(),
+        KeyCode::Char('e') => {
+            app.saved_cat_editor_cursor = 0;
+            app.state = AppState::SavedCategoryEditor;
+        }
         KeyCode::Esc => app.unselect(),
         _ => {}
     }
