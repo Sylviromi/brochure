@@ -327,7 +327,26 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
     let cats = &app.user_data.saved_categories;
     let cats_len = cats.len();
 
-    let height = (cats_len as u16 + 5).min(area.height.saturating_sub(4));
+    let article_link: Option<String> = if app.in_category_context {
+        app.category_view_articles
+            .get(app.selected_article)
+            .and_then(|&(fi, ai)| app.feeds.get(fi).and_then(|f| f.articles.get(ai)))
+            .map(|a| a.link.clone())
+    } else if app.in_saved_context {
+        app.saved_view_articles
+            .get(app.selected_article)
+            .map(|a| a.link.clone())
+    } else {
+        app.feeds
+            .get(app.selected_feed)
+            .and_then(|f| f.articles.get(app.selected_article))
+            .map(|a| a.link.clone())
+    };
+    let article_is_saved = article_link.is_some_and(|link| {
+        app.user_data.saved_articles.iter().any(|s| s.article.link == link)
+    });
+
+    let height = (cats_len as u16 + if article_is_saved { 5 } else { 4 }).min(area.height.saturating_sub(4));
     let width = 40u16.min(area.width.saturating_sub(4));
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
@@ -348,8 +367,8 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
 
     let mut lines: Vec<Line> = Vec::new();
 
-    // 3 fixed rows: "New category", separator, "✕ Unsave"
-    let fixed_rows = 3u16;
+    // fixed rows: "New category" + optional separator + "✕ Unsave"
+    let fixed_rows = if article_is_saved { 3u16 } else { 2u16 };
     let visible_cats = inner.height.saturating_sub(fixed_rows) as usize;
     let scroll_top = if visible_cats == 0 || cats_len <= visible_cats {
         0usize
@@ -387,18 +406,20 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
         lines.push(Line::from(Span::styled("  + New category…", new_style)));
     }
 
-    lines.push(Line::from(Span::styled(
-        "  ──────────────",
-        Style::default().fg(SURFACE0),
-    )));
+    if article_is_saved {
+        lines.push(Line::from(Span::styled(
+            "  ──────────────",
+            Style::default().fg(SURFACE0),
+        )));
 
-    let unsave_idx = cats_len + 1;
-    let unsave_style = if app.category_picker_cursor == unsave_idx {
-        Style::default().bg(SURFACE0).fg(RED)
-    } else {
-        Style::default().fg(RED)
-    };
-    lines.push(Line::from(Span::styled("  ✕ Unsave", unsave_style)));
+        let unsave_idx = cats_len + 1;
+        let unsave_style = if app.category_picker_cursor == unsave_idx {
+            Style::default().bg(SURFACE0).fg(RED)
+        } else {
+            Style::default().fg(RED)
+        };
+        lines.push(Line::from(Span::styled("  ✕ Unsave", unsave_style)));
+    }
 
     let para = Paragraph::new(lines);
     f.render_widget(para, inner);
@@ -413,4 +434,86 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
             &mut sb_state,
         );
     }
+}
+
+pub(super) fn draw_confirm_delete_saved_cat(f: &mut Frame, app: &App) {
+    use super::RED;
+    let cursor = app.saved_cat_editor_scroll.cursor;
+    let cat = app.user_data.saved_categories.get(cursor);
+    let Some(cat) = cat else { return };
+    let article_count = app
+        .user_data
+        .saved_articles
+        .iter()
+        .filter(|s| s.category_id == cat.id)
+        .count();
+    let body = if article_count == 0 {
+        format!("  Delete category \"{}\"?", cat.name)
+    } else {
+        format!(
+            "  Delete \"{}\" and unsave {} article{}?",
+            cat.name,
+            article_count,
+            if article_count == 1 { "" } else { "s" }
+        )
+    };
+
+    let area = f.area();
+    let vertical = ratatui::layout::Layout::default()
+        .direction(ratatui::layout::Direction::Vertical)
+        .constraints([
+            ratatui::layout::Constraint::Percentage(38),
+            ratatui::layout::Constraint::Length(7),
+            ratatui::layout::Constraint::Percentage(38),
+        ])
+        .split(area);
+    let center = ratatui::layout::Layout::default()
+        .direction(ratatui::layout::Direction::Horizontal)
+        .constraints([
+            ratatui::layout::Constraint::Percentage(15),
+            ratatui::layout::Constraint::Percentage(70),
+            ratatui::layout::Constraint::Percentage(15),
+        ])
+        .split(vertical[1])[1];
+
+    f.render_widget(ratatui::widgets::Clear, center);
+    let block = ratatui::widgets::Block::default()
+        .border_set(super::border_set(app.user_data.border_rounded))
+        .borders(ratatui::widgets::Borders::ALL)
+        .border_style(ratatui::style::Style::default().fg(RED))
+        .bg(super::BASE)
+        .title(ratatui::text::Span::styled(
+            " ⚠  Delete Saved Category ",
+            ratatui::style::Style::default()
+                .fg(RED)
+                .add_modifier(ratatui::style::Modifier::BOLD),
+        ));
+    let text = vec![
+        ratatui::text::Line::from(""),
+        ratatui::text::Line::from(ratatui::text::Span::styled(
+            body,
+            ratatui::style::Style::default().fg(super::TEXT),
+        )),
+        ratatui::text::Line::from(""),
+        ratatui::text::Line::from(vec![
+            ratatui::text::Span::styled(
+                "  [Enter] ",
+                ratatui::style::Style::default()
+                    .fg(RED)
+                    .add_modifier(ratatui::style::Modifier::BOLD),
+            ),
+            ratatui::text::Span::styled("Confirm   ", ratatui::style::Style::default().fg(super::TEXT)),
+            ratatui::text::Span::styled(
+                "[Esc] ",
+                ratatui::style::Style::default()
+                    .fg(super::GREEN)
+                    .add_modifier(ratatui::style::Modifier::BOLD),
+            ),
+            ratatui::text::Span::styled("Cancel", ratatui::style::Style::default().fg(super::TEXT)),
+        ]),
+    ];
+    f.render_widget(
+        ratatui::widgets::Paragraph::new(text).block(block),
+        center,
+    );
 }

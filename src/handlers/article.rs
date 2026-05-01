@@ -77,8 +77,10 @@ pub(super) async fn handle_article(
 
 pub(super) fn handle_category_picker(app: &mut App, key: KeyEvent) {
     let cats_len = app.user_data.saved_categories.len();
-    // Layout: [0..cats_len) = existing categories, cats_len = "New category...", cats_len+1 = "Unsave"
-    let total_items = cats_len + 2;
+    let article_is_saved = get_selected_article(app)
+        .is_some_and(|art| app.user_data.saved_articles.iter().any(|s| s.article.link == art.link));
+    // Layout: [0..cats_len) = existing categories, cats_len = "New category...", cats_len+1 = "Unsave" (only if saved)
+    let total_items = if article_is_saved { cats_len + 2 } else { cats_len + 1 };
 
     if app.category_picker_new_mode {
         match key.code {
@@ -141,7 +143,7 @@ pub(super) fn handle_category_picker(app: &mut App, key: KeyEvent) {
                 // "New category..." — enter text input mode
                 app.category_picker_new_mode = true;
                 app.category_picker_input.clear();
-            } else {
+            } else if article_is_saved {
                 // "Unsave"
                 unsave_article(app);
                 app.state = app.category_picker_return_state.clone();
