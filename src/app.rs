@@ -543,7 +543,11 @@ impl App {
                 .user_data
                 .saved_articles
                 .iter()
-                .map(|s| s.article.clone())
+                .map(|s| {
+                    let mut art = s.article.clone();
+                    art.is_saved = true;
+                    art
+                })
                 .collect();
             self.selected_saved_category = None;
             self.in_saved_context = !self.saved_view_articles.is_empty();
@@ -557,7 +561,11 @@ impl App {
                     .saved_articles
                     .iter()
                     .filter(|s| s.category_id == cat_id)
-                    .map(|s| s.article.clone())
+                    .map(|s| {
+                        let mut art = s.article.clone();
+                        art.is_saved = true;
+                        art
+                    })
                     .collect();
                 self.in_saved_context = !self.saved_view_articles.is_empty();
             } else {

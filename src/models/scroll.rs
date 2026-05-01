@@ -54,3 +54,36 @@ impl ListScroll {
         }
     }
 }
+
+/// Stores per-article scroll offsets (keyed by article link URL).
+/// Mirrors the ListScroll pattern for text-scrollable panels.
+pub struct TextScroll {
+    offsets: std::collections::HashMap<String, u16>,
+}
+
+impl Default for TextScroll {
+    fn default() -> Self {
+        Self { offsets: std::collections::HashMap::new() }
+    }
+}
+
+impl TextScroll {
+    /// Get the saved scroll offset for an article (0 if never scrolled).
+    pub fn get(&self, key: &str) -> u16 {
+        self.offsets.get(key).copied().unwrap_or(0)
+    }
+
+    /// Scroll down by 1 row, clamping at `max`. Returns new offset.
+    pub fn scroll_down(&mut self, key: &str, max: u16) -> u16 {
+        let offset = self.offsets.entry(key.to_string()).or_insert(0);
+        *offset = (*offset + 1).min(max);
+        *offset
+    }
+
+    /// Scroll up by 1 row, clamping at 0. Returns new offset.
+    pub fn scroll_up(&mut self, key: &str) -> u16 {
+        let offset = self.offsets.entry(key.to_string()).or_insert(0);
+        *offset = offset.saturating_sub(1);
+        *offset
+    }
+}

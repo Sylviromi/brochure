@@ -9,7 +9,7 @@ pub mod scroll;
 pub use core_types::*;
 pub use events::*;
 pub use navigation::*;
-pub use scroll::ListScroll;
+pub use scroll::{ListScroll, TextScroll};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
