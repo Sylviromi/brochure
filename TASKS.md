@@ -1,22 +1,27 @@
 # TASKS
 
 ## Bugs
-- [ ] Editor drag: hovered item highlights instead of showing target slot; want ghost at original pos, X rendered at drop position
-- [ ] Editor: categories toggle on Enter instead of entering move mode
-- [ ] Post-cache-clear: no articles fetched, all feeds show loading animation indefinitely
-- [ ] Loading animation speeds up when holding down/up in feed list
-- [ ] Subcategory leftmost connector wrong color
+
+- [ ] Split editor into 2, one where it is about feeds and one about categories (use the same screen, divide it to
+  left/right). In the feed editor you can move around
+  feeds and change where they are like rn and add feeds. In the category editor, you only see the categories, and you
+  can add/remove categories while also being able to easily move them around and change their orders. Also add a warning
+  before deleting categories, telling how many feeds will be deleted etc.
 
 ## Debt
+
 *(none)*
 
 ## Features
-- [ ] Long feed/article titles: auto-scroll while selected, reset to 0 when deselected
-- [ ] Option to disable auto-fetch at start + fetch-all button + last-fetched timestamp (e.g. `1d ago`, `15m ago`)
+
 
 ## Done
-- [x] 2026-04-12 — Subcategory `|` connector missing one col left
-- [x] 2026-04-12 — Error auto-scroll speed/length wrong
-- [x] 2026-04-12 — Cache clear: also clear read list + reset fetched state
-- [x] 2026-04-12 — Add X/Y to progress bar
-- [x] 2026-04-12 — `updated X ago` number color change
+
+[x] - 2026-04-17 - Editor right panel: feed/category info + keybinding help
+[x] - 2026-04-17 - Auto-scroll long titles in sidebar + article list (2s pause, stops at end)
+[x] - 2026-04-17 - Auto-fetch toggle, [R] fetch-all, last_fetched_secs display
+[x] - 2026-04-15 - "updated X ago" number colored, "ago" constant SUBTEXT0
+[x] - 2026-04-15 - Feed/category move order bugs fixed (explicit position normalization)
+[x] - 2026-04-15 - Status bar scroll: 4×speed, stops at end, resets on new message
+[x] - 2026-04-13 - Cache clear: feeds/read_links/articles cleared on cache delete
+[x] - 2026-04-13 - Editor based issues (all sub-items fixed)

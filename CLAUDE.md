@@ -1,7 +1,5 @@
 # CLAUDE.md — rssr agent guide
 
-> **For tasks, bugs, and requests see `TASKS.md`.**
-
 ---
 
 ## Keeping This File Current
@@ -24,8 +22,6 @@ rule), fix it in the same commit.
 ---
 
 ## Task Workflow
-
-Tasks live in `TASKS.md`. Categories are user-defined (create/rename/remove as needed).
 
 1. **On session start**: read `TASKS.md`. Pick up the highest-priority incomplete item.
 2. **Pick up work**: always take the highest-priority incomplete item first.
@@ -122,7 +118,27 @@ src/
 
 ## Feature Checklists
 
-See `CHECKLISTS.md` — read it before implementing new types, AppStates, keybindings, background tasks, or persisted data.
+See `CHECKLISTS.md` — read it before implementing new types, AppStates, keybindings, background tasks, or persisted
+data.
+
+---
+
+## Commit Confirmation (mandatory)
+
+Before running any `git commit` command, use `AskUserQuestion` with **exactly two options**: `["Yes", "No"]`. Ask: "
+Commit these changes?". Only proceed if the user selects **Yes**.
+
+This applies every time — no exceptions, no skipping because changes seem obvious.
+
+---
+
+## Code Review Scope (mandatory)
+
+When invoking code review, use the **local `code-reviewer` agent** (subagent_type: `code-reviewer`).
+
+- **Always** determine changed files first: `git diff HEAD --name-only`
+- **Only** pass those files to the reviewer — never ask it to review files outside the diff
+- If no files changed since last commit, say so and skip the review
 
 ---
 
