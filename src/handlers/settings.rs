@@ -76,6 +76,14 @@ pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
                 };
                 app.set_status(format!("Auto Fetch On Start: {state}"));
             }
+            SettingsItem::ArchivePolicy => {
+                app.user_data.archive_policy = app.user_data.archive_policy.next();
+                let _ = save_user_data(&app.user_data);
+                app.set_status(format!(
+                    "Archive Policy: {}",
+                    app.user_data.archive_policy.label()
+                ));
+            }
             SettingsItem::BorderStyle => {
                 app.user_data.border_rounded = !app.user_data.border_rounded;
                 let _ = save_user_data(&app.user_data);
@@ -87,6 +95,26 @@ pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
                 app.set_status(format!("Rounded Borders: {state}"));
             }
         },
+        KeyCode::Left | KeyCode::Char('h') => {
+            if app.settings_selected == SettingsItem::ArchivePolicy {
+                app.user_data.archive_policy = app.user_data.archive_policy.prev();
+                let _ = save_user_data(&app.user_data);
+                app.set_status(format!(
+                    "Archive Policy: {}",
+                    app.user_data.archive_policy.label()
+                ));
+            }
+        }
+        KeyCode::Right | KeyCode::Char('l') => {
+            if app.settings_selected == SettingsItem::ArchivePolicy {
+                app.user_data.archive_policy = app.user_data.archive_policy.next();
+                let _ = save_user_data(&app.user_data);
+                app.set_status(format!(
+                    "Archive Policy: {}",
+                    app.user_data.archive_policy.label()
+                ));
+            }
+        }
         _ => {}
     }
     false

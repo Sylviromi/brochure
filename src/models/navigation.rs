@@ -86,6 +86,8 @@ pub enum SettingsItem {
     EagerArticleFetch,
     /// Toggle automatic feed fetching on app startup.
     AutoFetchOnStart,
+    /// Cycle archive policy for how long archived articles are kept.
+    ArchivePolicy,
     /// Toggle rounded UI borders.
     BorderStyle,
 }
@@ -100,7 +102,8 @@ impl SettingsItem {
             Self::SaveArticleContent => Self::ClearArticleCache,
             Self::ClearArticleCache => Self::EagerArticleFetch,
             Self::EagerArticleFetch => Self::AutoFetchOnStart,
-            Self::AutoFetchOnStart => Self::BorderStyle,
+            Self::AutoFetchOnStart => Self::ArchivePolicy,
+            Self::ArchivePolicy => Self::BorderStyle,
             Self::BorderStyle => Self::ImportOpml,
         }
     }
@@ -115,7 +118,8 @@ impl SettingsItem {
             Self::ClearArticleCache => Self::SaveArticleContent,
             Self::EagerArticleFetch => Self::ClearArticleCache,
             Self::AutoFetchOnStart => Self::EagerArticleFetch,
-            Self::BorderStyle => Self::AutoFetchOnStart,
+            Self::ArchivePolicy => Self::AutoFetchOnStart,
+            Self::BorderStyle => Self::ArchivePolicy,
         }
     }
 }

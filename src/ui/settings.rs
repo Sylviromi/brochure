@@ -65,6 +65,12 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
             in_last: bool,
             on: bool,
         },
+        Cycle {
+            item: SettingsItem,
+            label: &'static str,
+            in_last: bool,
+            value: String,
+        },
         CacheItem {
             in_last: bool,
             size_label: String,
@@ -128,6 +134,12 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
             label: "[ Auto Fetch On Start ]",
             in_last: false,
             on: auto_fetch,
+        },
+        Row::Cycle {
+            item: SettingsItem::ArchivePolicy,
+            label: "[ Archive Policy ]",
+            in_last: false,
+            value: app.user_data.archive_policy.label().to_string(),
         },
         Row::Spacer,
         Row::SectionHeader {
@@ -213,6 +225,36 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
                     Span::styled(prefix, Style::default().fg(SURFACE0)),
                     Span::styled(*label, base_style),
                     Span::styled(if *on { "  ON " } else { "  OFF " }, badge_style),
+                ]))
+            }
+            Row::Cycle {
+                item,
+                label,
+                in_last,
+                value,
+            } => {
+                let prefix = if *in_last { "     " } else { " │   " };
+                let selected = app.settings_selected == *item;
+                let base_style = if selected {
+                    Style::default()
+                        .fg(MANTLE)
+                        .bg(MAUVE)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(TEXT)
+                };
+                let badge_style = if selected {
+                    Style::default()
+                        .fg(MANTLE)
+                        .bg(MAUVE)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(YELLOW).add_modifier(Modifier::BOLD)
+                };
+                ListItem::new(Line::from(vec![
+                    Span::styled(prefix, Style::default().fg(SURFACE0)),
+                    Span::styled(*label, base_style),
+                    Span::styled(format!("  {}", value), badge_style),
                 ]))
             }
             Row::CacheItem {
