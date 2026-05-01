@@ -128,17 +128,20 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
     let total = entries.len();
     for (i, entry) in entries.iter().rev().enumerate() {
         // Determine the tree connector based on position
-        let connector = if i == 0 {
-            "┬"
-        } else if i == total - 1 {
-            "└"
+        let connector = if i == total - 1 {
+            if app.user_data.border_rounded {
+                " ╰─"
+            } else {
+                " └─"
+            }
         } else {
-            "├"
+            " ├─"
         };
+        let prefix = if i == total - 1 { "    " } else { " │  " };
 
         // Version line with connector
         lines.push(Line::from(vec![
-            Span::styled(format!("  {connector} "), Style::default().fg(SURFACE0)),
+            Span::styled(format!("{connector} "), Style::default().fg(SURFACE0)),
             Span::styled(
                 format!("v{}", entry.version),
                 Style::default().fg(MAUVE).add_modifier(Modifier::BOLD),
@@ -148,20 +151,20 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
         ]));
         // Summary line with vertical bar
         lines.push(Line::from(vec![
-            Span::styled("  │ ", Style::default().fg(SURFACE0)),
+            Span::styled(prefix, Style::default().fg(SURFACE0)),
             Span::styled(entry.summary.clone(), Style::default().fg(TEXT)),
         ]));
         // Highlights with vertical bar
         for highlight in &entry.highlights {
             lines.push(Line::from(vec![
-                Span::styled("  │ ", Style::default().fg(SURFACE0)),
+                Span::styled(prefix, Style::default().fg(SURFACE0)),
                 Span::styled(format!("  • {highlight}"), Style::default().fg(SUBTEXT0)),
             ]));
         }
         // Separator line (vertical bar or nothing after last entry)
         if i + 1 < total {
             lines.push(Line::from(vec![Span::styled(
-                "  │",
+                prefix,
                 Style::default().fg(SURFACE0),
             )]));
         }
