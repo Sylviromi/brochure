@@ -70,7 +70,7 @@ fn draw_about_block(f: &mut Frame, app: &App, area: Rect) {
     let blank_line = Line::raw("");
     let author_line = Line::from(vec![
         Span::styled("  Author:      ", Style::default().fg(SUBTEXT0)),
-        Span::styled("TcePrepK", Style::default().fg(TEXT)),
+        Span::styled("Sylviromi", Style::default().fg(TEXT)),
     ]);
     let license_line = Line::from(vec![
         Span::styled("  License:     ", Style::default().fg(SUBTEXT0)),
@@ -79,7 +79,7 @@ fn draw_about_block(f: &mut Frame, app: &App, area: Rect) {
     let repo_line = Line::from(vec![
         Span::styled("  Repository:  ", Style::default().fg(SUBTEXT0)),
         Span::styled(
-            "https://github.com/TcePrepK/brochure",
+            "https://github.com/Sylviromi/brochure",
             Style::default().fg(BLUE),
         ),
     ]);
