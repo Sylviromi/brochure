@@ -360,7 +360,7 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
                         render_idx,
                         *depth,
                         app.user_data.border_rounded,
-                        "   ",
+                        "",
                     );
                     let count_str = feed.unread_badge();
                     let style = if selected {

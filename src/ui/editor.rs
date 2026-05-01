@@ -141,7 +141,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
                 has_any_feed = true;
                 let feed = &app.feeds[*feeds_idx];
                 let indent = tree_indent(&tree, full_idx, *depth);
-                let connector = tree_connector(&tree, full_idx, *depth, rounded, "   ");
+                let connector = tree_connector(&tree, full_idx, *depth, rounded, "");
                 let selected = app.editor_cursor == full_idx;
                 let is_ghost = moving_origin == Some(full_idx);
                 let is_on_origin = in_moving_mode && selected && is_ghost;
