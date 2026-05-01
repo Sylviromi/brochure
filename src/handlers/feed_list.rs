@@ -85,6 +85,12 @@ pub(super) fn handle_feed_list(
                 app.selected_feed = *feeds_idx;
             }
         }
+        KeyCode::Char(' ') => {
+            let items = visible_tree_items(&app.categories, &app.feeds, &app.sidebar_collapsed);
+            if let Some(FeedTreeItem::Category { id, .. }) = items.get(app.sidebar_cursor) {
+                app.toggle_category_collapse(*id);
+            }
+        }
         _ => {}
     }
     false
