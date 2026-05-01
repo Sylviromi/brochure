@@ -62,17 +62,10 @@ impl ListScroll {
 
 /// Stores per-article scroll offsets (keyed by article link URL).
 /// Mirrors the ListScroll pattern for text-scrollable panels.
+#[derive(Default)]
 pub struct TextScroll {
     /// Maps article links to their saved scroll offsets.
     offsets: std::collections::HashMap<String, u16>,
-}
-
-impl Default for TextScroll {
-    fn default() -> Self {
-        Self {
-            offsets: std::collections::HashMap::new(),
-        }
-    }
 }
 
 impl TextScroll {
