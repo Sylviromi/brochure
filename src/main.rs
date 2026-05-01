@@ -120,7 +120,9 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
             }
 
 
-            AppEvent::FullArticleFetched(source, art_idx, result) => match source {
+            AppEvent::FullArticleFetched(source, art_idx, result) => {
+                app.article_fetching = false;
+                match source {
                 FeedSource::Saved => {
                     let status_msg = if let Some(article) =
                         app.saved_view_articles.get_mut(art_idx)
@@ -170,7 +172,8 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
                         }
                     }
                 }
-            },
+            }
+            }
 
             AppEvent::FeedTitleFetched(result) => {
                 if app.state == AppState::AddFeed && app.add_feed_step == AddFeedStep::Title {

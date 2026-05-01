@@ -261,6 +261,7 @@ fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>) {
     let url = article.link.clone();
     let art_idx = app.selected_article;
     let feed_idx = app.selected_feed;
+    app.article_fetching = true;
     tokio::spawn(async move {
         let result = fetch_readable_content(&url).await;
         let _ = tx2.send(AppEvent::FullArticleFetched(FeedSource::Feed(feed_idx), art_idx, result));
@@ -353,6 +354,7 @@ fn fetch_full_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>, art
         FeedSource::Feed(app.selected_feed)
     };
     let art_idx = app.selected_article;
+    app.article_fetching = true;
     tokio::spawn(async move {
         let result = fetch_readable_content(&url).await;
         let _ = tx2.send(AppEvent::FullArticleFetched(source, art_idx, result));

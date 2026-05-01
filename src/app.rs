@@ -86,6 +86,8 @@ pub struct App {
     pub feeds_total: usize,
     /// Feeds still pending a result.
     pub feeds_pending: usize,
+    /// True while a readability fetch for the selected article is in progress.
+    pub article_fetching: bool,
 
     // ── Category tree ────────────────────────────────────────────────────────
     /// All category nodes (persisted to categories.json).
@@ -186,6 +188,7 @@ impl App {
             opml_path_input: String::new(),
             feeds_total: 0,
             feeds_pending: 0,
+            article_fetching: false,
             categories,
             sidebar_collapsed: HashSet::new(),
             sidebar_cursor: 0,

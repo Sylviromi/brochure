@@ -615,7 +615,7 @@ pub(super) fn draw_article_detail(f: &mut Frame, app: &mut App, area: Rect, is_p
     // Show spinner only when the article's own feed is actively refreshing.
     let feed_refreshing =
         !app.in_saved_context && app.feeds.get(app.selected_feed).is_some_and(|f| !f.fetched);
-    let detail_title = if feed_refreshing {
+    let detail_title = if feed_refreshing || app.article_fetching {
         let spinner = SPINNER_FRAMES[app.tick % SPINNER_FRAMES.len()];
         format!(" {spinner} {} ", article.title)
     } else {
