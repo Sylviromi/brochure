@@ -107,16 +107,26 @@ data.
 
 Every commit must be **atomic** — one logical change per commit. Never bundle unrelated changes.
 
-| Type | What belongs together |
-|------|----------------------|
-| `feat:` | Only the source files implementing that feature |
-| `fix:` | Only the files containing the bug fix |
-| `docs:` | Only documentation/config files (CLAUDE.md, README, etc.) |
-| `chore:` | Only task tracking files (TASKS.md) |
-| `test:` | Only test files |
+### Commit types
 
-**Split before committing** — if you changed src files AND docs AND TASKS.md, that is at minimum 3 commits.
-Never combine a `feat` or `fix` with `docs` or `chore` in one commit.
+| Prefix      | Use for                                                                          |
+|-------------|----------------------------------------------------------------------------------|
+| `feat:`     | New user-visible behaviour or capability                                         |
+| `fix:`      | Bug correction (logic, crash, wrong value)                                       |
+| `ui:`       | Visual/layout changes with no behaviour change (colours, borders, spacing, text) |
+| `refactor:` | Internal restructuring with no behaviour change                                  |
+| `perf:`     | Performance improvement                                                          |
+| `test:`     | Adding or fixing tests only                                                      |
+| `docs:`     | Documentation files only (CLAUDE.md, README, ARCHITECTURE.md, etc.)              |
+| `chore:`    | Tooling, CI, dependency, config — nothing a user would notice                    |
+
+### Splitting rules
+
+- **File-level**: if a single file contains hunks of different types, use `git add -p` to stage only the relevant hunks
+  for each commit.
+- **Minimum commits per session**: one per type touched. Changing a handler (fix), its rendering (ui), and CLAUDE.md (
+  docs) = 3 commits.
+- Never mix `feat`/`fix`/`ui`/`refactor` with `docs` in one commit.
 
 ---
 
