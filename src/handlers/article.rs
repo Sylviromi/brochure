@@ -54,6 +54,11 @@ pub(super) async fn handle_article(
         }
         KeyCode::Char('m') => toggle_read(app),
         KeyCode::Char('s') => toggle_starred(app),
+        KeyCode::Char('o') => {
+            if let Some(article) = get_selected_article(app) {
+                let _ = open::that(&article.link);
+            }
+        }
         KeyCode::Esc => app.unselect(),
         _ => {}
     }
