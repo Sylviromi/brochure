@@ -37,7 +37,47 @@ rule), fix it in the same commit.
   Question: <exact question to ask the user>
 ```
 
-**Before marking any task done**: run the full test workflow (below) and confirm the requirement is met.
+**Before marking any task done**: run the full test workflow and confirm the requirement is met.
+
+---
+
+## Test Workflow
+
+Run in order — all must pass before invoking commit-crafter:
+
+```bash
+cargo fmt          # format code; stage any changes it makes
+cargo check        # catch compile errors without a full build
+cargo clippy       # lints; fix any warnings before committing
+cargo test         # run the test suite
+```
+
+`cargo fmt` changes must be staged. Never invoke commit-crafter on code that fails `cargo check` or `cargo clippy`.
+
+---
+
+## Doc Comment Convention
+
+Add `///` doc comments to every `pub` item (functions, structs, enums, methods). Also doc non-obvious private helpers.
+Doc comments feed `rust-ast-extractor` — they are the primary signal used to understand what an item does without
+opening the file.
+
+- One sentence minimum. State **what** the function does and, if non-obvious, **why** or **when** to call it.
+- For structs, describe the role of the struct and any important invariants.
+- For enum variants, use `///` on each variant when the name alone is not self-explanatory.
+- Keep docs concise — one or two sentences is usually enough.
+
+**Example:**
+
+```rust
+/// Returns the path to the on-disk feeds file, creating parent dirs if missing.
+pub fn feeds_path() -> PathBuf { ... }
+
+/// Scrollable text widget state for an individual article's body.
+pub struct TextScroll {
+    ...
+}
+```
 
 ---
 
@@ -131,9 +171,8 @@ Agents do **not** inherit this session's context. Give them everything they need
 
 ### 5. Review and integrate
 
-Collect agent results. Verify no conflicts. Run the test workflow yourself (agents do not run
-`cargo check/test/clippy`).
-Commit per the commit discipline rules.
+Collect agent results. Verify no conflicts. Run the [Test Workflow](#test-workflow) yourself — agents do not run it.
+Then invoke commit-crafter.
 
 ---
 
@@ -152,7 +191,6 @@ On session start, pick **multiple tasks** when sensible — not just one. Batch 
 
 The project is indexed with [`rust-ast-extractor`](https://github.com/TcePrepK/rust-ast-extractor). The cache lives in
 `.ast-cache/` (gitignored).
-
 **Before reading a source file**, check the cache first — it's faster and gives you signatures, docs, and line numbers
 without opening the file:
 
@@ -181,39 +219,5 @@ or after any significant changes. The tool skips unchanged files, so it's fast.
 
 ## Module Map
 
-```
-src/
-├── main.rs           Bootstrap + MPSC event loop
-├── app.rs            App struct + navigation methods (next/previous/select/unselect)
-├── fetch.rs          All async network I/O (feeds, images, readability)
-├── storage.rs        All disk I/O (feeds.json, user_data.json, articles.json, categories.json)
-├── models/
-│   ├── mod.rs        Constants, Category, FeedTreeItem, FeedEditorMode; re-exports all sub-modules
-│   ├── core_types.rs Feed, Article, UserData structs
-│   ├── feed.rs       impl Feed + impl Article (display helpers only — no I/O)
-│   ├── navigation.rs AppState, Tab, SettingsItem, AddFeedStep, FeedSource
-│   └── events.rs     AppEvent (MPSC channel messages)
-├── handlers/
-│   ├── mod.rs        handle_key dispatch
-│   ├── feed_list.rs  FeedList + FavoriteFeedList key handling
-│   ├── article.rs    ArticleList/Detail, read/star toggles, open article
-│   ├── settings.rs   SettingsList, AddFeed, OPML paths, ClearData
-│   └── feed_editor.rs FeedEditor rename/move/delete
-└── ui/
-    ├── mod.rs        Catppuccin Mocha color constants + draw() entry point
-    ├── chrome.rs     Tab bar + footer
-    ├── content.rs    Sidebar, article list, article detail (shared by Feeds + Favorites tabs)
-    ├── editor.rs     Feed editor full-screen view
-    ├── settings.rs   Settings menu
-    └── popups.rs     Add-feed, OPML path, confirm-delete modals
-```
-
----
-
-### Splitting rules
-
-- **File-level**: if a single file contains hunks of different types, use `git add -p` to stage only the relevant hunks
-  for each commit.
-- **Minimum commits per session**: one per type touched. Changing a handler (fix), its rendering (ui), and CLAUDE.md (
-  docs) = 3 commits.
-- Never mix `feat`/`fix`/`ui`/`refactor` with `docs` in one commit.
+Run `rust-ast-extractor dir src/` for a live index of all source files and their responsibilities.
+Each file's `//!` module doc is the authoritative description — it is never out of date.
