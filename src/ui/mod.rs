@@ -121,6 +121,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         AppState::SavedCategoryEditor
             | AppState::SavedCategoryEditorRename
             | AppState::SavedCategoryEditorDeleteConfirm
+            | AppState::SavedCategoryEditorNew
     ) {
         settings::draw_saved_category_editor(f, app, chunks[1]);
         // For delete confirm, also overlay the confirmation popup.

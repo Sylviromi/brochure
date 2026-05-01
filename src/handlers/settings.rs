@@ -276,6 +276,10 @@ pub(super) fn handle_saved_category_editor(app: &mut App, key: KeyEvent) {
                 app.state = AppState::SavedCategoryEditorDeleteConfirm;
             }
         }
+        KeyCode::Char('n') => {
+            app.editor_input.clear();
+            app.state = AppState::SavedCategoryEditorNew;
+        }
         KeyCode::Esc | KeyCode::Char('q') => {
             app.state = AppState::SavedCategoryList;
         }
@@ -307,6 +311,51 @@ pub(super) fn handle_saved_category_editor_delete_confirm(app: &mut App, key: Ke
             app.state = AppState::SavedCategoryEditor;
         }
         KeyCode::Esc | KeyCode::Char('q') => {
+            app.state = AppState::SavedCategoryEditor;
+        }
+        _ => {}
+    }
+}
+
+pub(super) fn handle_saved_category_editor_new(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Enter => {
+            let name = app.editor_input.trim().to_string();
+            if !name.is_empty() {
+                // Reuse existing category if same name already exists.
+                let already_exists = app
+                    .user_data
+                    .saved_categories
+                    .iter()
+                    .any(|c| c.name.eq_ignore_ascii_case(&name));
+                if !already_exists {
+                    let new_id = app
+                        .user_data
+                        .saved_categories
+                        .iter()
+                        .map(|c| c.id)
+                        .max()
+                        .unwrap_or(0)
+                        + 1;
+                    app.user_data.saved_categories.push(crate::models::SavedCategory {
+                        id: new_id,
+                        name: name.clone(),
+                    });
+                    let _ = save_user_data(&app.user_data);
+                    app.set_status(format!("Category '{name}' created."));
+                } else {
+                    app.set_status(format!("Category '{name}' already exists."));
+                }
+            }
+            app.editor_input.clear();
+            app.state = AppState::SavedCategoryEditor;
+        }
+        KeyCode::Char(c) => app.editor_input.push(c),
+        KeyCode::Backspace => {
+            app.editor_input.pop();
+        }
+        KeyCode::Esc => {
+            app.editor_input.clear();
             app.state = AppState::SavedCategoryEditor;
         }
         _ => {}

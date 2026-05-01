@@ -179,7 +179,7 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
 pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rect) {
     let rounded = app.user_data.border_rounded;
     let block = Block::default()
-        .title(" Saved Category Editor  [r] rename  [d] delete  [Esc] back ")
+        .title(" Saved Category Editor  [r] rename  [d] delete  [n] new  [Esc] back ")
         .borders(Borders::ALL)
         .border_set(border_set(rounded))
         .border_style(Style::default().fg(MAUVE))
@@ -255,5 +255,18 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
             inner,
             &mut sb_state,
         );
+    }
+
+    // Render input row when creating a new category.
+    if app.state == AppState::SavedCategoryEditorNew {
+        let input_area = Rect {
+            y: area.bottom().saturating_sub(2),
+            height: 1,
+            ..area
+        };
+        let input_text = format!("  Category name: {}", app.editor_input);
+        let input_para = Paragraph::new(input_text)
+            .style(Style::default().fg(YELLOW));
+        f.render_widget(input_para, input_area);
     }
 }

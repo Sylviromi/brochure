@@ -24,6 +24,8 @@ pub enum AppState {
     SavedCategoryEditorRename,
     /// Confirmation dialog before deleting a saved category.
     SavedCategoryEditorDeleteConfirm,
+    /// Text-input state for creating a new saved category in the editor.
+    SavedCategoryEditorNew,
 }
 
 /// Which tab is active in the tab bar.
