@@ -85,9 +85,32 @@ Break it into independent subtasks. For each subtask identify:
 
 | Complexity | Model | Use for |
 |------------|-------|---------|
-| Simple | `haiku` | Read-only research, single-file UI tweaks, color/string changes, renaming |
+| Trivial | `ollama (local)` | Single-function body edits, constant/string/number changes, rename within one file, add one match arm |
+| Simple | `haiku` | Read-only research, single-file multi-function changes, UI tweaks |
 | Medium | `sonnet` | Multi-file logic changes, new handlers, state machine additions |
 | Complex | `opus` | Architectural decisions, large refactors, new persisted types + full feature |
+
+#### Trivial routing criteria
+
+**Use `ollama`** when ALL of the following are true:
+- The change is within a single file
+- No new `fn`, `struct`, `enum`, or `impl` block is created
+- The instruction does not require understanding how multiple modules fit together
+- The file is not `storage.rs` or `fetch.rs`
+- The change does not touch `AppState`, `AppEvent`, or the state machine
+
+**Use `haiku` minimum** when any of the above is false, or when the instruction contains phrases like "based on", "similar to", or "following the pattern of".
+
+**Routing heuristic:** Can you fully specify the output without the model needing to reason about project architecture? If yes → ollama. If not → haiku minimum.
+
+**Dispatch syntax for trivial tasks:**
+```bash
+echo '{"file":"src/path/to/file.rs","instruction":"your instruction here","context_files":[]}' | python scripts/ollama_agent.py
+```
+
+Result is JSON `{"path": "...", "content": "..."}`. Apply with `Edit` or `Write` tool.
+
+**Fallback:** If `ollama_agent.py` returns `{"error": "..."}`, escalate the task to `haiku`. Never silently drop the error.
 
 ### 3. Present the dispatch plan — wait for approval
 
