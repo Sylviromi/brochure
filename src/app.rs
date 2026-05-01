@@ -166,7 +166,7 @@ impl App {
             .position(|item| matches!(item, FeedTreeItem::Feed { .. }))
             .unwrap_or(0);
 
-        Self {
+        let mut app = Self {
             state: AppState::FeedList,
             feeds,
             selected_feed,
@@ -221,7 +221,14 @@ impl App {
             status_msg_start_tick: 0,
             sidebar_title_start_tick: 0,
             article_title_start_tick: 0,
+        };
+
+        // If the sidebar cursor starts on a category, initialise the category preview.
+        if let Some(FeedTreeItem::Category { id, .. }) = initial_items.first() {
+            app.populate_category_view(*id);
         }
+
+        app
     }
 
     /// Set the status bar message and reset the per-message scroll animation.
