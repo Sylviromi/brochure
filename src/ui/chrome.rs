@@ -126,9 +126,11 @@ pub(super) fn draw_progress_bar(f: &mut Frame, app: &App, area: Rect) {
 /// Renders the bottom footer showing context-sensitive key hints and a scrolling status message.
 pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
     let hints = match app.state {
-        AppState::ArticleDetail => " [↑/↓] Scroll   [m] Read   [s] Save   [Esc] Back   [q] Quit ",
+        AppState::ArticleDetail => {
+            " [↑/↓] Scroll   [m] Read   [s] Save   [y] Copy   [Esc] Back   [q] Quit "
+        }
         AppState::ArticleList => {
-            " [↑/↓] Navigate   [Enter] Open   [m] Read   [s] Save   [Esc] Back   [q] Quit "
+            " [↑/↓] Navigate   [Enter] Open   [m] Read   [s] Save   [y] Copy   [Esc] Back   [q] Quit "
         }
         AppState::SettingsList => {
             " [↑/↓] Navigate   [Enter] Select   [Tab/Shift+Tab] Switch Tab   [Esc] Back   [q] Quit "
@@ -141,7 +143,7 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
             " [↑/↓] Navigate   [Enter] Open   [Tab/Shift+Tab] Switch Tab   [q] Quit "
         }
         AppState::FeedEditor => {
-            " [↑/↓] Navigate   [Tab] Switch Panel   [Enter] Toggle   [Space] Move   [a] Add Feed   [n] New Category   [r] Rename   [d] Delete   [Esc] Back "
+            " [↑/↓] Navigate   [Tab] Switch Panel   [Enter] Toggle   [Space] Move   [a] Add Feed   [n] New Category   [r] Rename   [u] URL   [d] Delete   [Esc] Back "
         }
         AppState::FeedEditorRename => " [Enter] Confirm   [Esc] Cancel ",
         AppState::CategoryPicker => " [↑/↓] Navigate   [Enter] Select   [Esc] Cancel ",

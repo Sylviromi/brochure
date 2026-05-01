@@ -80,6 +80,23 @@ pub(super) async fn handle_article(
                 let _ = open::that(&article.link);
             }
         }
+        KeyCode::Char('y') => {
+            if let Some(article) = get_selected_article(app) {
+                let link = article.link.clone();
+                match arboard::Clipboard::new().and_then(|mut c| c.set_text(link.clone())) {
+                    Ok(_) => {
+                        const MAX_LEN: usize = 50;
+                        let display = if link.len() > MAX_LEN {
+                            format!("{}...", &link[..MAX_LEN])
+                        } else {
+                            link
+                        };
+                        app.set_status(format!("Copied: {display}"));
+                    }
+                    Err(_) => app.set_status("Failed to copy link".to_string()),
+                }
+            }
+        }
         KeyCode::Esc => app.unselect(),
         _ => {}
     }
