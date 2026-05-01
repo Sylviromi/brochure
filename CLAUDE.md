@@ -93,32 +93,34 @@ Break it into independent subtasks. For each subtask identify:
 - Which files it touches
 - Whether it depends on another subtask
 
-### 2. Assign model by complexity
+### 2. Assign model by complexity score
 
-| Complexity | Model            | Use for                                                                                               |
-|------------|------------------|-------------------------------------------------------------------------------------------------------|
-| Trivial    | `ollama (local)` | Single-function body edits, constant/string/number changes, rename within one file, add one match arm |
-| Simple     | `haiku`          | Read-only research, single-file multi-function changes, UI tweaks                                     |
-| Medium     | `sonnet`         | Multi-file logic changes, new handlers, state machine additions                                       |
-| Complex    | `opus`           | Architectural decisions, large refactors, new persisted types + full feature                          |
+Score each subtask on three axes (0–3 each), sum them, and map to a model:
 
-#### Trivial routing criteria
+| Axis | 0 | 1 | 2 | 3 |
+|------|---|---|---|---|
+| **Scope** | One function body, no new items | Multi-fn or adds private items in one file | 1–2 files, may add pub items | 3+ files or pub API surface across modules |
+| **Context** | Fully specified — no reasoning needed | Follows a pattern visible in the same file | Cross-file pattern or touches module boundary | Needs architectural or convention knowledge |
+| **Risk** | UI, display logic, constants, doc comments | Business logic, handlers, standard data flow | `storage.rs`, `fetch.rs`, state transitions | `AppState`, `AppEvent`, event loop, persisted types |
 
-**Use `ollama`** when ALL the following are true:
+**Score → Model:**
 
-- The change is within a single file
-- No new `fn`, `struct`, `enum`, or `impl` block is created
-- The instruction does not require understanding how multiple modules fit together
-- The file is not `storage.rs` or `fetch.rs`
-- The change does not touch `AppState`, `AppEvent`, or the state machine
+| Score | Model | Typical work |
+|-------|-------|--------------|
+| 0–2   | `ollama (local)` | Single-fn edits, private helpers, UI tweaks, constants |
+| 3–5   | `haiku`          | Read-only research, pub fn additions, cross-file pattern follow |
+| 6–7   | `sonnet`         | Multi-file logic, new handlers, state machine additions |
+| 8–9   | `opus`           | Architectural decisions, large refactors, new persisted types |
 
-**Use `haiku` minimum** when any of the above is false, or when the instruction contains phrases like "based on", "
-similar to", or "following the pattern of".
+**Scoring examples:**
 
-**Routing heuristic:** Can you fully specify the output without the model needing to reason about project architecture?
-If yes → ollama. If not → haiku minimum.
+- Change a keybinding constant → Scope 0 + Context 0 + Risk 0 = **0** → ollama
+- Add private helper fn in `ui/` following local pattern → Scope 1 + Context 1 + Risk 0 = **2** → ollama
+- Add new pub handler in `handlers/` → Scope 2 + Context 1 + Risk 1 = **4** → haiku
+- Add variant to fetch state machine → Scope 2 + Context 2 + Risk 2 = **6** → sonnet
+- Redesign `AppState` with new persisted type → Scope 3 + Context 3 + Risk 3 = **9** → opus
 
-**Dispatch syntax for trivial tasks:**
+**Dispatch syntax for ollama tasks:**
 
 ```bash
 echo '{"file":"src/path/to/file.rs","instruction":"your instruction here","context_files":[]}' | python scripts/ollama_agent.py
@@ -139,10 +141,11 @@ Output a markdown table exactly matching this format:
 Tasks selected: <list>
 
 Agent plan:
-| # | Task | Subtask | Model  | Rationale |
-|---|------|---------|--------|-----------|
-| 1 | ...  | ...     | haiku  | read-only |
-| 2 | ...  | ...     | sonnet | multi-file logic |
+| # | Task | Subtask | S+C+R | Score | Model  | Rationale |
+|---|------|---------|-------|-------|--------|-----------|
+| 1 | ...  | ...     | 0+1+0 |   1   | ollama | private helper, local pattern, UI file |
+| 2 | ...  | ...     | 2+1+1 |   4   | haiku  | new pub fn, cross-file pattern |
+| 3 | ...  | ...     | 2+2+2 |   6   | sonnet | multi-file logic, state transition |
 
 Total: X ollama, Y haiku, Z sonnet, W opus. Proceed? (y / adjust)
 ```
@@ -156,7 +159,7 @@ Use the `Agent` tool. Independent subtasks launch simultaneously. Sequential sub
 **One agent per file group:** Subtasks that all edit the same file must be merged into a single agent. Never split
 same-file changes across multiple agents — it causes redundant file reads and potential conflicts.
 
-**Ollama dispatch uses `Bash`, not `Agent`:** Trivial tasks routed to `ollama` must be dispatched with the `Bash` tool
+**Ollama dispatch uses `Bash`, not `Agent`:** Tasks routed to `ollama` must be dispatched with the `Bash` tool
 running `ollama_agent.py`. The `Agent` tool always hits the Claude API regardless of any model label. Apply the returned
 content with `Edit` or `Write`.
 
