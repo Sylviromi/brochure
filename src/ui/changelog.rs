@@ -44,8 +44,9 @@ fn draw_about_block(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .border_set(border_set(app.user_data.border_rounded))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(PEACH))
+        .border_style(Style::default().fg(SURFACE0))
         .title(" About ")
+        .title_style(Style::default().fg(PEACH))
         .bg(BASE);
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -103,8 +104,9 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::default()
         .border_set(border_set(app.user_data.border_rounded))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(PEACH))
+        .border_style(Style::default().fg(MAUVE))
         .title(" Changelog ")
+        .title_style(Style::default().fg(PEACH))
         .bg(BASE);
     let inner = block.inner(area);
     f.render_widget(block, area);
