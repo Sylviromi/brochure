@@ -8,8 +8,10 @@ use super::CategoryId;
 pub struct Feed {
     pub title: String,
     pub url: String,
+    /// Which category this feed belongs to. None = root / uncategorized.
     #[serde(default)]
     pub category_id: Option<CategoryId>,
+    /// Display order among siblings (lower = first).
     #[serde(default)]
     pub order: usize,
     #[serde(skip, default)]
@@ -18,10 +20,13 @@ pub struct Feed {
     pub articles: Vec<Article>,
     #[serde(skip, default)]
     pub fetched: bool,
+    /// Last fetch error message, if any.
     #[serde(skip, default)]
     pub fetch_error: Option<String>,
+    /// Unix timestamp (seconds) from the feed's own `<updated>` / `<lastBuildDate>` field.
     #[serde(skip)]
     pub feed_updated_secs: Option<i64>,
+    /// Unix timestamp (seconds) of our last successful fetch of this feed.
     #[serde(default)]
     pub last_fetched_secs: Option<i64>,
 }
@@ -40,8 +45,10 @@ pub struct Article {
     pub content: String,
     #[serde(default)]
     pub image_url: Option<String>,
+    /// Name of the feed this article was fetched from (set at fetch time).
     #[serde(default)]
     pub source_feed: String,
+    /// Unix timestamp (seconds) of when the article was published.
     #[serde(default)]
     pub published_secs: Option<i64>,
 }
@@ -64,14 +71,14 @@ pub struct SavedArticle {
     pub category_id: u32,
 }
 
-/// User-specific persistent data.
+/// User-specific persistent data (read/starred state).
 #[derive(Serialize, Deserialize, Default)]
 pub struct UserData {
     pub read_links: HashSet<String>,
-    /// New: articles saved to user-defined categories.
+    /// Articles saved by the user into named categories.
     #[serde(default)]
     pub saved_articles: Vec<SavedArticle>,
-    /// New: user-defined save categories.
+    /// User-defined categories for organizing saved articles.
     #[serde(default)]
     pub saved_categories: Vec<SavedCategory>,
     /// Legacy field: populated when reading old user_data.json. Migrated on load, never re-written.
