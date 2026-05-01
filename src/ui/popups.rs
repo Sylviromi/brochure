@@ -10,7 +10,7 @@ use ratatui::prelude::Stylize;
 
 use crate::{app::App, models::{AddFeedStep, AppState, CategoryId}};
 
-use super::{border_set, BASE, BLUE, GREEN, MAUVE, SUBTEXT0, TEXT};
+use super::{border_set, BASE, BLUE, GREEN, MAUVE, RED, SUBTEXT0, SURFACE0, TEXT};
 
 pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
     let area = f.area();
@@ -320,4 +320,75 @@ pub(super) fn draw_opml_path_popup(f: &mut Frame, app: &App) {
             .style(Style::default().fg(TEXT)),
         center,
     );
+}
+
+pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
+    let area = f.area();
+    let cats = &app.user_data.saved_categories;
+    let cats_len = cats.len();
+
+    let height = (cats_len as u16 + 5).min(area.height.saturating_sub(4));
+    let width = 40u16.min(area.width.saturating_sub(4));
+    let x = area.x + (area.width.saturating_sub(width)) / 2;
+    let y = area.y + (area.height.saturating_sub(height)) / 2;
+    let popup_area = Rect { x, y, width, height };
+
+    let rounded = app.user_data.border_rounded;
+    let block = Block::default()
+        .title(" Save Article To… ")
+        .borders(Borders::ALL)
+        .border_set(border_set(rounded))
+        .border_style(Style::default().fg(MAUVE))
+        .style(Style::default().bg(BASE));
+
+    f.render_widget(ratatui::widgets::Clear, popup_area);
+    f.render_widget(block.clone(), popup_area);
+
+    let inner = block.inner(popup_area);
+
+    let mut lines: Vec<Line> = Vec::new();
+
+    for (i, cat) in cats.iter().enumerate() {
+        let is_selected = app.category_picker_cursor == i;
+        let style = if is_selected {
+            Style::default().bg(SURFACE0).fg(MAUVE)
+        } else {
+            Style::default().fg(TEXT)
+        };
+        lines.push(Line::from(Span::styled(format!("  {}", cat.name), style)));
+    }
+
+    let new_idx = cats_len;
+    if app.category_picker_new_mode {
+        lines.push(Line::from(vec![
+            Span::styled("  + ", Style::default().fg(BLUE)),
+            Span::styled(
+                format!("{}|", app.category_picker_input),
+                Style::default().fg(TEXT),
+            ),
+        ]));
+    } else {
+        let new_style = if app.category_picker_cursor == new_idx {
+            Style::default().bg(SURFACE0).fg(BLUE)
+        } else {
+            Style::default().fg(BLUE)
+        };
+        lines.push(Line::from(Span::styled("  + New category…", new_style)));
+    }
+
+    lines.push(Line::from(Span::styled(
+        "  ──────────────",
+        Style::default().fg(SURFACE0),
+    )));
+
+    let unsave_idx = cats_len + 1;
+    let unsave_style = if app.category_picker_cursor == unsave_idx {
+        Style::default().bg(SURFACE0).fg(RED)
+    } else {
+        Style::default().fg(RED)
+    };
+    lines.push(Line::from(Span::styled("  ✕ Unsave", unsave_style)));
+
+    let para = Paragraph::new(lines);
+    f.render_widget(para, inner);
 }

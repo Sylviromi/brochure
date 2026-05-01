@@ -116,9 +116,14 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     chrome::draw_tab_bar(f, app, chunks[0]);
     chrome::draw_footer(f, app, chunks[2]);
 
+    if matches!(app.state, AppState::SavedCategoryEditor | AppState::SavedCategoryEditorRename) {
+        settings::draw_saved_category_editor(f, app, chunks[1]);
+        return;
+    }
+
     match app.selected_tab {
         Tab::Feeds => content::draw_feeds_tab(f, app, chunks[1]),
-        Tab::Favorites => content::draw_favorites_tab(f, app, chunks[1]),
+        Tab::Saved => content::draw_saved_tab(f, app, chunks[1]),
         Tab::Settings => settings::draw_settings_tab(f, app, chunks[1]),
     }
 
@@ -136,5 +141,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     }
     if let Some((cat_id, feed_count)) = app.editor_delete_cat {
         popups::draw_confirm_delete_cat(f, app, cat_id, feed_count);
+    }
+    if app.state == AppState::CategoryPicker {
+        popups::draw_category_picker(f, app);
     }
 }
