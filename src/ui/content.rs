@@ -17,7 +17,7 @@ use ratatui::{
 use ratatui::prelude::Stylize;
 
 use crate::{
-    app::{App, visible_tree_items},
+    app::{App, sidebar_tree_items},
     models::{AppState, Article, FeedTreeItem, Tab},
 };
 
@@ -262,7 +262,7 @@ fn draw_saved_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
 
 /// Renders the feeds sidebar showing categories and feeds in a tree with unread badges and fetch status.
 pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
-    let tree = visible_tree_items(&app.categories, &app.feeds, &app.sidebar_collapsed);
+    let tree = sidebar_tree_items(&app.categories, &app.feeds, &app.sidebar_collapsed);
     let is_navigating = app.state == AppState::FeedList;
     let cursor = app.sidebar_cursor;
 
@@ -296,6 +296,26 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
         .map(|(render_idx, item)| {
             let selected = cursor == render_idx;
             match item {
+                FeedTreeItem::AllFeeds => {
+                    let total_unread: usize = app
+                        .feeds
+                        .iter()
+                        .filter(|f| f.url != crate::models::FAVORITES_URL)
+                        .map(|f| f.unread_count)
+                        .sum();
+                    let style = if selected {
+                        Style::default()
+                            .fg(YELLOW)
+                            .bg(SURFACE0)
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(TEXT)
+                    };
+                    ListItem::new(Line::from(vec![
+                        Span::styled("  ★ All Feeds ", style),
+                        Span::styled(format!("[{total_unread}]"), Style::default().fg(SUBTEXT0)),
+                    ]))
+                }
                 FeedTreeItem::Category {
                     id,
                     depth,
@@ -577,11 +597,14 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
     // ── Category context: flat date-sorted list from all feeds in selected category ──
     if app.in_category_context {
         // Derive the category name from the sidebar selection for the panel title.
-        let cat_name: String = app
-            .selected_sidebar_category
-            .and_then(|id| app.categories.iter().find(|c| c.id == id))
-            .map(|c| c.name.clone())
-            .unwrap_or_else(|| "Category".to_string());
+        let cat_name: String = if app.in_all_feeds_context {
+            "★ All Feeds".to_string()
+        } else {
+            app.selected_sidebar_category
+                .and_then(|id| app.categories.iter().find(|c| c.id == id))
+                .map(|c| c.name.clone())
+                .unwrap_or_else(|| "Category".to_string())
+        };
 
         let is_navigating = app.state == AppState::ArticleList;
         let block = Block::default()
@@ -1053,7 +1076,9 @@ fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_article_view: bo
             return;
         }
 
-        if app.in_category_context || app.selected_sidebar_category.is_some() {
+        if (app.in_category_context || app.selected_sidebar_category.is_some())
+            && app.selected_tab != Tab::Saved
+        {
             let article_count = app.category_view_articles.len();
             let unread_count = app
                 .category_view_articles
