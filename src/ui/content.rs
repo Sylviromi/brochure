@@ -9,7 +9,7 @@ use ratatui::{
 use ratatui::prelude::Stylize;
 
 use crate::{
-    app::{visible_tree_items, App, CategoryViewItem},
+    app::{visible_tree_items, App},
     models::{AppState, FeedTreeItem, Tab},
 };
 
@@ -382,8 +382,8 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-/// Render the article list panel when `selected_sidebar_category` is Some —
-/// shows articles from all feeds in the category, grouped with feed-name headers.
+/// Render the article list panel as a flat date-sorted preview when the sidebar
+/// cursor rests on a category header (FeedList state, no navigation cursor).
 fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rect) {
     let cat_id = match app.selected_sidebar_category {
         Some(id) => id,
@@ -409,7 +409,7 @@ fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rect) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    if app.category_view_items.is_empty() {
+    if app.category_view_articles.is_empty() {
         f.render_widget(
             Paragraph::new(" No articles in this category.")
                 .style(Style::default().fg(SUBTEXT0)),
@@ -419,39 +419,30 @@ fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     let items: Vec<ListItem> = app
-        .category_view_items
+        .category_view_articles
         .iter()
-        .map(|item| match item {
-            CategoryViewItem::Header(title) => ListItem::new(Line::from(vec![
-                Span::styled(
-                    format!("── {} ──", title),
-                    Style::default().fg(MAUVE).add_modifier(Modifier::BOLD),
-                ),
-            ])),
-            CategoryViewItem::Article { feeds_idx, article_idx } => {
-                let article = &app.feeds[*feeds_idx].articles[*article_idx];
-                let style = if article.is_read {
-                    Style::default().fg(SUBTEXT0)
-                } else {
-                    Style::default().fg(TEXT)
-                };
-                ListItem::new(Line::from(vec![
-                    Span::styled(article.get_icon(), article.get_icon_style()),
-                    Span::raw(truncate_title(&article.title, inner.width as usize - 2)),
-                ]))
-                .style(style)
-            }
+        .map(|&(fi, ai)| {
+            let article = &app.feeds[fi].articles[ai];
+            let style = if article.is_read {
+                Style::default().fg(SUBTEXT0)
+            } else {
+                Style::default().fg(TEXT)
+            };
+            ListItem::new(Line::from(vec![
+                Span::styled(article.get_icon(), article.get_icon_style()),
+                Span::raw(truncate_title(&article.title, inner.width as usize - 2)),
+            ]))
+            .style(style)
         })
         .collect();
 
-    let total = app.category_view_items.len();
+    let total = app.category_view_articles.len();
     let has_scrollbar = total > inner.height as usize;
     let list_render_area = if has_scrollbar {
         Rect { width: inner.width.saturating_sub(1), ..inner }
     } else {
         inner
     };
-    // Use article_list_state for scrolling (reset selection so nothing is highlighted)
     app.article_list_state.select(None);
     f.render_stateful_widget(
         List::new(items),
@@ -470,6 +461,96 @@ fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
+    // ── Category context: flat date-sorted list from all feeds in selected category ──
+    if app.in_category_context {
+        // Derive the category name from the sidebar selection for the panel title.
+        let cat_name: String = app
+            .selected_sidebar_category
+            .and_then(|id| app.categories.iter().find(|c| c.id == id))
+            .map(|c| c.name.clone())
+            .unwrap_or_else(|| "Category".to_string());
+
+        let is_navigating = app.state == AppState::ArticleList;
+        let block = Block::default()
+            .border_set(border_set(app.user_data.border_rounded))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(if is_navigating { MAUVE } else { SURFACE0 }))
+            .bg(BASE)
+            .title(Span::styled(
+                format!(" {} ", cat_name),
+                Style::default().fg(BLUE).add_modifier(Modifier::BOLD),
+            ));
+        let inner = block.inner(area);
+        f.render_widget(block, area);
+
+        if app.category_view_articles.is_empty() {
+            f.render_widget(
+                Paragraph::new(" No articles in this category.")
+                    .style(Style::default().fg(SUBTEXT0)),
+                inner,
+            );
+            return;
+        }
+
+        let items: Vec<ListItem> = app
+            .category_view_articles
+            .iter()
+            .enumerate()
+            .map(|(i, &(fi, ai))| {
+                let article = &app.feeds[fi].articles[ai];
+                let is_selected = app.selected_article == i
+                    && app.state == AppState::ArticleList;
+                let style = if is_selected {
+                    Style::default()
+                        .fg(MAUVE)
+                        .bg(SURFACE0)
+                        .add_modifier(Modifier::BOLD)
+                } else if article.is_read {
+                    Style::default().fg(SUBTEXT0)
+                } else {
+                    Style::default().fg(TEXT)
+                };
+                let title_available = (inner.width as usize).saturating_sub(2);
+                let displayed_title = if is_selected {
+                    let elapsed = app.tick.saturating_sub(app.article_title_start_tick);
+                    scroll_title(&article.title, title_available, elapsed)
+                } else {
+                    article.title.clone()
+                };
+                ListItem::new(Line::from(vec![
+                    Span::styled(article.get_icon(), article.get_icon_style()),
+                    Span::raw(displayed_title),
+                ]))
+                .style(style)
+            })
+            .collect();
+
+        let total = app.category_view_articles.len();
+        let has_scrollbar = total > inner.height as usize;
+        let list_render_area = if has_scrollbar {
+            Rect { width: inner.width.saturating_sub(1), ..inner }
+        } else {
+            inner
+        };
+        app.article_list_state.select(Some(app.selected_article));
+        f.render_stateful_widget(
+            List::new(items),
+            list_render_area,
+            &mut app.article_list_state,
+        );
+        if has_scrollbar {
+            let mut sb_state = ScrollbarState::new(total)
+                .position(app.selected_article);
+            f.render_stateful_widget(
+                Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                    .style(Style::default().fg(SURFACE0)),
+                inner,
+                &mut sb_state,
+            );
+        }
+        return;
+    }
+
     // In the Saved tab but no category is selected (cursor on a category or nothing).
     if app.selected_tab == Tab::Saved && !app.in_saved_context {
         let block = Block::default()
@@ -614,6 +695,16 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
 /// Render the article list footer bar (feed URL, counts, fetch age).
 /// `area` should be the full-width rect already allocated for the footer.
 fn draw_article_list_footer(f: &mut Frame, app: &App, area: Rect) {
+    if app.in_category_context {
+        // Render a minimal footer for the category view.
+        let bar_block = Block::default()
+            .borders(Borders::TOP)
+            .border_style(Style::default().fg(SURFACE0))
+            .bg(BASE);
+        f.render_widget(bar_block, area);
+        return;
+    }
+
     let (feed_url, articles, feed_updated_secs, last_fetched_secs): (&str, &[crate::models::Article], Option<i64>, Option<i64>) =
         if app.in_saved_context {
             ("", app.saved_view_articles.as_slice(), None, None)
@@ -688,7 +779,12 @@ fn draw_article_list_footer(f: &mut Frame, app: &App, area: Rect) {
 }
 
 pub(super) fn draw_article_detail(f: &mut Frame, app: &mut App, area: Rect, is_preview: bool) {
-    let article = if app.in_saved_context {
+    let article = if app.in_category_context {
+        app.category_view_articles
+            .get(app.selected_article)
+            .and_then(|&(fi, ai)| app.feeds.get(fi).and_then(|f| f.articles.get(ai)))
+            .cloned()
+    } else if app.in_saved_context {
         app.saved_view_articles
             .get(app.selected_article)
             .cloned()
@@ -716,8 +812,9 @@ pub(super) fn draw_article_detail(f: &mut Frame, app: &mut App, area: Rect, is_p
     let Some(article) = article else { return };
 
     // Show spinner only when the article's own feed is actively refreshing.
-    let feed_refreshing =
-        !app.in_saved_context && app.feeds.get(app.selected_feed).is_some_and(|f| !f.fetched);
+    let feed_refreshing = !app.in_saved_context
+        && !app.in_category_context
+        && app.feeds.get(app.selected_feed).is_some_and(|f| !f.fetched);
     let detail_title = if feed_refreshing || app.article_fetching {
         let spinner = SPINNER_FRAMES[app.tick % SPINNER_FRAMES.len()];
         format!(" {spinner} {} ", article.title)
