@@ -3,6 +3,7 @@
 //! Dispatches keyboard input to state-specific handlers (feed list, article detail, settings, etc.).
 
 mod article;
+mod changelog;
 mod feed_editor;
 mod feed_list;
 mod settings;
@@ -33,7 +34,7 @@ pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEv
         AppState::FeedEditor | AppState::FeedEditorRename => {
             feed_editor::handle_feed_editor(app, key, tx)
         }
-        AppState::CategoryPicker => article::handle_category_picker(app, key),
+        AppState::CategoryPicker => article::handle_category_picker(app, key, tx),
         AppState::SavedCategoryEditor => settings::handle_saved_category_editor(app, key),
         AppState::SavedCategoryEditorRename => {
             settings::handle_saved_category_editor_rename(app, key)
@@ -42,6 +43,7 @@ pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEv
             settings::handle_saved_category_editor_delete_confirm(app, key)
         }
         AppState::SavedCategoryEditorNew => settings::handle_saved_category_editor_new(app, key),
+        AppState::Changelog => return changelog::handle_changelog(app, key),
     }
     false
 }

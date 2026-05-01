@@ -3,6 +3,7 @@
 //! This module owns all rendering logic, including Catppuccin Mocha color constants,
 //! tree indentation helpers, and the main `draw()` function that dispatches to per-tab renderers.
 
+mod changelog;
 mod chrome;
 mod content;
 mod editor;
@@ -163,6 +164,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         Tab::Feeds => content::draw_feeds_tab(f, app, chunks[1]),
         Tab::Saved => content::draw_saved_tab(f, app, chunks[1]),
         Tab::Settings => settings::draw_settings_tab(f, app, chunks[1]),
+        Tab::Changelog => changelog::draw_changelog_tab(f, app, chunks[1]),
     }
 
     if app.state == AppState::AddFeed {

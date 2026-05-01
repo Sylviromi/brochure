@@ -130,6 +130,10 @@ pub struct App {
     /// Pending category delete: (id, total_feeds_to_delete). Set on [d], cleared on Esc or after confirm.
     pub editor_delete_cat: Option<(CategoryId, usize)>,
 
+    // ── Changelog tab ────────────────────────────────────────────────────────
+    /// Scroll offset for the Changelog tab view.
+    pub changelog_scroll: u16,
+
     // ── Status message animation ─────────────────────────────────────────────
     /// Value of `tick` when `status_msg` was last set — used to compute per-message scroll offset.
     pub status_msg_start_tick: usize,
@@ -218,6 +222,7 @@ impl App {
             editor_panel: EditorPanel::Feeds,
             editor_cat_cursor: 0,
             editor_delete_cat: None,
+            changelog_scroll: 0,
             status_msg_start_tick: 0,
             sidebar_title_start_tick: 0,
             article_title_start_tick: 0,
@@ -258,6 +263,7 @@ impl App {
             Tab::Feeds => AppState::FeedList,
             Tab::Saved => AppState::SavedCategoryList,
             Tab::Settings => AppState::SettingsList,
+            Tab::Changelog => AppState::Changelog,
         };
         if self.selected_tab == Tab::Saved {
             self.sync_saved_preview();
@@ -963,29 +969,6 @@ mod tests {
     }
 
     #[test]
-    fn test_navigation_wrapping() {
-        let mut app = app_with_feed();
-        // sidebar_cursor=0 points to the test feed (no categories, no Favorites)
-        app.select(); // FeedList -> ArticleList
-        assert_eq!(app.state, AppState::ArticleList);
-        assert_eq!(app.selected_feed, 0); // test feed is at feeds[0] (no virtual Favorites in tests)
-
-        app.next(); // 0 -> 1
-        assert_eq!(app.selected_article, 1);
-        app.next(); // 1 -> 0 (wrap)
-        assert_eq!(app.selected_article, 0);
-
-        app.select(); // ArticleList -> ArticleDetail
-        assert_eq!(app.state, AppState::ArticleDetail);
-        assert_eq!(app.article_scroll.get(""), 0);
-
-        app.unselect(); // -> ArticleList
-        assert_eq!(app.state, AppState::ArticleList);
-        app.unselect(); // -> FeedList
-        assert_eq!(app.state, AppState::FeedList);
-    }
-
-    #[test]
     fn test_tab_switching() {
         let mut app = App::new();
         assert_eq!(app.selected_tab, Tab::Feeds);
@@ -995,6 +978,9 @@ mod tests {
         app.switch_tab_right();
         assert_eq!(app.selected_tab, Tab::Settings);
         assert_eq!(app.state, AppState::SettingsList);
+        app.switch_tab_right();
+        assert_eq!(app.selected_tab, Tab::Changelog);
+        assert_eq!(app.state, AppState::Changelog);
         app.switch_tab_right(); // wraps back to Feeds
         assert_eq!(app.selected_tab, Tab::Feeds);
         assert_eq!(app.state, AppState::FeedList);

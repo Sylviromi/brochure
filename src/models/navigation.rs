@@ -39,6 +39,8 @@ pub enum AppState {
     SavedCategoryEditorDeleteConfirm,
     /// Text-input state for creating a new saved category in the editor.
     SavedCategoryEditorNew,
+    /// Viewing the changelog and about screen.
+    Changelog,
 }
 
 /// Which tab is active in the tab bar.
@@ -47,6 +49,8 @@ pub enum Tab {
     Feeds,
     Saved,
     Settings,
+    /// The changelog and about screen.
+    Changelog,
 }
 
 impl Tab {
@@ -55,16 +59,18 @@ impl Tab {
         match self {
             Self::Feeds => Self::Saved,
             Self::Saved => Self::Settings,
-            Self::Settings => Self::Feeds,
+            Self::Settings => Self::Changelog,
+            Self::Changelog => Self::Feeds,
         }
     }
 
     /// Cycle to the previous tab (wraps around).
     pub fn prev(self) -> Self {
         match self {
-            Self::Feeds => Self::Settings,
+            Self::Feeds => Self::Changelog,
             Self::Saved => Self::Feeds,
             Self::Settings => Self::Saved,
+            Self::Changelog => Self::Settings,
         }
     }
 }

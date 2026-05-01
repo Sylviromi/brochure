@@ -27,6 +27,7 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
         (" Feeds ", Tab::Feeds),
         (" Saved ", Tab::Saved),
         (" Settings ", Tab::Settings),
+        (" Changelog ", Tab::Changelog),
     ];
 
     let mut tab_spans: Vec<Span> = vec![
@@ -155,6 +156,7 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         AppState::FeedList => {
             " [↑/↓] Navigate   [Space] Expand   [Enter] Open   [r] Refresh   [R] Fetch All   [e] Edit   [Tab/Shift+Tab] Switch Tab   [q] Quit "
         }
+        AppState::Changelog => " [↑/↓] Scroll   [Tab/Shift+Tab] Switch Tab   [q] Quit ",
     };
 
     let block = Block::default()
