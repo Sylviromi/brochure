@@ -10,6 +10,7 @@ repository = "https://github.com/TcePrepK/brochure"
 readme = "README.md"
 keywords = ["rss", "tui", "terminal", "reader", "atom"]
 categories = ["command-line-utilities"]
+exclude = ["CLAUDE.md"]
 
 [[bin]]
 name = "brochure"
