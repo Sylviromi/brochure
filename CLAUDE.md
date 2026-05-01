@@ -23,7 +23,8 @@ rule), fix it in the same commit.
 
 ## Task Workflow
 
-1. **On session start**: read `TASKS.md`. Pick up the highest-priority incomplete item.
+1. **On session start**: read `vault/wiki/INDEX.md`, navigate to relevant nodes as needed, then read `TASKS.md`. Pick up
+   the highest-priority incomplete item.
 2. **Priority indicators**: tasks marked with [!] are high-priority. Always prioritize these before non-flagged tasks
    within the same category.
 3. **Pick up work**: always take the highest-priority incomplete item first.
@@ -71,28 +72,6 @@ src/
     ├── settings.rs   Settings menu
     └── popups.rs     Add-feed, OPML path, confirm-delete modals
 ```
-
----
-
-## Module Rules (non-negotiable)
-
-| Module       | Does                                         | Never does                          |
-|--------------|----------------------------------------------|-------------------------------------|
-| `models/`    | Type definitions + display-only impl methods | Any I/O, logic, rendering           |
-| `app.rs`     | App struct fields + navigation methods       | I/O, rendering, key handling        |
-| `storage.rs` | Disk I/O only                                | Network, rendering, state mutation  |
-| `fetch.rs`   | Async network I/O only                       | File I/O, rendering, state mutation |
-| `handlers/`  | Key routing; mutates App; spawns tasks       | File I/O (calls storage), rendering |
-| `ui/`        | Ratatui rendering only                       | State mutation, any I/O             |
-| `main.rs`    | Bootstrap + MPSC dispatch                    | Business logic, rendering details   |
-
-- **`ui/` draw functions are pure** — `&mut App` is only for Ratatui widget state (e.g. `content_line_count`). Never
-  call `save_*` or mutate logical state inside a draw function.
-- **All disk writes go through `storage.rs`** — no `std::fs` calls anywhere else.
-- **All network calls go through `fetch.rs`** — no inline `reqwest` in handlers.
-- **All new shared types go into `models/`** — never redeclare a type in another module.
-- **`impl` blocks on model types belong in `models/feed.rs`** — only display helpers (no I/O).
-- **`app.rs` navigation methods only** — `next()`, `previous()`, `select()`, `unselect()`, tab switching.
 
 ---
 
