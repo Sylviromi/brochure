@@ -53,6 +53,7 @@ pub enum SettingsItem {
     SaveArticleContent,
     ClearArticleCache,
     EagerArticleFetch,
+    AutoFetchOnStart,
     BorderStyle,
 }
 
@@ -64,7 +65,8 @@ impl SettingsItem {
             Self::ClearData => Self::SaveArticleContent,
             Self::SaveArticleContent => Self::ClearArticleCache,
             Self::ClearArticleCache => Self::EagerArticleFetch,
-            Self::EagerArticleFetch => Self::BorderStyle,
+            Self::EagerArticleFetch => Self::AutoFetchOnStart,
+            Self::AutoFetchOnStart => Self::BorderStyle,
             Self::BorderStyle => Self::ImportOpml,
         }
     }
@@ -77,9 +79,19 @@ impl SettingsItem {
             Self::SaveArticleContent => Self::ClearData,
             Self::ClearArticleCache => Self::SaveArticleContent,
             Self::EagerArticleFetch => Self::ClearArticleCache,
-            Self::BorderStyle => Self::EagerArticleFetch,
+            Self::AutoFetchOnStart => Self::EagerArticleFetch,
+            Self::BorderStyle => Self::AutoFetchOnStart,
         }
     }
+}
+
+/// Which panel has focus in the feed editor.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum EditorPanel {
+    /// Left panel: category manager (add/rename/delete categories).
+    Categories,
+    /// Right panel: combined feed+category tree (move feeds/categories).
+    Feeds,
 }
 
 /// Which step the multi-step AddFeed flow is on.

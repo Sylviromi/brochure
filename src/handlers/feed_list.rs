@@ -21,7 +21,7 @@ pub(super) fn handle_feed_list(
                 let title = feed.title.clone();
                 feed.fetched = false;
                 feed.fetch_error = None;
-                app.status_msg = format!("Refreshing {title}...");
+                app.set_status(format!("Refreshing {title}..."));
                 app.feeds_pending += 1;
                 app.feeds_total += 1;
                 let tx2 = tx.clone();
@@ -29,6 +29,25 @@ pub(super) fn handle_feed_list(
                     let result = fetch_feed(&url).await;
                     let _ = tx2.send(AppEvent::FeedFetched(idx, result));
                 });
+            }
+        }
+        KeyCode::Char('R') if !app.in_favorites_context => {
+            let count = app.feeds.iter().filter(|f| f.url != crate::models::FAVORITES_URL).count();
+            if count > 0 {
+                app.feeds_total += count;
+                app.feeds_pending += count;
+                app.set_status("Fetching all feeds...");
+                for (idx, feed) in app.feeds.iter_mut().enumerate() {
+                    if feed.url == crate::models::FAVORITES_URL { continue; }
+                    feed.fetched = false;
+                    feed.fetch_error = None;
+                    let url = feed.url.clone();
+                    let tx2 = tx.clone();
+                    tokio::spawn(async move {
+                        let result = fetch_feed(&url).await;
+                        let _ = tx2.send(AppEvent::FeedFetched(idx, result));
+                    });
+                }
             }
         }
         KeyCode::Down => app.next(),

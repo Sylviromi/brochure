@@ -374,6 +374,7 @@ fn push_feed(
         fetched: false,
         fetch_error: None,
         feed_updated_secs: None,
+        last_fetched_secs: None,
     });
 }
 

@@ -38,7 +38,7 @@ pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
                 app.user_data.save_article_content = !app.user_data.save_article_content;
                 let _ = save_user_data(&app.user_data);
                 let state = if app.user_data.save_article_content { "ON" } else { "OFF" };
-                app.status_msg = format!("Save Article Content: {state}");
+                app.set_status(format!("Save Article Content: {state}"));
             }
             SettingsItem::ClearArticleCache => {
                 app.state = AppState::ClearArticleCache;
@@ -47,13 +47,19 @@ pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
                 app.user_data.eager_article_fetch = !app.user_data.eager_article_fetch;
                 let _ = save_user_data(&app.user_data);
                 let state = if app.user_data.eager_article_fetch { "ON" } else { "OFF" };
-                app.status_msg = format!("Eager Article Fetch: {state}");
+                app.set_status(format!("Eager Article Fetch: {state}"));
+            }
+            SettingsItem::AutoFetchOnStart => {
+                app.user_data.auto_fetch_on_start = !app.user_data.auto_fetch_on_start;
+                let _ = save_user_data(&app.user_data);
+                let state = if app.user_data.auto_fetch_on_start { "ON" } else { "OFF" };
+                app.set_status(format!("Auto Fetch On Start: {state}"));
             }
             SettingsItem::BorderStyle => {
                 app.user_data.border_rounded = !app.user_data.border_rounded;
                 let _ = save_user_data(&app.user_data);
                 let state = if app.user_data.border_rounded { "ON" } else { "OFF" };
-                app.status_msg = format!("Rounded Borders: {state}");
+                app.set_status(format!("Rounded Borders: {state}"));
             }
         },
         _ => {}
@@ -94,7 +100,7 @@ pub(super) fn handle_add_feed(app: &mut App, key: KeyEvent, tx: &UnboundedSender
                     match app.add_feed_fetched_title.clone() {
                         Some(t) if !t.is_empty() => t,
                         _ => {
-                            app.status_msg = "Title is required.".to_string();
+                            app.set_status("Title is required.".to_string());
                             return;
                         }
                     }
@@ -124,9 +130,10 @@ pub(super) fn handle_add_feed(app: &mut App, key: KeyEvent, tx: &UnboundedSender
                     fetched: false,
                     fetch_error: None,
                     feed_updated_secs: None,
+                    last_fetched_secs: None,
                 });
                 let _ = save_feeds(&app.feeds);
-                app.status_msg = format!("Feed '{title}' added!");
+                app.set_status(format!("Feed '{title}' added!"));
                 let tx2 = tx.clone();
                 let idx = app.feeds.len() - 1;
                 tokio::spawn(async move {
@@ -160,7 +167,7 @@ pub(super) fn handle_confirm_delete_all(app: &mut App, key: KeyEvent) {
             app.selected_article = 0;
             app.sidebar_cursor = 0;
             let _ = clear_all_data();
-            app.status_msg = "All data cleared.".to_string();
+            app.set_status("All data cleared.".to_string());
             app.state = AppState::SettingsList;
         }
         KeyCode::Esc | KeyCode::Char('q') => app.state = AppState::SettingsList,
@@ -183,7 +190,7 @@ pub(super) fn handle_confirm_clear_cache(app: &mut App, key: KeyEvent) {
             // Clear read list and persist
             app.user_data.read_links.clear();
             let _ = save_user_data(&app.user_data);
-            app.status_msg = "Article cache cleared.".to_string();
+            app.set_status("Article cache cleared.".to_string());
             app.state = AppState::SettingsList;
         }
         KeyCode::Esc | KeyCode::Char('q') => app.state = AppState::SettingsList,
@@ -196,19 +203,19 @@ pub(super) fn handle_opml_path(app: &mut App, key: KeyEvent, tx: &UnboundedSende
         KeyCode::Enter => {
             let raw = app.opml_path_input.trim().to_string();
             if raw.is_empty() {
-                app.status_msg = "Path cannot be empty.".to_string();
+                app.set_status("Path cannot be empty.".to_string());
                 return;
             }
             let path = expand_home_dir(&raw);
             if app.state == AppState::OPMLExportPath {
                 match export_opml_to_path(&path, &app.feeds, &app.categories) {
-                    Ok(()) => app.status_msg = format!("Exported to {raw}"),
-                    Err(e) => app.status_msg = format!("Export failed: {e}"),
+                    Ok(()) => app.set_status(format!("Exported to {raw}")),
+                    Err(e) => app.set_status(format!("Export failed: {e}")),
                 }
             } else {
                 match import_opml_from_path(&path, &app.feeds, &app.categories) {
                     Ok((new_feeds, new_cats)) if new_feeds.is_empty() && new_cats.is_empty() => {
-                        app.status_msg = "No new feeds found in OPML file.".to_string();
+                        app.set_status("No new feeds found in OPML file.".to_string());
                     }
                     Ok((new_feeds, new_cats)) => {
                         let feed_count = new_feeds.len();
@@ -227,10 +234,9 @@ pub(super) fn handle_opml_path(app: &mut App, key: KeyEvent, tx: &UnboundedSende
                         app.categories.extend(new_cats);
                         let _ = save_feeds(&app.feeds);
                         let _ = save_categories(&app.categories);
-                        app.status_msg =
-                            format!("Imported {feed_count} feed(s), {cat_count} category(s)");
+                        app.set_status(format!("Imported {feed_count} feed(s), {cat_count} category(s)"));
                     }
-                    Err(e) => app.status_msg = format!("Import failed: {e}"),
+                    Err(e) => app.set_status(format!("Import failed: {e}")),
                 }
             }
             app.opml_path_input.clear();

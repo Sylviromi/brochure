@@ -134,11 +134,11 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
             " [↑/↓] Navigate   [Enter] Open   [Tab/Shift+Tab] Switch Tab   [q] Quit "
         }
         AppState::FeedEditor => {
-            " [↑/↓] Navigate   [Enter/m] Move   [a] Add Feed   [n] (Sub)Category   [r] Rename   [d] Delete   [Esc] Back "
+            " [↑/↓] Navigate   [Tab] Switch Panel   [Enter] Toggle   [Space] Move (Feeds)   [a] Add Feed   [n] New Category   [r] Rename   [d] Delete   [Esc] Back "
         }
         AppState::FeedEditorRename => " [Enter] Confirm   [Esc] Cancel ",
         AppState::FeedList => {
-            " [↑/↓] Navigate   [Enter] Open/Expand   [r] Refresh   [e] Edit   [Tab/Shift+Tab] Switch Tab   [q] Quit "
+            " [↑/↓] Navigate   [Enter] Open/Expand   [r] Refresh   [R] Fetch All   [e] Edit   [Tab/Shift+Tab] Switch Tab   [q] Quit "
         }
     };
 
@@ -174,11 +174,10 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         if body_len <= viewport {
             Span::styled(format!("{prefix}{body} "), Style::default().fg(GREEN))
         } else {
-            // Scroll 1 char every 2 ticks. Pause at end for 8 ticks before looping.
+            // Scroll 1 char per tick (~250 ms), stop at end.
             let max_offset = body_len.saturating_sub(viewport);
-            let period = max_offset + 8;
-            let offset = (app.tick / 2) % period;
-            let start = offset.min(max_offset);
+            let elapsed = app.tick.saturating_sub(app.status_msg_start_tick);
+            let start = elapsed.min(max_offset);
             let visible: String = body_chars[start..].iter().take(viewport).collect();
             Span::styled(format!("{prefix}{visible} "), Style::default().fg(GREEN))
         }

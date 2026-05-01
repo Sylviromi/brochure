@@ -22,7 +22,7 @@ pub(super) async fn handle_article(
                 let title = feed.title.clone();
                 feed.fetched = false;
                 feed.fetch_error = None;
-                app.status_msg = format!("Refreshing {title}...");
+                app.set_status(format!("Refreshing {title}..."));
                 app.feeds_pending += 1;
                 app.feeds_total += 1;
                 let tx2 = tx.clone();
@@ -137,7 +137,7 @@ fn fetch_full_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>, art
         return;
     }
 
-    app.status_msg = "Fetching full article...".to_string();
+    app.set_status("Fetching full article...".to_string());
     update_article_content(app, "⏳ Fetching full article, please wait...".to_string());
 
     let tx2 = tx.clone();
@@ -240,11 +240,11 @@ fn toggle_starred(app: &mut App) {
     update_starred_in_user_data(app, &link, &source_feed, new_starred);
 
     let _ = save_user_data(&app.user_data);
-    app.status_msg = if new_starred {
-        "Article starred! ⭐".to_string()
+    app.set_status(if new_starred {
+        "Article starred! ⭐"
     } else {
-        "Article un-starred.".to_string()
-    };
+        "Article un-starred."
+    });
 }
 
 fn get_selected_article_info(app: &App) -> Option<(String, String)> {

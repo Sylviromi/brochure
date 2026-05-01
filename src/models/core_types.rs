@@ -26,6 +26,9 @@ pub struct Feed {
     /// Unix timestamp (seconds) from the feed's own `<updated>` / `<lastBuildDate>` field.
     #[serde(skip)]
     pub feed_updated_secs: Option<i64>,
+    /// Unix timestamp (seconds) of our last successful fetch of this feed.
+    #[serde(default)]
+    pub last_fetched_secs: Option<i64>,
 }
 
 /// A single article entry from a feed.
@@ -64,4 +67,7 @@ pub struct UserData {
     /// When false, content is fetched lazily when the user opens an article.
     #[serde(default = "default_true")]
     pub eager_article_fetch: bool,
+    /// When true (default), all feeds are fetched automatically on startup.
+    #[serde(default = "default_true")]
+    pub auto_fetch_on_start: bool,
 }

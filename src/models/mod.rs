@@ -55,7 +55,10 @@ pub enum FeedEditorMode {
     Normal,
     /// Item at this render-list index is being dragged.
     Moving {
+        /// Index in the effective tree (all-collapsed for category moves).
         origin_render_idx: usize,
+        /// Cursor position before entering move mode — restored on Esc.
+        original_cursor: usize,
     },
     /// Renaming the item at this render-list index.
     Renaming {

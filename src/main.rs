@@ -76,20 +76,22 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
         }
     }
 
-    // Kick off initial feed fetches for all persisted feeds
-    let fetch_count = app.feeds.len();
-    app.feeds_total = fetch_count;
-    app.feeds_pending = fetch_count;
-    if fetch_count > 0 {
-        app.status_msg = "Fetching feeds...".to_string();
-    }
-    for (idx, feed) in app.feeds.iter().enumerate() {
-        let tx2 = tx.clone();
-        let url = feed.url.clone();
-        tokio::spawn(async move {
-            let result = fetch_feed(&url).await;
-            let _ = tx2.send(AppEvent::FeedFetched(idx, result));
-        });
+    // Kick off initial feed fetches for all persisted feeds (unless disabled in settings).
+    if app.user_data.auto_fetch_on_start {
+        let fetch_count = app.feeds.len();
+        app.feeds_total = fetch_count;
+        app.feeds_pending = fetch_count;
+        if fetch_count > 0 {
+            app.set_status("Fetching feeds...");
+        }
+        for (idx, feed) in app.feeds.iter().enumerate() {
+            let tx2 = tx.clone();
+            let url = feed.url.clone();
+            tokio::spawn(async move {
+                let result = fetch_feed(&url).await;
+                let _ = tx2.send(AppEvent::FeedFetched(idx, result));
+            });
+        }
     }
 
     loop {
@@ -115,20 +117,29 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
 
             AppEvent::FullArticleFetched(source, art_idx, result) => match source {
                 FeedSource::Favorites => {
-                    if let Some(article) = app.favorite_view_articles.get_mut(art_idx) {
-                        match result {
+                    let status_msg = if let Some(article) =
+                        app.favorite_view_articles.get_mut(art_idx)
+                    {
+                        let msg = match result {
                             Ok(html) => {
                                 article.content = html2md::parse_html(&html);
-                                app.status_msg = "Article loaded.".to_string();
+                                "Article loaded.".to_string()
                             }
                             Err(e) => {
                                 article.content = format!("Failed to load article: {e}");
-                                app.status_msg = format!("Extraction failed: {e}");
+                                format!("Extraction failed: {e}")
                             }
-                        }
+                        };
                         if app.selected_article == art_idx {
-                            app.content_line_count = article.content.lines().count().max(1);
+                            app.content_line_count =
+                                article.content.lines().count().max(1);
                         }
+                        Some(msg)
+                    } else {
+                        None
+                    };
+                    if let Some(msg) = status_msg {
+                        app.set_status(msg);
                     }
                 }
                 FeedSource::Feed(feed_idx) => {
@@ -138,11 +149,11 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
                         match result {
                             Ok(html) => {
                                 article.content = html2md::parse_html(&html);
-                                app.status_msg = "Article loaded.".to_string();
+                                app.set_status("Article loaded.");
                             }
                             Err(e) => {
                                 article.content = format!("Failed to load article: {e}");
-                                app.status_msg = format!("Extraction failed: {e}");
+                                app.set_status(format!("Extraction failed: {e}"));
                             }
                         }
                         if app.selected_feed == feed_idx && app.selected_article == art_idx {
@@ -217,6 +228,12 @@ fn on_feed_fetched(
             feed.fetch_error = None;
             feed.fetched = true;
             feed.feed_updated_secs = xml_updated_secs;
+            feed.last_fetched_secs = Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(0),
+            );
         }
         Err(e) => {
             let feed_title = app
@@ -224,7 +241,7 @@ fn on_feed_fetched(
                 .get(idx)
                 .map(|f| f.title.clone())
                 .unwrap_or_default();
-            app.status_msg = format!("⚠ {feed_title}: {e}");
+            app.set_status(format!("⚠ {feed_title}: {e}"));
             if let Some(feed) = app.feeds.get_mut(idx) {
                 feed.fetch_error = Some(e);
                 feed.fetched = true;
@@ -236,7 +253,7 @@ fn on_feed_fetched(
     app.feeds_pending = app.feeds_pending.saturating_sub(1);
     if app.feeds_pending == 0 {
         app.feeds_total = 0;
-        app.status_msg = "Feeds loaded.".to_string();
+        app.set_status("Feeds loaded.");
     }
 
     // Persist article cache

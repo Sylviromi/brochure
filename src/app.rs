@@ -1,6 +1,6 @@
 use crate::models::{
-    AddFeedStep, AppState, Article, Category, CategoryId, Feed, FeedEditorMode, FeedTreeItem,
-    SettingsItem, Tab, UserData, FAVORITES_URL,
+    AddFeedStep, AppState, Article, Category, CategoryId, EditorPanel, Feed, FeedEditorMode,
+    FeedTreeItem, SettingsItem, Tab, UserData, FAVORITES_URL,
 };
 use crate::storage::{article_cache_size, load_categories, load_feeds, load_user_data};
 use ratatui::widgets::ListState;
@@ -88,6 +88,22 @@ pub struct App {
     pub editor_mode: FeedEditorMode,
     /// Text buffer for rename / new-category input in the feed editor.
     pub editor_input: String,
+    /// Which panel has focus in the split editor (Categories = left, Feeds = right).
+    pub editor_panel: EditorPanel,
+    /// Cursor in the left (categories-only) panel of the editor.
+    pub editor_cat_cursor: usize,
+    /// Pending category delete: (id, total_feeds_to_delete). Set on [d], cleared on Esc or after confirm.
+    pub editor_delete_cat: Option<(CategoryId, usize)>,
+
+    // ── Status message animation ─────────────────────────────────────────────
+    /// Value of `tick` when `status_msg` was last set — used to compute per-message scroll offset.
+    pub status_msg_start_tick: usize,
+
+    // ── Title auto-scroll animation ──────────────────────────────────────────
+    /// Value of `tick` when the sidebar cursor last moved — used to scroll long feed titles.
+    pub sidebar_title_start_tick: usize,
+    /// Value of `tick` when the article selection last changed — used to scroll long article titles.
+    pub article_title_start_tick: usize,
 }
 
 impl App {
@@ -146,7 +162,19 @@ impl App {
             editor_collapsed: HashSet::new(),
             editor_mode: FeedEditorMode::Normal,
             editor_input: String::new(),
+            editor_panel: EditorPanel::Feeds,
+            editor_cat_cursor: 0,
+            editor_delete_cat: None,
+            status_msg_start_tick: 0,
+            sidebar_title_start_tick: 0,
+            article_title_start_tick: 0,
         }
+    }
+
+    /// Set the status bar message and reset the per-message scroll animation.
+    pub fn set_status(&mut self, msg: impl Into<String>) {
+        self.status_msg = msg.into();
+        self.status_msg_start_tick = self.tick;
     }
 
     // ── Tab switching ────────────────────────────────────────────────────────
@@ -186,6 +214,7 @@ impl App {
                 }
 
                 self.sidebar_cursor = (self.sidebar_cursor + 1) % items.len();
+                self.sidebar_title_start_tick = self.tick;
                 if let Some(FeedTreeItem::Feed { feeds_idx, .. }) = items.get(self.sidebar_cursor) {
                     self.selected_feed = *feeds_idx;
                     self.selected_article = 0;
@@ -201,6 +230,7 @@ impl App {
                 };
                 if len > 0 {
                     self.selected_article = (self.selected_article + 1) % len;
+                    self.article_title_start_tick = self.tick;
                 }
             }
             AppState::SettingsList => {
@@ -216,14 +246,35 @@ impl App {
                 if !items.is_empty() {
                     self.favorites_sidebar_cursor =
                         (self.favorites_sidebar_cursor + 1) % items.len();
+                    self.sidebar_title_start_tick = self.tick;
                     self.sync_favorites_preview();
                 }
             }
             AppState::FeedEditor => {
-                let items =
-                    visible_tree_items(&self.categories, &self.feeds, &self.editor_collapsed);
-                if !items.is_empty() {
-                    self.editor_cursor = (self.editor_cursor + 1) % items.len();
+                if self.editor_panel == EditorPanel::Categories {
+                    let cats = visible_cat_only_items(&self.categories, &self.feeds, &self.editor_collapsed);
+                    if !cats.is_empty() {
+                        self.editor_cat_cursor = (self.editor_cat_cursor + 1) % cats.len();
+                    }
+                } else {
+                    let items =
+                        visible_tree_items(&self.categories, &self.feeds, &self.editor_collapsed);
+                    if !items.is_empty() {
+                        let skip_feeds = self.editor_moving_category(&items);
+                        let wrap_len = if skip_feeds { items.len() + 1 } else { items.len() };
+                        let mut next = (self.editor_cursor + 1) % wrap_len;
+                        if skip_feeds {
+                            let mut attempts = items.len();
+                            while attempts > 0
+                                && next < items.len()
+                                && matches!(items.get(next), Some(FeedTreeItem::Feed { .. }))
+                            {
+                                next = (next + 1) % wrap_len;
+                                attempts -= 1;
+                            }
+                        }
+                        self.editor_cursor = next;
+                    }
                 }
             }
             _ => {}
@@ -244,6 +295,7 @@ impl App {
                     .sidebar_cursor
                     .checked_sub(1)
                     .unwrap_or(items.len() - 1);
+                self.sidebar_title_start_tick = self.tick;
 
                 if let Some(FeedTreeItem::Feed { feeds_idx, .. }) = items.get(self.sidebar_cursor) {
                     self.selected_feed = *feeds_idx;
@@ -260,6 +312,7 @@ impl App {
                 };
                 if len > 0 {
                     self.selected_article = self.selected_article.checked_sub(1).unwrap_or(len - 1);
+                    self.article_title_start_tick = self.tick;
                 }
             }
             AppState::SettingsList => {
@@ -277,15 +330,37 @@ impl App {
                         .favorites_sidebar_cursor
                         .checked_sub(1)
                         .unwrap_or(items.len() - 1);
+                    self.sidebar_title_start_tick = self.tick;
                     self.sync_favorites_preview();
                 }
             }
             AppState::FeedEditor => {
-                let items =
-                    visible_tree_items(&self.categories, &self.feeds, &self.editor_collapsed);
-                if !items.is_empty() {
-                    self.editor_cursor =
-                        self.editor_cursor.checked_sub(1).unwrap_or(items.len() - 1);
+                if self.editor_panel == EditorPanel::Categories {
+                    let cats = visible_cat_only_items(&self.categories, &self.feeds, &self.editor_collapsed);
+                    if !cats.is_empty() {
+                        self.editor_cat_cursor =
+                            self.editor_cat_cursor.checked_sub(1).unwrap_or(cats.len() - 1);
+                    }
+                } else {
+                    let items =
+                        visible_tree_items(&self.categories, &self.feeds, &self.editor_collapsed);
+                    if !items.is_empty() {
+                        let skip_feeds = self.editor_moving_category(&items);
+                        let wrap_len = if skip_feeds { items.len() + 1 } else { items.len() };
+                        let mut prev =
+                            self.editor_cursor.checked_sub(1).unwrap_or(wrap_len - 1);
+                        if skip_feeds {
+                            let mut attempts = items.len();
+                            while attempts > 0
+                                && prev < items.len()
+                                && matches!(items.get(prev), Some(FeedTreeItem::Feed { .. }))
+                            {
+                                prev = prev.checked_sub(1).unwrap_or(wrap_len - 1);
+                                attempts -= 1;
+                            }
+                        }
+                        self.editor_cursor = prev;
+                    }
                 }
             }
             _ => {}
@@ -409,6 +484,15 @@ impl App {
         }
     }
 
+    /// True when currently moving a category — used to skip feeds during navigation.
+    fn editor_moving_category(&self, items: &[FeedTreeItem]) -> bool {
+        if let FeedEditorMode::Moving { original_cursor, .. } = &self.editor_mode {
+            matches!(items.get(*original_cursor), Some(FeedTreeItem::Category { .. }))
+        } else {
+            false
+        }
+    }
+
     /// Ascend back up the navigation hierarchy.
     pub fn unselect(&mut self) {
         match self.state {
@@ -472,6 +556,19 @@ pub fn visible_tree_items(
     collapsed: &HashSet<CategoryId>,
 ) -> Vec<FeedTreeItem> {
     visible_tree_items_filtered(categories, feeds, collapsed, None)
+}
+
+/// Returns only `FeedTreeItem::Category` rows from the visible tree.
+/// Used by the left (categories-only) panel of the split editor.
+pub fn visible_cat_only_items(
+    categories: &[Category],
+    feeds: &[Feed],
+    collapsed: &HashSet<CategoryId>,
+) -> Vec<FeedTreeItem> {
+    visible_tree_items(categories, feeds, collapsed)
+        .into_iter()
+        .filter(|item| matches!(item, FeedTreeItem::Category { .. }))
+        .collect()
 }
 
 /// Like `visible_tree_items` but only shows feeds that have at least one starred article.
@@ -642,6 +739,7 @@ mod tests {
             fetched: false,
             fetch_error: None,
             feed_updated_secs: None,
+                last_fetched_secs: None,
         });
         app
     }
@@ -705,6 +803,7 @@ mod tests {
                 fetched: false,
                 fetch_error: None,
                 feed_updated_secs: None,
+                last_fetched_secs: None,
             },
             Feed {
                 title: "News".into(),
@@ -716,6 +815,7 @@ mod tests {
                 fetched: false,
                 fetch_error: None,
                 feed_updated_secs: None,
+                last_fetched_secs: None,
             },
         ];
         let collapsed = HashSet::new();
@@ -744,6 +844,7 @@ mod tests {
                 fetched: false,
                 fetch_error: None,
                 feed_updated_secs: None,
+                last_fetched_secs: None,
             },
             Feed {
                 title: "HN".into(),
@@ -755,6 +856,7 @@ mod tests {
                 fetched: false,
                 fetch_error: None,
                 feed_updated_secs: None,
+                last_fetched_secs: None,
             },
         ];
         let mut collapsed = HashSet::new();
