@@ -44,6 +44,73 @@ rule), fix it in the same commit.
 
 ---
 
+## Agent Orchestration (mandatory for every task)
+
+After reading TASKS.md and selecting a task, **never implement it directly**. Instead:
+
+### 1. Decompose the task
+
+Break it into independent subtasks. For each subtask identify:
+- What it does
+- Which files it touches
+- Whether it depends on another subtask
+
+### 2. Assign model by complexity
+
+| Complexity | Model | Use for |
+|------------|-------|---------|
+| Simple | `haiku` | Read-only research, single-file UI tweaks, color/string changes, renaming |
+| Medium | `sonnet` | Multi-file logic changes, new handlers, state machine additions |
+| Complex | `opus` | Architectural decisions, large refactors, new persisted types + full feature |
+
+### 3. Present the dispatch plan — wait for approval
+
+Before firing any agent, output a plan table and **stop**. Do not proceed until user approves.
+
+```
+Tasks selected: <list>
+
+Agent plan:
+| # | Task | Subtask | Model  | Rationale |
+|---|------|---------|--------|-----------|
+| 1 | ...  | ...     | haiku  | read-only |
+| 2 | ...  | ...     | sonnet | multi-file logic |
+
+Total: X haiku, Y sonnet, Z opus. Proceed? (y / adjust)
+```
+
+User may reply "y", adjust individual models, drop agents, or merge subtasks. Incorporate feedback before dispatching.
+
+### 4. Dispatch agents in parallel
+
+Use the `Agent` tool. Independent subtasks launch simultaneously. Sequential subtasks (B depends on A's output) chain.
+
+Each agent prompt must include:
+- Exact file paths to read/edit
+- The specific change required
+- Constraints (e.g., "do not touch `ui/`", "read-only, return findings only")
+- Expected return value ("return the new struct definition" / "make the change and return nothing")
+
+Agents do **not** inherit this session's context. Give them everything they need inline.
+
+### 5. Review and integrate
+
+Collect agent results. Verify no conflicts. Run the test workflow yourself (agents do not run `cargo check/test/clippy`).
+Commit per the commit discipline rules.
+
+---
+
+## Multi-task batching
+
+On session start, pick **multiple tasks** when sensible — not just one. Batch criteria:
+
+- Prefer grouping tasks of similar complexity (e.g., several small UI tasks together)
+- Max batch: however many can be decomposed without subtask conflicts (shared file writes)
+- Present all selected tasks in the single dispatch plan table above
+- One combined approval covers all selected tasks
+
+---
+
 ## Module Map
 
 ```
