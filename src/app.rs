@@ -262,6 +262,17 @@ impl App {
         if self.selected_tab == Tab::Saved {
             self.sync_saved_preview();
         }
+        if self.selected_tab == Tab::Feeds {
+            let items = visible_tree_items(&self.categories, &self.feeds, &self.sidebar_collapsed);
+            match items.get(self.sidebar_cursor) {
+                Some(FeedTreeItem::Category { id, .. }) => self.populate_category_view(*id),
+                Some(FeedTreeItem::Feed { feeds_idx, .. }) => {
+                    self.selected_feed = *feeds_idx;
+                    self.clear_category_view();
+                }
+                None => {}
+            }
+        }
     }
 
     // ── Standard navigation ──────────────────────────────────────────────────
@@ -276,7 +287,13 @@ impl App {
                     return;
                 }
 
-                self.sidebar_cursor = (self.sidebar_cursor + 1) % items.len();
+                if self.user_data.scroll_loop {
+                    self.sidebar_cursor = (self.sidebar_cursor + 1) % items.len();
+                } else if self.sidebar_cursor < items.len() - 1 {
+                    self.sidebar_cursor += 1;
+                } else {
+                    return;
+                }
                 self.sidebar_title_start_tick = self.tick;
                 match items.get(self.sidebar_cursor) {
                     Some(FeedTreeItem::Feed { feeds_idx, .. }) => {
@@ -301,7 +318,11 @@ impl App {
                         .map_or(0, |f| f.articles.len())
                 };
                 if len > 0 {
-                    self.selected_article = (self.selected_article + 1) % len;
+                    if self.user_data.scroll_loop {
+                        self.selected_article = (self.selected_article + 1) % len;
+                    } else {
+                        self.selected_article = (self.selected_article + 1).min(len - 1);
+                    }
                     self.article_title_start_tick = self.tick;
                 }
             }
@@ -310,7 +331,11 @@ impl App {
             }
             AppState::SavedCategoryList => {
                 let count = 1 + self.user_data.saved_categories.len();
-                self.saved_sidebar_cursor = (self.saved_sidebar_cursor + 1) % count;
+                if self.user_data.scroll_loop {
+                    self.saved_sidebar_cursor = (self.saved_sidebar_cursor + 1) % count;
+                } else {
+                    self.saved_sidebar_cursor = (self.saved_sidebar_cursor + 1).min(count - 1);
+                }
                 self.sidebar_title_start_tick = self.tick;
                 self.sync_saved_preview();
             }
@@ -376,10 +401,16 @@ impl App {
                     return;
                 }
 
-                self.sidebar_cursor = self
-                    .sidebar_cursor
-                    .checked_sub(1)
-                    .unwrap_or(items.len() - 1);
+                if self.user_data.scroll_loop {
+                    self.sidebar_cursor = self
+                        .sidebar_cursor
+                        .checked_sub(1)
+                        .unwrap_or(items.len() - 1);
+                } else if self.sidebar_cursor > 0 {
+                    self.sidebar_cursor -= 1;
+                } else {
+                    return;
+                }
                 self.sidebar_title_start_tick = self.tick;
 
                 match items.get(self.sidebar_cursor) {
@@ -405,7 +436,12 @@ impl App {
                         .map_or(0, |f| f.articles.len())
                 };
                 if len > 0 {
-                    self.selected_article = self.selected_article.checked_sub(1).unwrap_or(len - 1);
+                    if self.user_data.scroll_loop {
+                        self.selected_article =
+                            self.selected_article.checked_sub(1).unwrap_or(len - 1);
+                    } else {
+                        self.selected_article = self.selected_article.saturating_sub(1);
+                    }
                     self.article_title_start_tick = self.tick;
                 }
             }
@@ -414,10 +450,14 @@ impl App {
             }
             AppState::SavedCategoryList => {
                 let count = 1 + self.user_data.saved_categories.len();
-                self.saved_sidebar_cursor = self
-                    .saved_sidebar_cursor
-                    .checked_sub(1)
-                    .unwrap_or(count - 1);
+                if self.user_data.scroll_loop {
+                    self.saved_sidebar_cursor = self
+                        .saved_sidebar_cursor
+                        .checked_sub(1)
+                        .unwrap_or(count - 1);
+                } else {
+                    self.saved_sidebar_cursor = self.saved_sidebar_cursor.saturating_sub(1);
+                }
                 self.sidebar_title_start_tick = self.tick;
                 self.sync_saved_preview();
             }
@@ -674,6 +714,16 @@ impl App {
                 self.in_saved_context = false;
                 self.selected_tab = Tab::Feeds;
                 self.state = AppState::FeedList;
+                let items =
+                    visible_tree_items(&self.categories, &self.feeds, &self.sidebar_collapsed);
+                match items.get(self.sidebar_cursor) {
+                    Some(FeedTreeItem::Category { id, .. }) => self.populate_category_view(*id),
+                    Some(FeedTreeItem::Feed { feeds_idx, .. }) => {
+                        self.selected_feed = *feeds_idx;
+                        self.clear_category_view();
+                    }
+                    None => {}
+                }
             }
             AppState::FeedEditor => {
                 self.editor_mode = FeedEditorMode::Normal;
