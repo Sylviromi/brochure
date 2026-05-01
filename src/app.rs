@@ -872,6 +872,7 @@ mod tests {
             image_url: None,
             source_feed: String::new(),
             published_secs: None,
+            is_archived: false,
         }
     }
 

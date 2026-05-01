@@ -91,6 +91,7 @@ pub async fn fetch_feed(url: &str) -> Result<(Vec<Article>, Option<i64>), String
                 image_url,
                 source_feed: String::new(), // filled in by on_feed_fetched in main.rs
                 published_secs,
+                is_archived: false,
             }
         })
         .collect();
