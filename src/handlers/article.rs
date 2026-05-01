@@ -245,6 +245,15 @@ fn save_to_category(app: &mut App, category_id: u32) {
     let _ = save_user_data(&app.user_data);
     if app.in_saved_context {
         app.sync_saved_preview();
+        if !app.in_saved_context {
+            // View emptied — return to category list.
+            app.selected_article = 0;
+            if matches!(app.state, AppState::ArticleList | AppState::ArticleDetail) {
+                app.state = AppState::SavedCategoryList;
+            }
+        } else if app.selected_article >= app.saved_view_articles.len() {
+            app.selected_article = app.saved_view_articles.len().saturating_sub(1);
+        }
     }
 }
 
@@ -264,9 +273,13 @@ fn unsave_article(app: &mut App) {
 
     if app.in_saved_context {
         app.saved_view_articles.retain(|a| a.link != article.link);
-        if app.selected_article >= app.saved_view_articles.len()
-            && !app.saved_view_articles.is_empty()
-        {
+        if app.saved_view_articles.is_empty() {
+            app.in_saved_context = false;
+            app.selected_article = 0;
+            if matches!(app.state, AppState::ArticleList | AppState::ArticleDetail) {
+                app.state = AppState::SavedCategoryList;
+            }
+        } else if app.selected_article >= app.saved_view_articles.len() {
             app.selected_article = app.saved_view_articles.len() - 1;
         }
     }

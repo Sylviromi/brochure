@@ -975,38 +975,54 @@ fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_article_view: bo
             }
         }
 
-        if app.state == AppState::ArticleDetail {
-            let scroll_offset = app.article_scroll.get(&article.link);
-            let line_count = app.content_line_count.max(1);
-            let content_height = app.content_area_height;
-            let max_scroll = line_count.saturating_sub(content_height as usize);
-            let pct = if max_scroll == 0 {
-                100
-            } else {
-                (scroll_offset as usize * 100 / max_scroll).min(100)
-            };
-            let pct_str = format!(" {pct}% ");
-            let pct_width = pct_str.len() as u16;
-            let bar_chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Min(0), Constraint::Length(pct_width)])
-                .split(area);
-            f.render_widget(
-                Paragraph::new(Line::from(link_spans)).bg(BASE),
-                bar_chunks[0],
-            );
-            f.render_widget(
-                Paragraph::new(pct_str)
-                    .style(Style::default().fg(YELLOW).add_modifier(Modifier::BOLD))
-                    .bg(BASE),
-                bar_chunks[1],
-            );
+        let scroll_offset = app.article_scroll.get(&article.link);
+        let line_count = app.content_line_count.max(1);
+        let content_height = app.content_area_height;
+        let max_scroll = line_count.saturating_sub(content_height as usize);
+        let pct = if max_scroll == 0 {
+            100
         } else {
-            f.render_widget(Paragraph::new(Line::from(link_spans)).bg(BASE), area);
-        }
+            (scroll_offset as usize * 100 / max_scroll).min(100)
+        };
+        let pct_str = format!(" {pct}% ");
+        let pct_width = pct_str.len() as u16;
+        let bar_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Min(0), Constraint::Length(pct_width)])
+            .split(area);
+        f.render_widget(
+            Paragraph::new(Line::from(link_spans)).bg(BASE),
+            bar_chunks[0],
+        );
+        f.render_widget(
+            Paragraph::new(pct_str)
+                .style(Style::default().fg(YELLOW).add_modifier(Modifier::BOLD))
+                .bg(BASE),
+            bar_chunks[1],
+        );
     } else {
         // ── Feed stats footer: article count, unread, fetch age on a single row ──
         if app.in_category_context {
+            let article_count = app.category_view_articles.len();
+            let unread_count = app
+                .category_view_articles
+                .iter()
+                .filter(|&&(fi, ai)| {
+                    app.feeds
+                        .get(fi)
+                        .and_then(|f| f.articles.get(ai))
+                        .is_some_and(|a| !a.is_read)
+                })
+                .count();
+            let unread_color = if unread_count > 0 { YELLOW } else { GREEN };
+            let stat_spans = vec![
+                Span::styled(" ", Style::default().fg(SUBTEXT0)),
+                Span::styled(article_count.to_string(), Style::default().fg(BLUE)),
+                Span::styled(" articles  •  ", Style::default().fg(SUBTEXT0)),
+                Span::styled(unread_count.to_string(), Style::default().fg(unread_color)),
+                Span::styled(" unread", Style::default().fg(SUBTEXT0)),
+            ];
+            f.render_widget(Paragraph::new(Line::from(stat_spans)).bg(BASE), area);
             return;
         }
 
