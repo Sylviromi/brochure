@@ -18,7 +18,6 @@ use super::{
     SUBTEXT0, SURFACE0, TEXT, YELLOW,
 };
 
-/// Format a Unix timestamp (seconds) as a relative age string.
 fn format_age(secs: i64) -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -49,7 +48,9 @@ fn tree_indent(tree: &[FeedTreeItem], render_idx: usize, depth: u8) -> String {
             .iter()
             .find(|n| {
                 let d = match n {
-                    FeedTreeItem::Feed { depth, .. } | FeedTreeItem::Category { depth, .. } => *depth,
+                    FeedTreeItem::Feed { depth, .. } | FeedTreeItem::Category { depth, .. } => {
+                        *depth
+                    }
                 };
                 d <= level
             })
@@ -63,6 +64,19 @@ fn tree_indent(tree: &[FeedTreeItem], render_idx: usize, depth: u8) -> String {
         }
     }
     s
+}
+
+/// Scroll `text` to fit within `available` chars, using `elapsed` ticks.
+/// Pauses 8 ticks (~2s) before scrolling, then advances 1 char/tick, stops at end.
+fn scroll_title(text: &str, available: usize, elapsed: usize) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let len = chars.len();
+    if len <= available || available == 0 {
+        return text.to_string();
+    }
+    let max_offset = len - available;
+    let start = elapsed.saturating_sub(8).min(max_offset);
+    chars[start..start + available].iter().collect()
 }
 
 /// Color for a Unix timestamp age: green = fresh, yellow = today, dimmed = old.
@@ -82,7 +96,10 @@ fn age_color(secs: i64) -> ratatui::style::Color {
 }
 
 pub(super) fn draw_feeds_tab(f: &mut Frame, app: &mut App, area: Rect) {
-    if matches!(app.state, AppState::FeedEditor | AppState::FeedEditorRename) {
+    if matches!(app.state, AppState::FeedEditor | AppState::FeedEditorRename)
+        || (app.state == AppState::AddFeed
+            && app.add_feed_return_state == AppState::FeedEditor)
+    {
         draw_feed_editor(f, app, area);
         return;
     }
@@ -197,6 +214,27 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
                         .find(|c| c.id == *id)
                         .map(|c| c.name.as_str())
                         .unwrap_or("?");
+                    let indent = tree_indent(&tree, render_idx, *depth);
+                    let connector = if *depth > 0 {
+                        let next_depth = tree
+                            .get(render_idx + 1)
+                            .map(|n| match n {
+                                FeedTreeItem::Feed { depth, .. }
+                                | FeedTreeItem::Category { depth, .. } => *depth,
+                            })
+                            .unwrap_or(0);
+                        if next_depth < *depth {
+                            if app.user_data.border_rounded {
+                                "╰─ "
+                            } else {
+                                "└─ "
+                            }
+                        } else {
+                            "├─ "
+                        }
+                    } else {
+                        ""
+                    };
                     let style = if selected {
                         Style::default()
                             .fg(MANTLE)
@@ -205,31 +243,13 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
                     } else {
                         Style::default().fg(color).add_modifier(Modifier::BOLD)
                     };
-                    // Sub-categories (depth > 0) get tree connectors like feeds.
-                    let (indent, connector) = if *depth > 0 {
-                        let next_depth = tree
-                            .get(render_idx + 1)
-                            .map(|n| match n {
-                                FeedTreeItem::Feed { depth, .. }
-                                | FeedTreeItem::Category { depth, .. } => *depth,
-                            })
-                            .unwrap_or(0);
-                        let conn = if next_depth < *depth {
-                            if app.user_data.border_rounded { "╰─ " } else { "└─ " }
-                        } else {
-                            "├─ "
-                        };
-                        (tree_indent(&tree, render_idx, *depth), conn)
-                    } else {
-                        (String::new(), "")
-                    };
                     let connector_style = if selected {
                         Style::default().fg(color).bg(SURFACE0)
                     } else {
                         Style::default().fg(SURFACE0)
                     };
                     ListItem::new(Line::from(vec![
-                        Span::raw(indent),
+                        Span::styled(indent, Style::default().fg(SURFACE0)),
                         Span::styled(connector, connector_style),
                         Span::styled(cat_name, style),
                         Span::styled(arrow, style),
@@ -248,7 +268,11 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
                             })
                             .unwrap_or(0);
                         if next_depth < *depth {
-                            if app.user_data.border_rounded { "╰─ " } else { "└─ " }
+                            if app.user_data.border_rounded {
+                                "╰─ "
+                            } else {
+                                "└─ "
+                            }
                         } else {
                             "├─ "
                         }
@@ -283,10 +307,23 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
                     } else {
                         Style::default().fg(SURFACE0)
                     };
+                    // For the selected feed, scroll the title if it overflows.
+                    let title_available = (list_area.width as usize).saturating_sub(
+                        indent.chars().count()
+                            + connector.chars().count()
+                            + count_str.chars().count()
+                            + 2,
+                    );
+                    let displayed_title = if selected {
+                        let elapsed = app.tick.saturating_sub(app.sidebar_title_start_tick);
+                        scroll_title(&feed.title, title_available, elapsed)
+                    } else {
+                        feed.title.clone()
+                    };
                     let mut spans = vec![
-                        Span::raw(indent),
+                        Span::styled(indent, Style::default().fg(SURFACE0)),
                         Span::styled(connector, connector_style),
-                        Span::styled(feed.title.clone(), style),
+                        Span::styled(displayed_title, style),
                         Span::styled(
                             count_str,
                             Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
@@ -352,28 +389,25 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
-    let (feed_title, feed_url, feed_updated_secs, articles) = if app.in_favorites_context {
-        let title = app
-            .favorite_view_articles
-            .first()
-            .map(|a| format!(" ⭐ {} ", a.source_feed))
-            .unwrap_or_else(|| " ⭐ Favorites ".to_string());
-        (
-            title,
-            String::new(),
-            None,
-            app.favorite_view_articles.as_slice(),
-        )
-    } else {
-        let feed = app.feeds.get(app.selected_feed);
-        let title = feed
-            .map(|f| format!(" Articles: {} ", f.title))
-            .unwrap_or_else(|| " Articles ".to_string());
-        let url = feed.map(|f| f.url.clone()).unwrap_or_default();
-        let updated = feed.and_then(|f| f.feed_updated_secs);
-        let arts = feed.map(|f| f.articles.as_slice()).unwrap_or(&[]);
-        (title, url, updated, arts)
-    };
+    let (feed_title, feed_url, feed_updated_secs, last_fetched_secs, articles) =
+        if app.in_favorites_context {
+            let title = app
+                .favorite_view_articles
+                .first()
+                .map(|a| format!(" ⭐ {} ", a.source_feed))
+                .unwrap_or_else(|| " ⭐ Favorites ".to_string());
+            (title, String::new(), None, None, app.favorite_view_articles.as_slice())
+        } else {
+            let feed = app.feeds.get(app.selected_feed);
+            let title = feed
+                .map(|f| format!(" Articles: {} ", f.title))
+                .unwrap_or_else(|| " Articles ".to_string());
+            let url = feed.map(|f| f.url.clone()).unwrap_or_default();
+            let updated = feed.and_then(|f| f.feed_updated_secs);
+            let fetched = feed.and_then(|f| f.last_fetched_secs);
+            let arts = feed.map(|f| f.articles.as_slice()).unwrap_or(&[]);
+            (title, url, updated, fetched, arts)
+        };
 
     let is_navigating = app.state == AppState::ArticleList;
     let block = Block::default()
@@ -429,12 +463,26 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
         Span::styled(unread_count.to_string(), Style::default().fg(unread_color)),
         Span::styled(" unread", Style::default().fg(SUBTEXT0)),
     ];
+    if let Some(secs) = last_fetched_secs {
+        let age = format_age(secs);
+        let color = age_color(secs);
+        stat_spans.push(Span::styled("  •  fetched ", Style::default().fg(SUBTEXT0)));
+        if let Some(number_part) = age.strip_suffix(" ago") {
+            stat_spans.push(Span::styled(number_part.to_string(), Style::default().fg(color)));
+            stat_spans.push(Span::styled(" ago", Style::default().fg(SUBTEXT0)));
+        } else {
+            stat_spans.push(Span::styled(age, Style::default().fg(color)));
+        }
+    }
     if let Some(secs) = feed_updated_secs {
         let age = format_age(secs);
         let color = age_color(secs);
         stat_spans.push(Span::styled("  •  updated ", Style::default().fg(SUBTEXT0)));
         if let Some(number_part) = age.strip_suffix(" ago") {
-            stat_spans.push(Span::styled(number_part.to_string(), Style::default().fg(color)));
+            stat_spans.push(Span::styled(
+                number_part.to_string(),
+                Style::default().fg(color),
+            ));
             stat_spans.push(Span::styled(" ago", Style::default().fg(SUBTEXT0)));
         } else {
             // "just now" — color the whole phrase
@@ -491,10 +539,20 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
                 Style::default().fg(BLUE)
             };
 
+            let is_selected = app.selected_article == i
+                && (app.state == AppState::ArticleList || app.in_favorites_context);
+            // read_icon (2) + star_icon (2) = 4 chars prefix
+            let title_available = (list_area.width as usize).saturating_sub(4);
+            let displayed_title = if is_selected {
+                let elapsed = app.tick.saturating_sub(app.article_title_start_tick);
+                scroll_title(&article.title, title_available, elapsed)
+            } else {
+                article.title.clone()
+            };
             ListItem::new(Line::from(vec![
                 Span::styled(article.read_icon(), read_icon_style),
                 Span::styled(article.star_icon(), Style::default().fg(YELLOW)),
-                Span::raw(article.title.clone()),
+                Span::raw(displayed_title),
             ]))
             .style(style)
         })
