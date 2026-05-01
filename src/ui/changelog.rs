@@ -14,7 +14,7 @@ use ratatui::{
 
 use crate::app::App;
 
-use super::{BASE, BLUE, MAUVE, SUBTEXT0, SURFACE0, TEXT, border_set, PEACH};
+use super::{BASE, BLUE, MAUVE, PEACH, SUBTEXT0, SURFACE0, TEXT, border_set};
 
 const CHANGELOG_JSON: &str = include_str!("../../changelog.json");
 
@@ -125,9 +125,20 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let mut lines: Vec<Line> = Vec::new();
+    let total = entries.len();
     for (i, entry) in entries.iter().rev().enumerate() {
+        // Determine the tree connector based on position
+        let connector = if i == 0 {
+            "┬"
+        } else if i == total - 1 {
+            "└"
+        } else {
+            "├"
+        };
+
+        // Version line with connector
         lines.push(Line::from(vec![
-            Span::raw("  "),
+            Span::styled(format!("  {connector} "), Style::default().fg(SURFACE0)),
             Span::styled(
                 format!("v{}", entry.version),
                 Style::default().fg(MAUVE).add_modifier(Modifier::BOLD),
@@ -135,18 +146,24 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
             Span::styled("  ·  ", Style::default().fg(SURFACE0)),
             Span::styled(entry.date.clone(), Style::default().fg(SUBTEXT0)),
         ]));
+        // Summary line with vertical bar
         lines.push(Line::from(vec![
-            Span::raw("  "),
+            Span::styled("  │ ", Style::default().fg(SURFACE0)),
             Span::styled(entry.summary.clone(), Style::default().fg(TEXT)),
         ]));
+        // Highlights with vertical bar
         for highlight in &entry.highlights {
-            lines.push(Line::from(vec![Span::styled(
-                format!("    • {highlight}"),
-                Style::default().fg(SUBTEXT0),
-            )]));
+            lines.push(Line::from(vec![
+                Span::styled("  │ ", Style::default().fg(SURFACE0)),
+                Span::styled(format!("  • {highlight}"), Style::default().fg(SUBTEXT0)),
+            ]));
         }
-        if i + 1 < entries.len() {
-            lines.push(Line::raw(""));
+        // Separator line (vertical bar or nothing after last entry)
+        if i + 1 < total {
+            lines.push(Line::from(vec![Span::styled(
+                "  │",
+                Style::default().fg(SURFACE0),
+            )]));
         }
     }
 
