@@ -18,48 +18,7 @@ full RSS/Atom support.
 cargo install brochure
 ```
 
-Requires Rust 1.85+ (edition 2024).
-
-## Usage
-
-Launch with:
-
-```bash
-brochure
-```
-
-### Keybindings
-
-| Key                 | Context               | Action                      |
-|---------------------|-----------------------|-----------------------------|
-| `j` / `↓`           | Lists                 | Next item                   |
-| `k` / `↑`           | Lists                 | Previous item               |
-| `Enter`             | Feed list             | Open feed / toggle category |
-| `Enter`             | Article list          | Open article                |
-| `Esc`               | Any                   | Go back                     |
-| `Tab` / `Shift+Tab` | Any                   | Switch tab                  |
-| `q`                 | Most views            | Quit                        |
-| `r`                 | Feed / article list   | Refresh current feed        |
-| `e`                 | Feed list             | Open feed editor            |
-| `m`                 | Article list / detail | Toggle read/unread          |
-| `s`                 | Article list / detail | Toggle starred              |
-| `o`                 | Article detail        | Open link in browser        |
-| `a`                 | Feed editor           | Add feed                    |
-| `n`                 | Feed editor           | New category                |
-| `r`                 | Feed editor           | Rename selected item        |
-| `d`                 | Feed editor           | Delete selected item        |
-
-## Data storage
-
-All data is stored in the platform data directory:
-
-| Platform    | Path                                      |
-|-------------|-------------------------------------------|
-| Linux / BSD | `~/.local/share/brochure/`                |
-| macOS       | `~/Library/Application Support/brochure/` |
-| Windows     | `%APPDATA%\brochure\`                     |
-
-Files: `feeds.json`, `user_data.json`, `articles.json`, `categories.json`
+Run with `brochure`.
 
 ## License
 
