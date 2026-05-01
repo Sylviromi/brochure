@@ -447,6 +447,14 @@ fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rect) {
         .map(|c| c.name.as_str())
         .unwrap_or("Category");
 
+    // Split area into content (list) and footer (1 row).
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .split(area);
+    let content_area = rows[0];
+    let footer_area = rows[1];
+
     let block = Block::default()
         .border_set(border_set(app.user_data.border_rounded))
         .borders(Borders::ALL)
@@ -457,14 +465,15 @@ fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rect) {
             Style::default().fg(BLUE).add_modifier(Modifier::BOLD),
         ));
 
-    let inner = block.inner(area);
-    f.render_widget(block, area);
+    let inner = block.inner(content_area);
+    f.render_widget(block, content_area);
 
     if app.category_view_articles.is_empty() {
         f.render_widget(
             Paragraph::new(" No articles in this category.").style(Style::default().fg(SUBTEXT0)),
             inner,
         );
+        draw_article_footer(f, app, footer_area, false);
         return;
     }
 
@@ -489,14 +498,46 @@ fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rect) {
             } else {
                 Style::default().fg(TEXT)
             };
-            ListItem::new(Line::from(vec![
+
+            // Compute short age string (e.g. " 42m", " 2h", " 3d") for display.
+            let age_str: Option<String> = article.published_secs.map(|secs| {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(secs);
+                let diff = (now - secs).max(0) as u64;
+                if diff < 60 {
+                    " now".to_string()
+                } else if diff < 3600 {
+                    format!(" {}m", diff / 60)
+                } else if diff < 86400 {
+                    format!(" {}h", diff / 3600)
+                } else {
+                    format!(" {}d", diff / 86400)
+                }
+            });
+            let age_width = age_str.as_ref().map(|s| s.chars().count()).unwrap_or(0);
+
+            // Subtract icon width (2) and age width from available title space.
+            let title_available = list_render_area
+                .width
+                .saturating_sub(2)
+                .saturating_sub(age_width as u16) as usize;
+
+            let mut spans = vec![
                 Span::styled(article.get_icon(), article.get_icon_style()),
-                Span::raw(truncate_title(
-                    &article.title,
-                    list_render_area.width.saturating_sub(2) as usize,
-                )),
-            ]))
-            .style(style)
+                Span::raw(truncate_title(&article.title, title_available)),
+            ];
+            if let Some(ref age) = age_str {
+                spans.push(Span::styled(
+                    age.clone(),
+                    Style::default()
+                        .fg(age_color(article.published_secs.unwrap()))
+                        .add_modifier(Modifier::DIM),
+                ));
+            }
+
+            ListItem::new(Line::from(spans)).style(style)
         })
         .collect();
     app.article_list_state.select(None);
@@ -514,6 +555,8 @@ fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rect) {
             &mut sb_state,
         );
     }
+
+    draw_article_footer(f, app, footer_area, false);
 }
 
 /// Renders the article list for the currently selected feed or category.
@@ -1005,7 +1048,12 @@ fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_article_view: bo
         );
     } else {
         // ── Feed stats footer: article count, unread, fetch age on a single row ──
-        if app.in_category_context {
+        if app.selected_tab == Tab::Saved && !app.in_saved_context {
+            f.render_widget(Paragraph::new("").bg(BASE), area);
+            return;
+        }
+
+        if app.in_category_context || app.selected_sidebar_category.is_some() {
             let article_count = app.category_view_articles.len();
             let unread_count = app
                 .category_view_articles
@@ -1029,19 +1077,15 @@ fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_article_view: bo
             return;
         }
 
-        let (articles, feed_updated_secs, last_fetched_secs): (
-            &[crate::models::Article],
-            Option<i64>,
-            Option<i64>,
-        ) = if app.in_saved_context {
-            (app.saved_view_articles.as_slice(), None, None)
-        } else {
-            let feed = app.feeds.get(app.selected_feed);
-            let updated = feed.and_then(|f| f.feed_updated_secs);
-            let fetched = feed.and_then(|f| f.last_fetched_secs);
-            let arts = feed.map(|f| f.articles.as_slice()).unwrap_or(&[]);
-            (arts, updated, fetched)
-        };
+        let (articles, last_fetched_secs): (&[crate::models::Article], Option<i64>) =
+            if app.in_saved_context {
+                (app.saved_view_articles.as_slice(), None)
+            } else {
+                let feed = app.feeds.get(app.selected_feed);
+                let fetched = feed.and_then(|f| f.last_fetched_secs);
+                let arts = feed.map(|f| f.articles.as_slice()).unwrap_or(&[]);
+                (arts, fetched)
+            };
 
         let article_count = articles.len();
         let unread_count = articles.iter().filter(|a| !a.is_read).count();
@@ -1057,20 +1101,6 @@ fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_article_view: bo
             let age = format_age(secs);
             let color = age_color(secs);
             stat_spans.push(Span::styled("  •  fetched ", Style::default().fg(SUBTEXT0)));
-            if let Some(number_part) = age.strip_suffix(" ago") {
-                stat_spans.push(Span::styled(
-                    number_part.to_string(),
-                    Style::default().fg(color),
-                ));
-                stat_spans.push(Span::styled(" ago", Style::default().fg(SUBTEXT0)));
-            } else {
-                stat_spans.push(Span::styled(age, Style::default().fg(color)));
-            }
-        }
-        if let Some(secs) = feed_updated_secs {
-            let age = format_age(secs);
-            let color = age_color(secs);
-            stat_spans.push(Span::styled("  •  updated ", Style::default().fg(SUBTEXT0)));
             if let Some(number_part) = age.strip_suffix(" ago") {
                 stat_spans.push(Span::styled(
                     number_part.to_string(),
