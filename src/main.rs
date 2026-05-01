@@ -80,6 +80,11 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
         }
     }
 
+    // Re-populate category view now that feed articles are loaded from cache.
+    if let Some(cat_id) = app.selected_sidebar_category {
+        app.populate_category_view(cat_id);
+    }
+
     // Kick off initial feed fetches for all persisted feeds (unless disabled in settings).
     if app.user_data.auto_fetch_on_start {
         let fetch_count = app.feeds.len();
