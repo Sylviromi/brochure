@@ -24,7 +24,7 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
 
     let mut tab_spans: Vec<Span> = vec![
         Span::styled(
-            " rssr ",
+            " Brochure ",
             Style::default()
                 .fg(MANTLE)
                 .bg(MAUVE)
@@ -143,7 +143,7 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         }
         AppState::SavedCategoryEditorRename => " [Enter] Confirm   [Esc] Cancel ",
         AppState::FeedList => {
-            " [↑/↓] Navigate   [Enter] Open/Expand   [r] Refresh   [R] Fetch All   [e] Edit   [Tab/Shift+Tab] Switch Tab   [q] Quit "
+            " [↑/↓] Navigate   [Space] Expand   [Enter] Open   [r] Refresh   [R] Fetch All   [e] Edit   [Tab/Shift+Tab] Switch Tab   [q] Quit "
         }
     };
 
