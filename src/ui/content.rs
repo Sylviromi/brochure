@@ -55,7 +55,7 @@ fn scroll_title(text: &str, available: usize, elapsed: usize) -> String {
         return text.to_string();
     }
     let max_offset = len - available;
-    let start = elapsed.saturating_sub(8).min(max_offset);
+    let start = elapsed.saturating_sub(3).min(max_offset);
     chars[start..start + available].iter().collect()
 }
 
