@@ -250,7 +250,7 @@ fn draw_saved_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
         .border_style(if is_navigating {
             Style::default().fg(MAUVE)
         } else {
-            Style::default().fg(SUBTEXT0)
+            Style::default().fg(SURFACE0)
         })
         .bg(BASE);
 
