@@ -70,7 +70,7 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
         Row::Toggle {
             item: SettingsItem::EagerArticleFetch,
             label: "[ Eager Article Fetch ]",
-            in_last: true,
+            in_last: false,
             on: eager,
         },
         Row::Spacer,

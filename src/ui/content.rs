@@ -36,6 +36,35 @@ fn format_age(secs: i64) -> String {
     }
 }
 
+/// Compute the leading indent string for a tree item at `depth` positioned at `render_idx`.
+/// For each ancestor level (1 to depth-1), emits "│  " if that level still has siblings
+/// after the current item, or "   " if it was the last child.
+fn tree_indent(tree: &[FeedTreeItem], render_idx: usize, depth: u8) -> String {
+    if depth <= 1 {
+        return String::new();
+    }
+    let mut s = String::new();
+    for level in 1..depth {
+        let next_at_level = tree[render_idx + 1..]
+            .iter()
+            .find(|n| {
+                let d = match n {
+                    FeedTreeItem::Feed { depth, .. } | FeedTreeItem::Category { depth, .. } => *depth,
+                };
+                d <= level
+            })
+            .map(|n| match n {
+                FeedTreeItem::Feed { depth, .. } | FeedTreeItem::Category { depth, .. } => *depth,
+            });
+        if next_at_level == Some(level) {
+            s.push_str("│  ");
+        } else {
+            s.push_str("   ");
+        }
+    }
+    s
+}
+
 /// Color for a Unix timestamp age: green = fresh, yellow = today, dimmed = old.
 fn age_color(secs: i64) -> ratatui::style::Color {
     let now = std::time::SystemTime::now()
@@ -190,9 +219,9 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
                         } else {
                             "├─ "
                         };
-                        ("  ".repeat(depth.saturating_sub(1) as usize), conn)
+                        (tree_indent(&tree, render_idx, *depth), conn)
                     } else {
-                        ("  ".repeat(*depth as usize), "")
+                        (String::new(), "")
                     };
                     let connector_style = if selected {
                         Style::default().fg(color).bg(SURFACE0)
@@ -208,7 +237,7 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
                 }
                 FeedTreeItem::Feed { feeds_idx, depth } => {
                     let feed = &app.feeds[*feeds_idx];
-                    let indent = "  ".repeat(depth.saturating_sub(1) as usize);
+                    let indent = tree_indent(&tree, render_idx, *depth);
                     // Tree connector: ╰─ for last child, ├─ for others; plain indent for depth 0.
                     let connector = if *depth > 0 {
                         let next_depth = tree
@@ -401,14 +430,16 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
         Span::styled(" unread", Style::default().fg(SUBTEXT0)),
     ];
     if let Some(secs) = feed_updated_secs {
-        stat_spans.push(Span::styled(
-            "  •  ".to_string(),
-            Style::default().fg(SUBTEXT0),
-        ));
-        stat_spans.push(Span::styled(
-            format!("updated {}", format_age(secs)),
-            Style::default().fg(age_color(secs)),
-        ));
+        let age = format_age(secs);
+        let color = age_color(secs);
+        stat_spans.push(Span::styled("  •  updated ", Style::default().fg(SUBTEXT0)));
+        if let Some(number_part) = age.strip_suffix(" ago") {
+            stat_spans.push(Span::styled(number_part.to_string(), Style::default().fg(color)));
+            stat_spans.push(Span::styled(" ago", Style::default().fg(SUBTEXT0)));
+        } else {
+            // "just now" — color the whole phrase
+            stat_spans.push(Span::styled(age, Style::default().fg(color)));
+        }
     }
     f.render_widget(Paragraph::new(Line::from(stat_spans)).bg(BASE), bar_rows[1]);
 

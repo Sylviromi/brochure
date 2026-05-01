@@ -84,20 +84,34 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
 
 pub(super) fn draw_progress_bar(f: &mut Frame, app: &App, area: Rect) {
     let done = app.feeds_total.saturating_sub(app.feeds_pending);
-    let width = area.width as usize;
+    let counter = format!(" {}/{} ", done, app.feeds_total);
+    let counter_width = counter.len() as u16;
+
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(0), Constraint::Length(counter_width)])
+        .split(area);
+
+    let bar_width = cols[0].width as usize;
     let filled = if app.feeds_total > 0 {
-        (width * done / app.feeds_total).min(width)
+        (bar_width * done / app.feeds_total).min(bar_width)
     } else {
         0
     };
-    let unfilled = width.saturating_sub(filled);
+    let unfilled = bar_width.saturating_sub(filled);
     f.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled("━".repeat(filled), Style::default().fg(YELLOW)),
             Span::styled("─".repeat(unfilled), Style::default().fg(SURFACE0)),
         ]))
         .bg(BASE),
-        area,
+        cols[0],
+    );
+    f.render_widget(
+        Paragraph::new(counter)
+            .style(Style::default().fg(SUBTEXT0))
+            .bg(BASE),
+        cols[1],
     );
 }
 
@@ -160,10 +174,11 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         if body_len <= viewport {
             Span::styled(format!("{prefix}{body} "), Style::default().fg(GREEN))
         } else {
-            // Scroll 1 char every 4 ticks (~1 s). Pause at end for 10 ticks before looping.
-            let period = body_len + 10;
-            let offset = (app.tick / 4) % period;
-            let start = offset.min(body_len);
+            // Scroll 1 char every 2 ticks. Pause at end for 8 ticks before looping.
+            let max_offset = body_len.saturating_sub(viewport);
+            let period = max_offset + 8;
+            let offset = (app.tick / 2) % period;
+            let start = offset.min(max_offset);
             let visible: String = body_chars[start..].iter().take(viewport).collect();
             Span::styled(format!("{prefix}{visible} "), Style::default().fg(GREEN))
         }
