@@ -1,6 +1,5 @@
 # CLAUDE.md — rssr agent guide
 
-> **For human-readable architecture detail see `ARCHITECTURE.md`.**
 > **For tasks, bugs, and requests see `TASKS.md`.**
 
 ---
@@ -33,7 +32,7 @@ Tasks live in `TASKS.md`. Categories are user-defined (create/rename/remove as n
 3. **If anything is unclear**: stop and ask the user. Do not assume scope, layout, or behavior. Never move items to a "
    Blocked" section — just ask directly in your response.
 4. **On completion**: move item from its category to **Completed** with a timestamp (e.g.,
-   `[x] Task name — 2026-04-12 14:35`).
+   `[x] - 2026-04-12 14:35 - Task name`).
 5. **Maintain Completed**: keep only the last 10 entries (trim oldest).
 
 **Blocked entry format** (required fields):
@@ -123,39 +122,7 @@ src/
 
 ## Feature Checklists
 
-### New type
-
-1. Define in the appropriate `src/models/` file with `#[derive(Debug)]` (+ `Serialize, Deserialize` if persisted).
-2. Add to `App` struct in `src/app.rs` if it is runtime state.
-3. Import via `crate::models::Foo` everywhere — never redeclare.
-
-### New AppState
-
-1. Add variant to `AppState` in `models/navigation.rs`.
-2. Add `AppEvent` variant(s) in `models/events.rs` if background work is needed.
-3. Add key handler branch in the correct `handlers/*.rs` file, wire into `handlers/mod.rs`.
-4. Add draw branch in `ui/mod.rs` `draw()` or the relevant `ui/*.rs` file.
-5. Update `App::next()`, `App::previous()`, `App::select()`, `App::unselect()` in `app.rs` if navigable.
-6. Wire event dispatch in `main.rs` if new `AppEvent` variants were added.
-
-### New keybinding
-
-1. Add `KeyCode` match arm in the correct `handlers/*.rs` file.
-2. Update the footer hint string in `ui/chrome.rs` `draw_footer`.
-3. Update the keybindings table in `ARCHITECTURE.md`.
-
-### New background task
-
-1. Add `AppEvent` variant in `models/events.rs`.
-2. Spawn in a handler via `tokio::spawn(async move { ... tx.send(AppEvent::...) })`.
-3. Handle in the `main.rs` match loop.
-4. Never `.await` in the main event loop thread.
-
-### New persisted data
-
-1. Add field to `UserData` in `models/core_types.rs` with `#[serde(default)]`.
-2. Load/save only in `storage.rs`. Call `save_user_data` from handlers after mutation.
-3. Update the data files table in `ARCHITECTURE.md`.
+See `CHECKLISTS.md` — read it before implementing new types, AppStates, keybindings, background tasks, or persisted data.
 
 ---
 
