@@ -131,7 +131,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &App, area: Rect) {
                 let style = if is_on_origin {
                     Style::default().fg(SUBTEXT0).bg(SURFACE0)
                 } else if is_ghost {
-                    Style::default().fg(SUBTEXT0)
+                    Style::default().fg(SUBTEXT0).add_modifier(Modifier::DIM)
                 } else if show_selected {
                     Style::default().fg(MAUVE).bg(SURFACE0).add_modifier(Modifier::BOLD)
                 } else {
@@ -305,14 +305,31 @@ fn draw_editor_categories(f: &mut Frame, app: &App, area: Rect) {
             let selected = is_active && app.editor_cat_cursor == idx && !in_new_cat_mode && !in_moving_mode;
             let is_ghost = moving_cat_id == Some(*id);
             let color = CATEGORY_COLORS[(*id % CATEGORY_COLORS.len() as u64) as usize];
-            let indent = "  ".repeat(*depth as usize);
+            let indent = tree_indent(&cats, idx, *depth);
+            let connector = if *depth > 0 {
+                let next_depth = cats
+                    .get(idx + 1)
+                    .map(|n| match n {
+                        FeedTreeItem::Feed { depth, .. }
+                        | FeedTreeItem::Category { depth, .. } => *depth,
+                    })
+                    .unwrap_or(0);
+                if next_depth < *depth {
+                    if app.user_data.border_rounded { "╰─ " } else { "└─ " }
+                } else {
+                    "├─ "
+                }
+            } else {
+                ""
+            };
             let icon = if *collapsed { "▶" } else { "▼" };
 
             // Show rename input for the category being renamed
             if renamed_cat_id == Some(*id) {
                 let rename_color = color;
                 return ListItem::new(Line::from(vec![
-                    Span::raw(indent),
+                    Span::styled(indent, Style::default().fg(SURFACE0)),
+                    Span::styled(connector, Style::default().fg(SURFACE0)),
                     Span::styled("  ✎ ", Style::default().fg(rename_color)),
                     Span::styled(app.editor_input.clone(), Style::default().fg(TEXT)),
                     Span::styled("█", Style::default().fg(rename_color)),
@@ -338,7 +355,7 @@ fn draw_editor_categories(f: &mut Frame, app: &App, area: Rect) {
 
             let style = if is_ghost {
                 // Ghost: dimmed, source being moved
-                Style::default().fg(SUBTEXT0).add_modifier(Modifier::BOLD)
+                Style::default().fg(SUBTEXT0).add_modifier(Modifier::DIM)
             } else if selected {
                 Style::default()
                     .fg(MANTLE)
