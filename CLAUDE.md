@@ -108,7 +108,7 @@ Break it into independent subtasks. For each subtask identify:
 echo '{"file":"src/path/to/file.rs","instruction":"your instruction here","context_files":[]}' | python scripts/ollama_agent.py
 ```
 
-Result is JSON `{"path": "...", "content": "..."}`. Apply with `Edit` or `Write` tool.
+Default model is `qwen2.5-coder:7b`. Override with `--model <name>` if needed. Result is JSON `{"path": "...", "content": "..."}`. Apply with `Edit` or `Write` tool.
 
 **Fallback:** If `ollama_agent.py` returns `{"error": "..."}`, escalate the task to `haiku`. Never silently drop the error.
 
@@ -126,7 +126,7 @@ Agent plan:
 | 1 | ...  | ...     | haiku  | read-only |
 | 2 | ...  | ...     | sonnet | multi-file logic |
 
-Total: X haiku, Y sonnet, Z opus. Proceed? (y / adjust)
+Total: X ollama, Y haiku, Z sonnet, W opus. Proceed? (y / adjust)
 ```
 
 User may reply "y", adjust individual models, drop agents, or merge subtasks. Incorporate feedback before dispatching.
