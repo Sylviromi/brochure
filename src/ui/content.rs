@@ -9,7 +9,7 @@ use ratatui::{
 use ratatui::prelude::Stylize;
 
 use crate::{
-    app::{visible_favorites_tree_items, visible_tree_items, App},
+    app::{visible_tree_items, App},
     models::{AppState, FeedTreeItem, Tab},
 };
 
@@ -89,7 +89,7 @@ pub(super) fn draw_feeds_tab(f: &mut Frame, app: &mut App, area: Rect) {
         .constraints([Constraint::Percentage(25), Constraint::Percentage(75)])
         .split(area);
 
-    draw_sidebar(f, app, cols[0], false);
+    draw_sidebar(f, app, cols[0]);
 
     match app.state {
         AppState::FeedList | AppState::ArticleList | AppState::AddFeed => {
@@ -100,44 +100,93 @@ pub(super) fn draw_feeds_tab(f: &mut Frame, app: &mut App, area: Rect) {
     }
 }
 
-pub(super) fn draw_favorites_tab(f: &mut Frame, app: &mut App, area: Rect) {
+pub(super) fn draw_saved_tab(f: &mut Frame, app: &mut App, area: Rect) {
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(25), Constraint::Percentage(75)])
         .split(area);
 
-    draw_sidebar(f, app, cols[0], true);
+    draw_saved_sidebar(f, app, cols[0]);
 
     match app.state {
-        AppState::FavoriteFeedList | AppState::ArticleList => draw_article_list(f, app, cols[1]),
+        AppState::SavedCategoryList | AppState::ArticleList => draw_article_list(f, app, cols[1]),
         AppState::ArticleDetail => draw_article_detail(f, app, cols[1]),
         _ => draw_article_list(f, app, cols[1]),
     }
 }
 
-pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorites: bool) {
-    let (is_navigating, tree, cursor, title) = if is_favorites {
-        let items = visible_favorites_tree_items(
-            &app.categories,
-            &app.feeds,
-            &app.sidebar_collapsed,
-            &app.user_data.starred_articles,
-        );
-        (
-            app.state == AppState::FavoriteFeedList,
-            items,
-            app.favorites_sidebar_cursor,
-            " ⭐ Favorites ",
-        )
+fn draw_saved_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
+    let is_navigating = app.state == AppState::SavedCategoryList;
+    let rounded = app.user_data.border_rounded;
+
+    let total_saved = app.user_data.saved_articles.len();
+
+    let mut items: Vec<ListItem> = Vec::new();
+
+    // "All Saved" entry (cursor 0)
+    let all_style = if app.saved_sidebar_cursor == 0 && is_navigating {
+        Style::default().bg(SURFACE0).fg(YELLOW)
     } else {
-        let items = visible_tree_items(&app.categories, &app.feeds, &app.sidebar_collapsed);
-        (
-            app.state == AppState::FeedList,
-            items,
-            app.sidebar_cursor,
-            " Feeds ",
-        )
+        Style::default().fg(TEXT)
     };
+    items.push(ListItem::new(Line::from(vec![
+        Span::styled("★ All Saved ", all_style),
+        Span::styled(format!("[{total_saved}]"), Style::default().fg(SUBTEXT0)),
+    ])));
+
+    // Separator
+    items.push(ListItem::new(Line::from(Span::styled(
+        "──────────────",
+        Style::default().fg(SURFACE0),
+    ))));
+
+    // Category entries (cursor 1+)
+    for (i, cat) in app.user_data.saved_categories.iter().enumerate() {
+        let cursor_pos = i + 1; // +1 for "All Saved"
+        let count = app
+            .user_data
+            .saved_articles
+            .iter()
+            .filter(|s| s.category_id == cat.id)
+            .count();
+        let style = if app.saved_sidebar_cursor == cursor_pos && is_navigating {
+            Style::default().bg(SURFACE0).fg(MAUVE)
+        } else {
+            Style::default().fg(TEXT)
+        };
+        items.push(ListItem::new(Line::from(vec![
+            Span::styled(format!("  {} ", cat.name), style),
+            Span::styled(format!("[{count}]"), Style::default().fg(SUBTEXT0)),
+        ])));
+    }
+
+    // Empty state
+    if app.user_data.saved_categories.is_empty() && app.user_data.saved_articles.is_empty() {
+        items.push(ListItem::new(Line::from(Span::styled(
+            "  No saved articles",
+            Style::default().fg(SUBTEXT0),
+        ))));
+    }
+
+    let block = Block::default()
+        .title(" Saved ")
+        .borders(Borders::ALL)
+        .border_set(border_set(rounded))
+        .border_style(if is_navigating {
+            Style::default().fg(MAUVE)
+        } else {
+            Style::default().fg(SUBTEXT0)
+        });
+
+    let list = List::new(items).block(block);
+    app.saved_sidebar_list_state.select(Some(app.saved_sidebar_cursor));
+    f.render_stateful_widget(list, area, &mut app.saved_sidebar_list_state);
+}
+
+pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
+    let tree = visible_tree_items(&app.categories, &app.feeds, &app.sidebar_collapsed);
+    let is_navigating = app.state == AppState::FeedList;
+    let cursor = app.sidebar_cursor;
 
     let block = Block::default()
         .border_set(border_set(app.user_data.border_rounded))
@@ -145,7 +194,7 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
         .border_style(Style::default().fg(if is_navigating { MAUVE } else { SURFACE0 }))
         .bg(BASE)
         .title(Span::styled(
-            title,
+            " Feeds ",
             Style::default().fg(BLUE).add_modifier(Modifier::BOLD),
         ));
 
@@ -153,7 +202,7 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
     f.render_widget(block, area);
 
     // Split inner area to place progress bar at the bottom when fetching.
-    let (list_area, maybe_progress) = if !is_favorites && app.feeds_pending > 0 {
+    let (list_area, maybe_progress) = if app.feeds_pending > 0 {
         let split = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(0), Constraint::Length(1)])
@@ -162,18 +211,6 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
     } else {
         (inner, None)
     };
-
-    if tree.is_empty() && is_favorites {
-        f.render_widget(
-            Paragraph::new(" No starred articles yet. Press [s] on an article to star it.")
-                .style(Style::default().fg(SUBTEXT0)),
-            list_area,
-        );
-        if let Some(pb) = maybe_progress {
-            super::chrome::draw_progress_bar(f, app, pb);
-        }
-        return;
-    }
 
     let items: Vec<ListItem> = tree
         .iter()
@@ -220,21 +257,7 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
                     let feed = &app.feeds[*feeds_idx];
                     let indent = tree_indent(&tree, render_idx, *depth);
                     let connector = tree_connector(&tree, render_idx, *depth, app.user_data.border_rounded, "   ");
-                    let count_str = if is_favorites {
-                        let n = app
-                            .user_data
-                            .starred_articles
-                            .iter()
-                            .filter(|a| a.source_feed == feed.title)
-                            .count();
-                        if n > 0 {
-                            format!(" [★{n}]")
-                        } else {
-                            String::new()
-                        }
-                    } else {
-                        feed.unread_badge()
-                    };
+                    let count_str = feed.unread_badge();
                     let style = if selected {
                         Style::default()
                             .fg(MAUVE)
@@ -270,23 +293,21 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
                             Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
                         ),
                     ];
-                    if !is_favorites {
-                        if !feed.fetched
-                            && feed.fetch_error.is_none()
-                            && app.state != AppState::ArticleDetail
-                        {
-                            let spinner = SPINNER_FRAMES[app.tick % SPINNER_FRAMES.len()];
-                            spans.push(Span::styled(
-                                format!(" {spinner}"),
-                                Style::default().fg(YELLOW),
-                            ));
-                        } else if feed.fetch_error.is_some() {
-                            // ⚠ (red) when feed is empty — broken; ! (yellow) when stale cached data exists.
-                            if feed.articles.is_empty() {
-                                spans.push(Span::styled(" ⚠", Style::default().fg(RED)));
-                            } else {
-                                spans.push(Span::styled(" !", Style::default().fg(YELLOW)));
-                            }
+                    if !feed.fetched
+                        && feed.fetch_error.is_none()
+                        && app.state != AppState::ArticleDetail
+                    {
+                        let spinner = SPINNER_FRAMES[app.tick % SPINNER_FRAMES.len()];
+                        spans.push(Span::styled(
+                            format!(" {spinner}"),
+                            Style::default().fg(YELLOW),
+                        ));
+                    } else if feed.fetch_error.is_some() {
+                        // ⚠ (red) when feed is empty — broken; ! (yellow) when stale cached data exists.
+                        if feed.articles.is_empty() {
+                            spans.push(Span::styled(" ⚠", Style::default().fg(RED)));
+                        } else {
+                            spans.push(Span::styled(" !", Style::default().fg(YELLOW)));
                         }
                     }
                     ListItem::new(Line::from(spans))
@@ -295,13 +316,8 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
         })
         .collect();
 
-    let list_state = if is_favorites {
-        &mut app.favorites_sidebar_list_state
-    } else {
-        &mut app.sidebar_list_state
-    };
-    list_state.select(Some(cursor));
-    f.render_stateful_widget(List::new(items), list_area, list_state);
+    app.sidebar_list_state.select(Some(cursor));
+    f.render_stateful_widget(List::new(items), list_area, &mut app.sidebar_list_state);
 
     let total = tree.len();
     if total > list_area.height as usize {
@@ -321,21 +337,21 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect, is_favorite
 }
 
 pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
-    // In the Favorites tab but no feed is selected (cursor on a category or nothing).
-    if app.selected_tab == Tab::Favorites && !app.in_favorites_context {
+    // In the Saved tab but no category is selected (cursor on a category or nothing).
+    if app.selected_tab == Tab::Saved && !app.in_saved_context {
         let block = Block::default()
             .border_set(border_set(app.user_data.border_rounded))
             .borders(Borders::ALL)
             .border_style(Style::default().fg(SURFACE0))
             .bg(BASE)
             .title(Span::styled(
-                " ⭐ Favorites ",
+                " ★ Saved ",
                 Style::default().fg(BLUE).add_modifier(Modifier::BOLD),
             ));
         let inner = block.inner(area);
         f.render_widget(block, area);
         f.render_widget(
-            Paragraph::new(" Select a feed to preview its articles.")
+            Paragraph::new(" Select a category to view saved articles.")
                 .style(Style::default().fg(SUBTEXT0)),
             inner,
         );
@@ -343,13 +359,18 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     let (feed_title, feed_url, feed_updated_secs, last_fetched_secs, articles) =
-        if app.in_favorites_context {
-            let title = app
-                .favorite_view_articles
-                .first()
-                .map(|a| format!(" ⭐ {} ", a.source_feed))
-                .unwrap_or_else(|| " ⭐ Favorites ".to_string());
-            (title, String::new(), None, None, app.favorite_view_articles.as_slice())
+        if app.in_saved_context {
+            let title = if let Some(cat_id) = app.selected_saved_category {
+                app.user_data
+                    .saved_categories
+                    .iter()
+                    .find(|c| c.id == cat_id)
+                    .map(|c| format!(" {} ", c.name))
+                    .unwrap_or_else(|| " Saved ".to_string())
+            } else {
+                " ★ All Saved ".to_string()
+            };
+            (title, String::new(), None, None, app.saved_view_articles.as_slice())
         } else {
             let feed = app.feeds.get(app.selected_feed);
             let title = feed
@@ -445,7 +466,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(Paragraph::new(Line::from(stat_spans)).bg(BASE), bar_rows[1]);
 
     if articles.is_empty() {
-        if !app.in_favorites_context
+        if !app.in_saved_context
             && let Some(feed) = app.feeds.get(app.selected_feed)
             && let Some(err) = &feed.fetch_error
         {
@@ -472,7 +493,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
         .enumerate()
         .map(|(i, article)| {
             let style = if app.selected_article == i
-                && (app.state == AppState::ArticleList || app.in_favorites_context)
+                && (app.state == AppState::ArticleList || app.in_saved_context)
             {
                 Style::default()
                     .fg(MAUVE)
@@ -493,7 +514,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
             };
 
             let is_selected = app.selected_article == i
-                && (app.state == AppState::ArticleList || app.in_favorites_context);
+                && (app.state == AppState::ArticleList || app.in_saved_context);
             // read_icon (2) + star_icon (2) = 4 chars prefix
             let title_available = (list_area.width as usize).saturating_sub(4);
             let displayed_title = if is_selected {
@@ -528,8 +549,8 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
 }
 
 pub(super) fn draw_article_detail(f: &mut Frame, app: &mut App, area: Rect) {
-    let article = if app.in_favorites_context {
-        app.favorite_view_articles
+    let article = if app.in_saved_context {
+        app.saved_view_articles
             .get(app.selected_article)
             .cloned()
     } else {
@@ -542,7 +563,7 @@ pub(super) fn draw_article_detail(f: &mut Frame, app: &mut App, area: Rect) {
 
     // Show spinner only when the article's own feed is actively refreshing.
     let feed_refreshing =
-        !app.in_favorites_context && app.feeds.get(app.selected_feed).is_some_and(|f| !f.fetched);
+        !app.in_saved_context && app.feeds.get(app.selected_feed).is_some_and(|f| !f.fetched);
     let detail_title = if feed_refreshing {
         let spinner = SPINNER_FRAMES[app.tick % SPINNER_FRAMES.len()];
         format!(" {spinner} {} ", article.title)
