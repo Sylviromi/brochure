@@ -84,6 +84,7 @@ pub(super) fn draw_feeds_tab(f: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
+    // Outer split: sidebar (25%) | right area (75%)
     let cols = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(25), Constraint::Percentage(75)])
@@ -92,8 +93,24 @@ pub(super) fn draw_feeds_tab(f: &mut Frame, app: &mut App, area: Rect) {
     draw_sidebar(f, app, cols[0]);
 
     match app.state {
-        AppState::FeedList | AppState::ArticleList | AppState::AddFeed => {
+        AppState::FeedList | AppState::AddFeed => {
             draw_article_list(f, app, cols[1]);
+        }
+        AppState::ArticleList => {
+            // Three-panel: split right area vertically for footer, then horizontally for list+preview.
+            let right_rows = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(0), Constraint::Length(3)])
+                .split(cols[1]);
+
+            let panels = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(33), Constraint::Percentage(67)])
+                .split(right_rows[0]);
+
+            draw_article_list(f, app, panels[0]);
+            draw_article_detail(f, app, panels[1], true);
+            draw_article_list_footer(f, app, right_rows[1]);
         }
         AppState::ArticleDetail => draw_article_detail(f, app, cols[1], false),
         _ => {}
@@ -109,7 +126,22 @@ pub(super) fn draw_saved_tab(f: &mut Frame, app: &mut App, area: Rect) {
     draw_saved_sidebar(f, app, cols[0]);
 
     match app.state {
-        AppState::SavedCategoryList | AppState::ArticleList => draw_article_list(f, app, cols[1]),
+        AppState::SavedCategoryList => draw_article_list(f, app, cols[1]),
+        AppState::ArticleList => {
+            let right_rows = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(0), Constraint::Length(3)])
+                .split(cols[1]);
+
+            let panels = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(33), Constraint::Percentage(67)])
+                .split(right_rows[0]);
+
+            draw_article_list(f, app, panels[0]);
+            draw_article_detail(f, app, panels[1], true);
+            draw_article_list_footer(f, app, right_rows[1]);
+        }
         AppState::ArticleDetail => draw_article_detail(f, app, cols[1], false),
         _ => draw_article_list(f, app, cols[1]),
     }
@@ -358,7 +390,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
-    let (feed_title, feed_url, feed_updated_secs, last_fetched_secs, articles) =
+    let (feed_title, articles): (String, &[crate::models::Article]) =
         if app.in_saved_context {
             let title = if let Some(cat_id) = app.selected_saved_category {
                 app.user_data
@@ -370,17 +402,14 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
             } else {
                 " ★ All Saved ".to_string()
             };
-            (title, String::new(), None, None, app.saved_view_articles.as_slice())
+            (title, app.saved_view_articles.as_slice())
         } else {
             let feed = app.feeds.get(app.selected_feed);
             let title = feed
                 .map(|f| format!(" Articles: {} ", f.title))
                 .unwrap_or_else(|| " Articles ".to_string());
-            let url = feed.map(|f| f.url.clone()).unwrap_or_default();
-            let updated = feed.and_then(|f| f.feed_updated_secs);
-            let fetched = feed.and_then(|f| f.last_fetched_secs);
             let arts = feed.map(|f| f.articles.as_slice()).unwrap_or(&[]);
-            (title, url, updated, fetched, arts)
+            (title, arts)
         };
 
     let is_navigating = app.state == AppState::ArticleList;
@@ -397,15 +426,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Split inner area: list on top, info bar at bottom.
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(3)])
-        .split(inner);
-    let list_area = layout[0];
-    let bar_area = layout[1];
-
-    draw_article_list_footer(f, app, bar_area, &feed_url, articles, feed_updated_secs, last_fetched_secs);
+    let list_area = inner;
 
     if articles.is_empty() {
         if !app.in_saved_context
@@ -492,7 +513,19 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
 
 /// Render the article list footer bar (feed URL, counts, fetch age).
 /// `area` should be the full-width rect already allocated for the footer.
-fn draw_article_list_footer(f: &mut Frame, _app: &App, area: Rect, feed_url: &str, articles: &[crate::models::Article], feed_updated_secs: Option<i64>, last_fetched_secs: Option<i64>) {
+fn draw_article_list_footer(f: &mut Frame, app: &App, area: Rect) {
+    let (feed_url, articles, feed_updated_secs, last_fetched_secs): (&str, &[crate::models::Article], Option<i64>, Option<i64>) =
+        if app.in_saved_context {
+            ("", app.saved_view_articles.as_slice(), None, None)
+        } else {
+            let feed = app.feeds.get(app.selected_feed);
+            let url: &str = feed.map(|f| f.url.as_str()).unwrap_or("");
+            let updated = feed.and_then(|f| f.feed_updated_secs);
+            let fetched = feed.and_then(|f| f.last_fetched_secs);
+            let arts = feed.map(|f| f.articles.as_slice()).unwrap_or(&[]);
+            (url, arts, updated, fetched)
+        };
+
     // Info bar: separator + 2 rows (URL, stats).
     let bar_block = Block::default()
         .borders(Borders::TOP)
