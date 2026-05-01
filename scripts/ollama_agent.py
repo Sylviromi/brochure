@@ -49,14 +49,14 @@ def strip_fences(content: str) -> str:
 
 def is_truncated(content: str) -> bool:
     """
-    Heuristic: detect likely truncated responses.
-    Checks both brace balance and whether the file ends at a plausible boundary.
+    Heuristic: unbalanced braces suggest the response was cut off.
     NOTE: may produce false positives if the file contains unbalanced braces
-    in string literals or comments. Treat as a soft signal, not a guarantee.
+    in string literals or comments. This is a hard gate — escalate to haiku
+    on false positives rather than weakening the check.
     """
-    stripped = content.rstrip()
-    last_char = stripped[-1] if stripped else ""
-    return content.count("{") > content.count("}") or last_char not in ("}", ";", ")")
+    if not content.rstrip():
+        return True
+    return content.count("{") > content.count("}")
 
 
 def call_ollama(model: str, file_path: str, file_content: str, instruction: str, context_files: list) -> str:
