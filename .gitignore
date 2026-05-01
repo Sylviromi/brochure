@@ -4,3 +4,4 @@ docs
 .idea
 TASKS.md
 vault
+.worktrees/
