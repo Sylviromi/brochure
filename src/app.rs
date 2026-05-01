@@ -1,6 +1,6 @@
 use crate::models::{
-    AddFeedStep, AppState, Article, Category, CategoryId, EditorPanel, Feed, FeedEditorMode,
-    FeedTreeItem, ListScroll, SettingsItem, Tab, TextScroll, UserData, FAVORITES_URL,
+    AddFeedStep, AppState, Article, Category, CategoryId, EditorPanel, FAVORITES_URL, Feed,
+    FeedEditorMode, FeedTreeItem, ListScroll, SettingsItem, Tab, TextScroll, UserData,
 };
 use crate::storage::{article_cache_size, load_categories, load_feeds, load_user_data};
 use ratatui::widgets::ListState;
@@ -155,7 +155,8 @@ impl App {
             })
             .unwrap_or(0);
 
-        let initial_editor_cursor = initial_items.iter()
+        let initial_editor_cursor = initial_items
+            .iter()
             .position(|item| matches!(item, FeedTreeItem::Feed { .. }))
             .unwrap_or(0);
 
@@ -299,11 +300,23 @@ impl App {
             }
             AppState::FeedEditor => {
                 if self.editor_panel == EditorPanel::Categories {
-                    let cats = visible_cat_only_items(&self.categories, &self.feeds, &self.editor_collapsed);
+                    let cats = visible_cat_only_items(
+                        &self.categories,
+                        &self.feeds,
+                        &self.editor_collapsed,
+                    );
                     if !cats.is_empty() {
-                        let items = visible_tree_items(&self.categories, &self.feeds, &self.editor_collapsed);
+                        let items = visible_tree_items(
+                            &self.categories,
+                            &self.feeds,
+                            &self.editor_collapsed,
+                        );
                         let is_cat_moving = self.editor_moving_category(&items);
-                        let wrap_len = if is_cat_moving { cats.len() + 1 } else { cats.len() };
+                        let wrap_len = if is_cat_moving {
+                            cats.len() + 1
+                        } else {
+                            cats.len()
+                        };
                         self.editor_cat_cursor = (self.editor_cat_cursor + 1) % wrap_len;
                     }
                 } else {
@@ -394,12 +407,27 @@ impl App {
             }
             AppState::FeedEditor => {
                 if self.editor_panel == EditorPanel::Categories {
-                    let cats = visible_cat_only_items(&self.categories, &self.feeds, &self.editor_collapsed);
+                    let cats = visible_cat_only_items(
+                        &self.categories,
+                        &self.feeds,
+                        &self.editor_collapsed,
+                    );
                     if !cats.is_empty() {
-                        let items = visible_tree_items(&self.categories, &self.feeds, &self.editor_collapsed);
+                        let items = visible_tree_items(
+                            &self.categories,
+                            &self.feeds,
+                            &self.editor_collapsed,
+                        );
                         let is_cat_moving = self.editor_moving_category(&items);
-                        let wrap_len = if is_cat_moving { cats.len() + 1 } else { cats.len() };
-                        self.editor_cat_cursor = self.editor_cat_cursor.checked_sub(1).unwrap_or(wrap_len - 1);
+                        let wrap_len = if is_cat_moving {
+                            cats.len() + 1
+                        } else {
+                            cats.len()
+                        };
+                        self.editor_cat_cursor = self
+                            .editor_cat_cursor
+                            .checked_sub(1)
+                            .unwrap_or(wrap_len - 1);
                     }
                 } else {
                     let items =
@@ -423,8 +451,8 @@ impl App {
                                 .iter()
                                 .position(|&i| i == self.editor_cursor)
                                 .unwrap_or(0);
-                            self.editor_cursor = feed_indices
-                                [cur.checked_sub(1).unwrap_or(feed_indices.len() - 1)];
+                            self.editor_cursor =
+                                feed_indices[cur.checked_sub(1).unwrap_or(feed_indices.len() - 1)];
                         }
                     }
                 }
@@ -479,7 +507,9 @@ impl App {
                         let (fi, ai) = self.category_view_articles[self.selected_article];
                         self.feeds[fi].articles[ai].content.clone()
                     } else if self.in_saved_context {
-                        self.saved_view_articles[self.selected_article].content.clone()
+                        self.saved_view_articles[self.selected_article]
+                            .content
+                            .clone()
                     } else {
                         self.feeds[self.selected_feed].articles[self.selected_article]
                             .content
@@ -576,8 +606,14 @@ impl App {
 
     /// True when currently moving a category — used to skip feeds during navigation.
     fn editor_moving_category(&self, items: &[FeedTreeItem]) -> bool {
-        if let FeedEditorMode::Moving { origin_render_idx, .. } = &self.editor_mode {
-            matches!(items.get(*origin_render_idx), Some(FeedTreeItem::Category { .. }))
+        if let FeedEditorMode::Moving {
+            origin_render_idx, ..
+        } = &self.editor_mode
+        {
+            matches!(
+                items.get(*origin_render_idx),
+                Some(FeedTreeItem::Category { .. })
+            )
         } else {
             false
         }
@@ -655,11 +691,7 @@ pub fn visible_tree_items(
 
 /// Collects feed indices for all feeds directly or transitively under `cat_id`,
 /// in tree order (sorted by order field within each level).
-fn feeds_in_category(
-    cat_id: CategoryId,
-    categories: &[Category],
-    feeds: &[Feed],
-) -> Vec<usize> {
+fn feeds_in_category(cat_id: CategoryId, categories: &[Category], feeds: &[Feed]) -> Vec<usize> {
     let mut result = Vec::new();
 
     // Direct feeds in this category, sorted by order.
@@ -844,7 +876,7 @@ mod tests {
             fetched: false,
             fetch_error: None,
             feed_updated_secs: None,
-                last_fetched_secs: None,
+            last_fetched_secs: None,
         });
         app
     }

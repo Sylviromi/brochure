@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    app::{visible_tree_items, App},
+    app::{App, visible_tree_items},
     fetch::fetch_feed,
     models::{AppEvent, AppState, FeedEditorMode, FeedTreeItem},
 };
@@ -32,13 +32,19 @@ pub(super) fn handle_feed_list(
             }
         }
         KeyCode::Char('R') if !app.in_saved_context => {
-            let count = app.feeds.iter().filter(|f| f.url != crate::models::FAVORITES_URL).count();
+            let count = app
+                .feeds
+                .iter()
+                .filter(|f| f.url != crate::models::FAVORITES_URL)
+                .count();
             if count > 0 {
                 app.feeds_total += count;
                 app.feeds_pending += count;
                 app.set_status("Fetching all feeds...");
                 for (idx, feed) in app.feeds.iter_mut().enumerate() {
-                    if feed.url == crate::models::FAVORITES_URL { continue; }
+                    if feed.url == crate::models::FAVORITES_URL {
+                        continue;
+                    }
                     feed.fetched = false;
                     feed.fetch_error = None;
                     let url = feed.url.clone();

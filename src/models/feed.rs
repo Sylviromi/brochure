@@ -1,6 +1,6 @@
-use ratatui::prelude::Style;
-use crate::ui::{BLUE, SUBTEXT0, YELLOW};
 use super::{Article, Feed};
+use crate::ui::{BLUE, SUBTEXT0, YELLOW};
+use ratatui::prelude::Style;
 
 impl Feed {
     /// Returns `" [N]"` if there are unread articles, empty string otherwise.
@@ -11,8 +11,6 @@ impl Feed {
             String::new()
         }
     }
-
-
 }
 
 impl Article {
@@ -23,7 +21,7 @@ impl Article {
             if self.is_read { "○ " } else { "● " }
         }
     }
-    
+
     pub fn get_icon_style(&self) -> Style {
         if self.is_saved {
             Style::default().fg(YELLOW)

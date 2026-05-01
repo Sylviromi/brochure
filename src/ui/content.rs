@@ -1,21 +1,24 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
-    Frame,
+    widgets::{
+        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        Wrap,
+    },
 };
 
 use ratatui::prelude::Stylize;
 
 use crate::{
-    app::{visible_tree_items, App},
+    app::{App, visible_tree_items},
     models::{AppState, FeedTreeItem, Tab},
 };
 
 use super::{
-    border_set, editor::draw_feed_editor, tree_connector, tree_indent, BASE, BLUE, CATEGORY_COLORS,
-    GREEN, MANTLE, MAUVE, RED, SPINNER_FRAMES, SUBTEXT0, SURFACE0, TEXT, YELLOW,
+    BASE, BLUE, CATEGORY_COLORS, GREEN, MANTLE, MAUVE, RED, SPINNER_FRAMES, SUBTEXT0, SURFACE0,
+    TEXT, YELLOW, border_set, editor::draw_feed_editor, tree_connector, tree_indent,
 };
 
 fn format_age(secs: i64) -> String {
@@ -87,8 +90,7 @@ fn draw_three_panel(f: &mut Frame, app: &mut App, right_area: Rect, is_preview: 
 
 pub(super) fn draw_feeds_tab(f: &mut Frame, app: &mut App, area: Rect) {
     if matches!(app.state, AppState::FeedEditor | AppState::FeedEditorRename)
-        || (app.state == AppState::AddFeed
-            && app.add_feed_return_state == AppState::FeedEditor)
+        || (app.state == AppState::AddFeed && app.add_feed_return_state == AppState::FeedEditor)
     {
         draw_feed_editor(f, app, area);
         return;
@@ -213,7 +215,8 @@ fn draw_saved_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
         .bg(BASE);
 
     let list = List::new(items).block(block);
-    app.saved_sidebar_list_state.select(Some(app.saved_sidebar_cursor));
+    app.saved_sidebar_list_state
+        .select(Some(app.saved_sidebar_cursor));
     f.render_stateful_widget(list, area, &mut app.saved_sidebar_list_state);
 }
 
@@ -266,7 +269,8 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
                         .map(|c| c.name.as_str())
                         .unwrap_or("?");
                     let indent = tree_indent(&tree, render_idx, *depth);
-                    let connector = tree_connector(&tree, render_idx, *depth, app.user_data.border_rounded, "");
+                    let connector =
+                        tree_connector(&tree, render_idx, *depth, app.user_data.border_rounded, "");
                     let style = if selected {
                         Style::default()
                             .fg(MANTLE)
@@ -290,7 +294,13 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
                 FeedTreeItem::Feed { feeds_idx, depth } => {
                     let feed = &app.feeds[*feeds_idx];
                     let indent = tree_indent(&tree, render_idx, *depth);
-                    let connector = tree_connector(&tree, render_idx, *depth, app.user_data.border_rounded, "   ");
+                    let connector = tree_connector(
+                        &tree,
+                        render_idx,
+                        *depth,
+                        app.user_data.border_rounded,
+                        "   ",
+                    );
                     let count_str = feed.unread_badge();
                     let style = if selected {
                         Style::default()
@@ -354,15 +364,21 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
     let total = tree.len();
     let has_scrollbar = total > list_area.height as usize;
     let list_render_area = if has_scrollbar {
-        Rect { width: list_area.width.saturating_sub(1), ..list_area }
+        Rect {
+            width: list_area.width.saturating_sub(1),
+            ..list_area
+        }
     } else {
         list_area
     };
-    f.render_stateful_widget(List::new(items), list_render_area, &mut app.sidebar_list_state);
+    f.render_stateful_widget(
+        List::new(items),
+        list_render_area,
+        &mut app.sidebar_list_state,
+    );
 
     if has_scrollbar {
-        let mut scrollbar_state = ScrollbarState::new(total)
-            .position(cursor);
+        let mut scrollbar_state = ScrollbarState::new(total).position(cursor);
         f.render_stateful_widget(
             Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .style(Style::default().fg(SURFACE0)),
@@ -405,8 +421,7 @@ fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rect) {
 
     if app.category_view_articles.is_empty() {
         f.render_widget(
-            Paragraph::new(" No articles in this category.")
-                .style(Style::default().fg(SUBTEXT0)),
+            Paragraph::new(" No articles in this category.").style(Style::default().fg(SUBTEXT0)),
             inner,
         );
         return;
@@ -433,7 +448,10 @@ fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rect) {
     let total = app.category_view_articles.len();
     let has_scrollbar = total > inner.height as usize;
     let list_render_area = if has_scrollbar {
-        Rect { width: inner.width.saturating_sub(1), ..inner }
+        Rect {
+            width: inner.width.saturating_sub(1),
+            ..inner
+        }
     } else {
         inner
     };
@@ -500,8 +518,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
             .enumerate()
             .map(|(i, &(fi, ai))| {
                 let article = &app.feeds[fi].articles[ai];
-                let is_selected = app.selected_article == i
-                    && app.state == AppState::ArticleList;
+                let is_selected = app.selected_article == i && app.state == AppState::ArticleList;
                 let style = if is_selected {
                     Style::default()
                         .fg(MAUVE)
@@ -530,7 +547,10 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
         let total = app.category_view_articles.len();
         let has_scrollbar = total > inner.height as usize;
         let list_render_area = if has_scrollbar {
-            Rect { width: inner.width.saturating_sub(1), ..inner }
+            Rect {
+                width: inner.width.saturating_sub(1),
+                ..inner
+            }
         } else {
             inner
         };
@@ -541,8 +561,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
             &mut app.article_list_state,
         );
         if has_scrollbar {
-            let mut sb_state = ScrollbarState::new(total)
-                .position(app.selected_article);
+            let mut sb_state = ScrollbarState::new(total).position(app.selected_article);
             f.render_stateful_widget(
                 Scrollbar::new(ScrollbarOrientation::VerticalRight)
                     .style(Style::default().fg(SURFACE0)),
@@ -576,27 +595,26 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
-    let (feed_title, articles): (String, &[crate::models::Article]) =
-        if app.in_saved_context {
-            let title = if let Some(cat_id) = app.selected_saved_category {
-                app.user_data
-                    .saved_categories
-                    .iter()
-                    .find(|c| c.id == cat_id)
-                    .map(|c| format!(" {} ", c.name))
-                    .unwrap_or_else(|| " Saved ".to_string())
-            } else {
-                " ★ All Saved ".to_string()
-            };
-            (title, app.saved_view_articles.as_slice())
+    let (feed_title, articles): (String, &[crate::models::Article]) = if app.in_saved_context {
+        let title = if let Some(cat_id) = app.selected_saved_category {
+            app.user_data
+                .saved_categories
+                .iter()
+                .find(|c| c.id == cat_id)
+                .map(|c| format!(" {} ", c.name))
+                .unwrap_or_else(|| " Saved ".to_string())
         } else {
-            let feed = app.feeds.get(app.selected_feed);
-            let title = feed
-                .map(|f| format!(" Articles: {} ", f.title))
-                .unwrap_or_else(|| " Articles ".to_string());
-            let arts = feed.map(|f| f.articles.as_slice()).unwrap_or(&[]);
-            (title, arts)
+            " ★ All Saved ".to_string()
         };
+        (title, app.saved_view_articles.as_slice())
+    } else {
+        let feed = app.feeds.get(app.selected_feed);
+        let title = feed
+            .map(|f| format!(" Articles: {} ", f.title))
+            .unwrap_or_else(|| " Articles ".to_string());
+        let arts = feed.map(|f| f.articles.as_slice()).unwrap_or(&[]);
+        (title, arts)
+    };
 
     let is_navigating = app.state == AppState::ArticleList;
     let block = Block::default()
@@ -680,15 +698,21 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect) {
     let total = articles.len();
     let has_scrollbar = total > list_area.height as usize;
     let list_render_area = if has_scrollbar {
-        Rect { width: list_area.width.saturating_sub(1), ..list_area }
+        Rect {
+            width: list_area.width.saturating_sub(1),
+            ..list_area
+        }
     } else {
         list_area
     };
-    f.render_stateful_widget(List::new(items), list_render_area, &mut app.article_list_state);
+    f.render_stateful_widget(
+        List::new(items),
+        list_render_area,
+        &mut app.article_list_state,
+    );
 
     if has_scrollbar {
-        let mut scrollbar_state = ScrollbarState::new(total)
-            .position(app.selected_article);
+        let mut scrollbar_state = ScrollbarState::new(total).position(app.selected_article);
         f.render_stateful_widget(
             Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .style(Style::default().fg(SURFACE0)),
@@ -739,7 +763,10 @@ fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_article_view: bo
             let color = age_color(secs);
             link_spans.push(Span::styled("  •  ", Style::default().fg(SUBTEXT0)));
             if let Some(number_part) = age.strip_suffix(" ago") {
-                link_spans.push(Span::styled(number_part.to_string(), Style::default().fg(color)));
+                link_spans.push(Span::styled(
+                    number_part.to_string(),
+                    Style::default().fg(color),
+                ));
                 link_spans.push(Span::styled(" ago", Style::default().fg(SUBTEXT0)));
             } else {
                 link_spans.push(Span::styled(age, Style::default().fg(color)));
@@ -773,10 +800,7 @@ fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_article_view: bo
                 bar_chunks[1],
             );
         } else {
-            f.render_widget(
-                Paragraph::new(Line::from(link_spans)).bg(BASE),
-                bar_inner,
-            );
+            f.render_widget(Paragraph::new(Line::from(link_spans)).bg(BASE), bar_inner);
         }
     } else {
         // ── Feed stats footer: URL, article count, unread, fetch age ──
@@ -790,17 +814,21 @@ fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_article_view: bo
             return;
         }
 
-        let (feed_url, articles, feed_updated_secs, last_fetched_secs): (&str, &[crate::models::Article], Option<i64>, Option<i64>) =
-            if app.in_saved_context {
-                ("", app.saved_view_articles.as_slice(), None, None)
-            } else {
-                let feed = app.feeds.get(app.selected_feed);
-                let url: &str = feed.map(|f| f.url.as_str()).unwrap_or("");
-                let updated = feed.and_then(|f| f.feed_updated_secs);
-                let fetched = feed.and_then(|f| f.last_fetched_secs);
-                let arts = feed.map(|f| f.articles.as_slice()).unwrap_or(&[]);
-                (url, arts, updated, fetched)
-            };
+        let (feed_url, articles, feed_updated_secs, last_fetched_secs): (
+            &str,
+            &[crate::models::Article],
+            Option<i64>,
+            Option<i64>,
+        ) = if app.in_saved_context {
+            ("", app.saved_view_articles.as_slice(), None, None)
+        } else {
+            let feed = app.feeds.get(app.selected_feed);
+            let url: &str = feed.map(|f| f.url.as_str()).unwrap_or("");
+            let updated = feed.and_then(|f| f.feed_updated_secs);
+            let fetched = feed.and_then(|f| f.last_fetched_secs);
+            let arts = feed.map(|f| f.articles.as_slice()).unwrap_or(&[]);
+            (url, arts, updated, fetched)
+        };
 
         // Info bar: separator + 2 rows (URL, stats).
         let bar_block = Block::default()
@@ -839,7 +867,10 @@ fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_article_view: bo
             let color = age_color(secs);
             stat_spans.push(Span::styled("  •  fetched ", Style::default().fg(SUBTEXT0)));
             if let Some(number_part) = age.strip_suffix(" ago") {
-                stat_spans.push(Span::styled(number_part.to_string(), Style::default().fg(color)));
+                stat_spans.push(Span::styled(
+                    number_part.to_string(),
+                    Style::default().fg(color),
+                ));
                 stat_spans.push(Span::styled(" ago", Style::default().fg(SUBTEXT0)));
             } else {
                 stat_spans.push(Span::styled(age, Style::default().fg(color)));
@@ -871,9 +902,7 @@ pub(super) fn draw_article_detail(f: &mut Frame, app: &mut App, area: Rect, is_p
             .and_then(|&(fi, ai)| app.feeds.get(fi).and_then(|f| f.articles.get(ai)))
             .cloned()
     } else if app.in_saved_context {
-        app.saved_view_articles
-            .get(app.selected_article)
-            .cloned()
+        app.saved_view_articles.get(app.selected_article).cloned()
     } else {
         app.feeds
             .get(app.selected_feed)
@@ -889,8 +918,7 @@ pub(super) fn draw_article_detail(f: &mut Frame, app: &mut App, area: Rect, is_p
         let inner = block.inner(area);
         f.render_widget(block, area);
         f.render_widget(
-            Paragraph::new("Select an article to preview.")
-                .style(Style::default().fg(SUBTEXT0)),
+            Paragraph::new("Select an article to preview.").style(Style::default().fg(SUBTEXT0)),
             inner,
         );
         return;
@@ -945,7 +973,11 @@ pub(super) fn draw_article_detail(f: &mut Frame, app: &mut App, area: Rect, is_p
         .replace_all(&no_images, "$1")
         .to_string();
 
-    let scroll_offset = if is_preview { 0 } else { app.article_scroll.get(&article.link) };
+    let scroll_offset = if is_preview {
+        0
+    } else {
+        app.article_scroll.get(&article.link)
+    };
 
     if !is_preview {
         app.content_area_height = content_area.height;
@@ -966,15 +998,17 @@ pub(super) fn draw_article_detail(f: &mut Frame, app: &mut App, area: Rect, is_p
 
     let has_scrollbar = line_count > content_area.height as usize;
     let para_render_area = if has_scrollbar {
-        Rect { width: content_area.width.saturating_sub(1), ..content_area }
+        Rect {
+            width: content_area.width.saturating_sub(1),
+            ..content_area
+        }
     } else {
         content_area
     };
     f.render_widget(paragraph, para_render_area);
 
     if has_scrollbar {
-        let mut scrollbar_state = ScrollbarState::new(line_count)
-            .position(scroll_offset as usize);
+        let mut scrollbar_state = ScrollbarState::new(line_count).position(scroll_offset as usize);
         f.render_stateful_widget(
             Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .style(Style::default().fg(SURFACE0)),

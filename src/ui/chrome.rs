@@ -1,19 +1,19 @@
 use ratatui::{
+    Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
-    Frame,
 };
 
 use crate::{
     app::App,
-    models::{AppState, Tab, FAVORITES_URL},
+    models::{AppState, FAVORITES_URL, Tab},
 };
 
 use ratatui::prelude::Stylize;
 
-use super::{border_set, BASE, GREEN, MANTLE, MAUVE, SUBTEXT0, SURFACE0, YELLOW};
+use super::{BASE, GREEN, MANTLE, MAUVE, SUBTEXT0, SURFACE0, YELLOW, border_set};
 
 pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
     let tabs = [
@@ -127,9 +127,7 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         AppState::AddFeed | AppState::OPMLExportPath | AppState::OPMLImportPath => {
             " [Enter] Confirm   [Esc] Cancel "
         }
-        AppState::ClearData | AppState::ClearArticleCache => {
-            " [Enter] Confirm   [Esc] Cancel "
-        }
+        AppState::ClearData | AppState::ClearArticleCache => " [Enter] Confirm   [Esc] Cancel ",
         AppState::SavedCategoryList => {
             " [↑/↓] Navigate   [Enter] Open   [Tab/Shift+Tab] Switch Tab   [q] Quit "
         }
@@ -138,9 +136,7 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         }
         AppState::FeedEditorRename => " [Enter] Confirm   [Esc] Cancel ",
         AppState::CategoryPicker => " [↑/↓] Navigate   [Enter] Select   [Esc] Cancel ",
-        AppState::SavedCategoryEditor => {
-            " [↑/↓] Navigate   [r] Rename   [d] Delete   [Esc] Back "
-        }
+        AppState::SavedCategoryEditor => " [↑/↓] Navigate   [r] Rename   [d] Delete   [Esc] Back ",
         AppState::SavedCategoryEditorRename | AppState::SavedCategoryEditorNew => {
             " [Enter] Confirm   [Esc] Cancel "
         }
@@ -193,11 +189,7 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         Span::raw("")
     };
 
-
-    f.render_widget(
-        Paragraph::new(Line::from(vec![status])).bg(BASE),
-        cols[0],
-    );
+    f.render_widget(Paragraph::new(Line::from(vec![status])).bg(BASE), cols[0]);
 
     f.render_widget(
         Paragraph::new(hints)

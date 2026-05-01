@@ -7,10 +7,10 @@ mod settings;
 use crate::app::App;
 use crate::models::{AppState, FeedTreeItem, Tab};
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout},
     style::Color,
     symbols,
-    Frame,
 };
 
 // ── Catppuccin Mocha palette ──────────────────────────────────────────────────
@@ -33,7 +33,11 @@ pub(crate) const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", 
 
 /// Returns the border set based on the user's rounded-border preference.
 pub(crate) fn border_set(rounded: bool) -> symbols::border::Set<'static> {
-    if rounded { symbols::border::ROUNDED } else { symbols::border::PLAIN }
+    if rounded {
+        symbols::border::ROUNDED
+    } else {
+        symbols::border::PLAIN
+    }
 }
 
 /// Fixed palette for category headers (cycles by category id).
@@ -140,7 +144,10 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if app.state == AppState::AddFeed {
         popups::draw_add_feed_popup(f, app);
     }
-    if matches!(app.state, AppState::OPMLExportPath | AppState::OPMLImportPath) {
+    if matches!(
+        app.state,
+        AppState::OPMLExportPath | AppState::OPMLImportPath
+    ) {
         popups::draw_opml_path_popup(f, app);
     }
     if app.state == AppState::ClearData {

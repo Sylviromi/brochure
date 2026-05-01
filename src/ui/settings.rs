@@ -1,9 +1,11 @@
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
-    Frame,
+    widgets::{
+        Block, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    },
 };
 
 use ratatui::prelude::Stylize;
@@ -13,7 +15,7 @@ use crate::{
     models::{AppState, SettingsItem},
 };
 
-use super::{border_set, BASE, GREEN, MAUVE, MANTLE, PEACH, RED, SUBTEXT0, SURFACE0, TEXT, YELLOW};
+use super::{BASE, GREEN, MANTLE, MAUVE, PEACH, RED, SUBTEXT0, SURFACE0, TEXT, YELLOW, border_set};
 
 pub(super) fn draw_settings_tab(f: &mut Frame, app: &App, area: Rect) {
     match app.state {
@@ -40,10 +42,25 @@ fn format_cache_size(bytes: u64) -> String {
 
 fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
     enum Row {
-        SectionHeader { label: &'static str, is_last: bool },
-        Item { item: SettingsItem, label: &'static str, in_last: bool },
-        Toggle { item: SettingsItem, label: &'static str, in_last: bool, on: bool },
-        CacheItem { in_last: bool, size_label: String },
+        SectionHeader {
+            label: &'static str,
+            is_last: bool,
+        },
+        Item {
+            item: SettingsItem,
+            label: &'static str,
+            in_last: bool,
+        },
+        Toggle {
+            item: SettingsItem,
+            label: &'static str,
+            in_last: bool,
+            on: bool,
+        },
+        CacheItem {
+            in_last: bool,
+            size_label: String,
+        },
         Spacer,
     }
 
@@ -53,21 +70,45 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
     let rounded = app.user_data.border_rounded;
     let cache_label = format_cache_size(app.article_cache_size);
     let rows = [
-        Row::SectionHeader { label: " Data", is_last: false },
-        Row::Item { item: SettingsItem::ImportOpml, label: "[ Import OPML ]", in_last: false },
-        Row::Item { item: SettingsItem::ExportOpml, label: "[ Export OPML ]", in_last: false },
-        Row::Item { item: SettingsItem::ClearData, label: "[ Clear All Data ]", in_last: false },
+        Row::SectionHeader {
+            label: " Data",
+            is_last: false,
+        },
+        Row::Item {
+            item: SettingsItem::ImportOpml,
+            label: "[ Import OPML ]",
+            in_last: false,
+        },
+        Row::Item {
+            item: SettingsItem::ExportOpml,
+            label: "[ Export OPML ]",
+            in_last: false,
+        },
+        Row::Item {
+            item: SettingsItem::ClearData,
+            label: "[ Clear All Data ]",
+            in_last: false,
+        },
         Row::Spacer,
-        Row::SectionHeader { label: " Article Storage", is_last: false },
+        Row::SectionHeader {
+            label: " Article Storage",
+            is_last: false,
+        },
         Row::Toggle {
             item: SettingsItem::SaveArticleContent,
             label: "[ Save Article Content ]",
             in_last: false,
             on: save,
         },
-        Row::CacheItem { in_last: false, size_label: cache_label },
+        Row::CacheItem {
+            in_last: false,
+            size_label: cache_label,
+        },
         Row::Spacer,
-        Row::SectionHeader { label: " Fetching", is_last: false },
+        Row::SectionHeader {
+            label: " Fetching",
+            is_last: false,
+        },
         Row::Toggle {
             item: SettingsItem::EagerArticleFetch,
             label: "[ Eager Article Fetch ]",
@@ -81,7 +122,10 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
             on: auto_fetch,
         },
         Row::Spacer,
-        Row::SectionHeader { label: " Appearance", is_last: true },
+        Row::SectionHeader {
+            label: " Appearance",
+            is_last: true,
+        },
         Row::Toggle {
             item: SettingsItem::BorderStyle,
             label: "[ Rounded Borders ]",
@@ -95,20 +139,34 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
         .map(|row| match row {
             Row::SectionHeader { label, is_last } => {
                 let connector = if *is_last {
-                    if app.user_data.border_rounded { " ╰─" } else { " └─" }
+                    if app.user_data.border_rounded {
+                        " ╰─"
+                    } else {
+                        " └─"
+                    }
                 } else {
                     " ├─"
                 };
                 ListItem::new(Line::from(vec![
                     Span::styled(connector, Style::default().fg(SURFACE0)),
-                    Span::styled(*label, Style::default().fg(PEACH).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        *label,
+                        Style::default().fg(PEACH).add_modifier(Modifier::BOLD),
+                    ),
                 ]))
             }
-            Row::Item { item, label, in_last } => {
+            Row::Item {
+                item,
+                label,
+                in_last,
+            } => {
                 let prefix = if *in_last { "     " } else { " │   " };
                 let selected = app.settings_selected == *item;
                 let style = if selected {
-                    Style::default().fg(MANTLE).bg(MAUVE).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(MANTLE)
+                        .bg(MAUVE)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(TEXT)
                 };
@@ -117,16 +175,27 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
                     Span::styled(*label, style),
                 ]))
             }
-            Row::Toggle { item, label, in_last, on } => {
+            Row::Toggle {
+                item,
+                label,
+                in_last,
+                on,
+            } => {
                 let prefix = if *in_last { "     " } else { " │   " };
                 let selected = app.settings_selected == *item;
                 let base_style = if selected {
-                    Style::default().fg(MANTLE).bg(MAUVE).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(MANTLE)
+                        .bg(MAUVE)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(TEXT)
                 };
                 let badge_style = if selected {
-                    Style::default().fg(MANTLE).bg(MAUVE).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(MANTLE)
+                        .bg(MAUVE)
+                        .add_modifier(Modifier::BOLD)
                 } else if *on {
                     Style::default().fg(GREEN).add_modifier(Modifier::BOLD)
                 } else {
@@ -138,16 +207,25 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
                     Span::styled(if *on { "  ON " } else { "  OFF " }, badge_style),
                 ]))
             }
-            Row::CacheItem { in_last, size_label } => {
+            Row::CacheItem {
+                in_last,
+                size_label,
+            } => {
                 let prefix = if *in_last { "     " } else { " │   " };
                 let selected = app.settings_selected == SettingsItem::ClearArticleCache;
                 let base_style = if selected {
-                    Style::default().fg(MANTLE).bg(MAUVE).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(MANTLE)
+                        .bg(MAUVE)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(TEXT)
                 };
                 let badge_style = if selected {
-                    Style::default().fg(MANTLE).bg(MAUVE).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(MANTLE)
+                        .bg(MAUVE)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(RED)
                 };
@@ -157,16 +235,21 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
                     Span::styled(format!("  {} ", size_label), badge_style),
                 ]))
             }
-            Row::Spacer => {
-                ListItem::new(Line::from(Span::styled(" │", Style::default().fg(SURFACE0))))
-            }
+            Row::Spacer => ListItem::new(Line::from(Span::styled(
+                " │",
+                Style::default().fg(SURFACE0),
+            ))),
         })
         .collect();
 
     let block = Block::default()
         .border_set(border_set(app.user_data.border_rounded))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(if app.state == AppState::SettingsList { MAUVE } else { SURFACE0 }))
+        .border_style(Style::default().fg(if app.state == AppState::SettingsList {
+            MAUVE
+        } else {
+            SURFACE0
+        }))
         .bg(BASE)
         .title(Span::styled(
             " Settings ",
@@ -237,7 +320,10 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
     let total = app.user_data.saved_categories.len();
     let has_scrollbar = total > inner.height as usize;
     let list_render_area = if has_scrollbar {
-        Rect { width: inner.width.saturating_sub(1), ..inner }
+        Rect {
+            width: inner.width.saturating_sub(1),
+            ..inner
+        }
     } else {
         inner
     };
@@ -247,8 +333,7 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
         &mut app.saved_cat_editor_scroll.list_state,
     );
     if has_scrollbar {
-        let mut sb_state = ScrollbarState::new(total)
-            .position(app.saved_cat_editor_scroll.cursor);
+        let mut sb_state = ScrollbarState::new(total).position(app.saved_cat_editor_scroll.cursor);
         f.render_stateful_widget(
             Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .style(Style::default().fg(super::SURFACE0)),
@@ -265,8 +350,7 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
             ..area
         };
         let input_text = format!("  Category name: {}", app.editor_input);
-        let input_para = Paragraph::new(input_text)
-            .style(Style::default().fg(YELLOW));
+        let input_para = Paragraph::new(input_text).style(Style::default().fg(YELLOW));
         f.render_widget(input_para, input_area);
     }
 }

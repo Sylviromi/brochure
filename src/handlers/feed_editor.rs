@@ -2,10 +2,10 @@ use crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    app::{visible_cat_only_items, visible_tree_items, App},
+    app::{App, visible_cat_only_items, visible_tree_items},
     models::{
-        AddFeedStep, AppEvent, AppState, Category, CategoryId, EditorPanel, Feed, FeedEditorMode,
-        FeedTreeItem, FAVORITES_URL,
+        AddFeedStep, AppEvent, AppState, Category, CategoryId, EditorPanel, FAVORITES_URL, Feed,
+        FeedEditorMode, FeedTreeItem,
     },
     storage::{save_categories, save_feeds},
 };
@@ -104,16 +104,17 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
 
             match &app.editor_mode.clone() {
                 // ── Moving mode ───────────────────────────────────────────────
-                FeedEditorMode::Moving { origin_render_idx, original_cursor, depth_delta } => {
+                FeedEditorMode::Moving {
+                    origin_render_idx,
+                    original_cursor,
+                    depth_delta,
+                } => {
                     let origin = *origin_render_idx;
                     let orig = *original_cursor;
                     let depth_delta = *depth_delta;
                     let is_cat_move = {
-                        let items = visible_tree_items(
-                            &app.categories,
-                            &app.feeds,
-                            &app.editor_collapsed,
-                        );
+                        let items =
+                            visible_tree_items(&app.categories, &app.feeds, &app.editor_collapsed);
                         matches!(items.get(origin), Some(FeedTreeItem::Category { .. }))
                     };
                     match key.code {
@@ -208,14 +209,13 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
                                     &app.feeds,
                                     &app.editor_collapsed,
                                 );
-                                let parent_id =
-                                    if let Some(FeedTreeItem::Category { id, .. }) =
-                                        cats.get(app.editor_cat_cursor)
-                                    {
-                                        Some(*id)
-                                    } else {
-                                        None
-                                    };
+                                let parent_id = if let Some(FeedTreeItem::Category { id, .. }) =
+                                    cats.get(app.editor_cat_cursor)
+                                {
+                                    Some(*id)
+                                } else {
+                                    None
+                                };
                                 app.editor_input.clear();
                                 app.editor_mode = FeedEditorMode::NewCategory { parent_id };
                                 app.state = AppState::FeedEditorRename;
@@ -247,8 +247,9 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
                                         .find(|c| c.id == cat_id)
                                         .map(|c| c.name.clone())
                                         .unwrap_or_default();
-                                    app.editor_mode =
-                                        FeedEditorMode::Renaming { render_idx: full_idx };
+                                    app.editor_mode = FeedEditorMode::Renaming {
+                                        render_idx: full_idx,
+                                    };
                                     app.state = AppState::FeedEditorRename;
                                 }
                             }
@@ -420,7 +421,11 @@ fn delete_at_cursor(app: &mut App) {
 
 /// Count total feeds (including in subcategories) that belong to a category.
 fn count_feeds_recursive(app: &App, cat_id: CategoryId) -> usize {
-    let direct = app.feeds.iter().filter(|f| f.category_id == Some(cat_id)).count();
+    let direct = app
+        .feeds
+        .iter()
+        .filter(|f| f.category_id == Some(cat_id))
+        .count();
     let sub: usize = app
         .categories
         .iter()
@@ -449,7 +454,6 @@ fn delete_category_recursive(app: &mut App, cat_id: CategoryId) {
     let _ = save_categories(&app.categories);
     let _ = save_feeds(&app.feeds);
 }
-
 
 /// Returns true if `ancestor_id` is an ancestor of (or equal to) `node_id`.
 fn is_ancestor_of(categories: &[Category], ancestor_id: CategoryId, node_id: CategoryId) -> bool {
@@ -518,7 +522,11 @@ fn apply_category_move(
         // Walk depth_delta levels up from cursor to find the anchor and its parent.
         let mut anchor_id = cursor_cat_id;
         for _ in 0..depth_delta.unsigned_abs() {
-            let p = app.categories.iter().find(|c| c.id == anchor_id).and_then(|c| c.parent_id);
+            let p = app
+                .categories
+                .iter()
+                .find(|c| c.id == anchor_id)
+                .and_then(|c| c.parent_id);
             match p {
                 Some(pid) => anchor_id = pid,
                 None => break,
@@ -529,7 +537,11 @@ fn apply_category_move(
             .iter()
             .find(|c| c.id == anchor_id)
             .and_then(|c| c.parent_id);
-        let after = if anchor_id == src_id { None } else { Some(anchor_id) };
+        let after = if anchor_id == src_id {
+            None
+        } else {
+            Some(anchor_id)
+        };
         (anchor_parent, after)
     };
 
@@ -595,9 +607,9 @@ fn apply_move(app: &mut App, origin: usize) -> Option<usize> {
     let _ = save_feeds(&app.feeds);
 
     let new_items = visible_tree_items(&app.categories, &app.feeds, &app.editor_collapsed);
-    new_items.iter().position(|item| {
-        matches!(item, FeedTreeItem::Feed { feeds_idx: fi, .. } if *fi == feeds_idx)
-    })
+    new_items.iter().position(
+        |item| matches!(item, FeedTreeItem::Feed { feeds_idx: fi, .. } if *fi == feeds_idx),
+    )
 }
 
 /// Insert `moved_idx` (feed Vec index) into `parent`'s feed list right after

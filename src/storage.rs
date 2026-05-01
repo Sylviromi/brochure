@@ -1,4 +1,4 @@
-use crate::models::{Article, Category, CategoryId, Feed, UserData, FAVORITES_URL};
+use crate::models::{Article, Category, CategoryId, FAVORITES_URL, Feed, UserData};
 use std::{collections::HashMap, fs, path::PathBuf};
 
 // ── Data directory ────────────────────────────────────────────────────────────

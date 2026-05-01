@@ -4,7 +4,9 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     app::App,
     fetch::{fetch_feed, fetch_readable_content},
-    models::{AppEvent, AppState, Article, FeedSource, SavedArticle, SavedCategory, CONTENT_STUB_MAX_LEN},
+    models::{
+        AppEvent, AppState, Article, CONTENT_STUB_MAX_LEN, FeedSource, SavedArticle, SavedCategory,
+    },
     storage::save_user_data,
 };
 
@@ -36,7 +38,8 @@ pub(super) async fn handle_article(
             if app.state == AppState::ArticleDetail {
                 let max = app
                     .content_line_count
-                    .saturating_sub(app.content_area_height as usize) as u16;
+                    .saturating_sub(app.content_area_height as usize)
+                    as u16;
                 if let Some(article) = get_selected_article(app) {
                     app.article_scroll.scroll_down(&article.link, max);
                 }
@@ -77,10 +80,18 @@ pub(super) async fn handle_article(
 
 pub(super) fn handle_category_picker(app: &mut App, key: KeyEvent) {
     let cats_len = app.user_data.saved_categories.len();
-    let article_is_saved = get_selected_article(app)
-        .is_some_and(|art| app.user_data.saved_articles.iter().any(|s| s.article.link == art.link));
+    let article_is_saved = get_selected_article(app).is_some_and(|art| {
+        app.user_data
+            .saved_articles
+            .iter()
+            .any(|s| s.article.link == art.link)
+    });
     // Layout: [0..cats_len) = existing categories, cats_len = "New category...", cats_len+1 = "Unsave" (only if saved)
-    let total_items = if article_is_saved { cats_len + 2 } else { cats_len + 1 };
+    let total_items = if article_is_saved {
+        cats_len + 2
+    } else {
+        cats_len + 1
+    };
 
     if app.category_picker_new_mode {
         match key.code {
@@ -231,8 +242,7 @@ fn unsave_article(app: &mut App) {
     update_is_saved_flag(app, false);
 
     if app.in_saved_context {
-        app.saved_view_articles
-            .retain(|a| a.link != article.link);
+        app.saved_view_articles.retain(|a| a.link != article.link);
         if app.selected_article >= app.saved_view_articles.len()
             && !app.saved_view_articles.is_empty()
         {
@@ -276,7 +286,11 @@ fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>) {
         return;
     }
     let (feed_idx, art_idx) = if app.in_category_context {
-        match app.category_view_articles.get(app.selected_article).copied() {
+        match app
+            .category_view_articles
+            .get(app.selected_article)
+            .copied()
+        {
             Some(pair) => pair,
             None => return,
         }
@@ -284,7 +298,11 @@ fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>) {
         (app.selected_feed, app.selected_article)
     };
 
-    let article = match app.feeds.get(feed_idx).and_then(|f| f.articles.get(art_idx)) {
+    let article = match app
+        .feeds
+        .get(feed_idx)
+        .and_then(|f| f.articles.get(art_idx))
+    {
         Some(a) => a,
         None => return,
     };
@@ -364,7 +382,11 @@ fn mark_saved_as_read(app: &mut App, article: &Article) {
     if let Some(a) = app.saved_view_articles.get_mut(app.selected_article) {
         a.is_read = true;
     }
-    if let Some(feed) = app.feeds.iter_mut().find(|f| f.title == article.source_feed) {
+    if let Some(feed) = app
+        .feeds
+        .iter_mut()
+        .find(|f| f.title == article.source_feed)
+    {
         if let Some(a) = feed.articles.iter_mut().find(|a| a.link == article.link) {
             a.is_read = true;
         }
@@ -408,7 +430,8 @@ fn fetch_full_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>, art
     let tx2 = tx.clone();
     let url = article.link.clone();
     let source = if app.in_category_context {
-        let (fi, _ai) = app.category_view_articles
+        let (fi, _ai) = app
+            .category_view_articles
             .get(app.selected_article)
             .copied()
             .unwrap_or((app.selected_feed, app.selected_article));

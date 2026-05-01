@@ -1,21 +1,21 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
-    Frame,
 };
 
 use ratatui::prelude::Stylize;
 
 use crate::{
-    app::{visible_cat_only_items, visible_tree_items, App},
+    app::{App, visible_cat_only_items, visible_tree_items},
     models::{AppState, EditorPanel, FeedEditorMode, FeedTreeItem},
 };
 
 use super::{
-    border_set, tree_connector, tree_indent, BASE, BLUE, CATEGORY_COLORS, GREEN, MANTLE, MAUVE,
-    SUBTEXT0, SURFACE0, TEXT, YELLOW,
+    BASE, BLUE, CATEGORY_COLORS, GREEN, MANTLE, MAUVE, SUBTEXT0, SURFACE0, TEXT, YELLOW,
+    border_set, tree_connector, tree_indent,
 };
 
 pub(super) fn draw_feed_editor(f: &mut Frame, app: &mut App, area: Rect) {
@@ -38,7 +38,9 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
     let is_rename = app.state == AppState::FeedEditorRename;
 
     let moving_origin = match &app.editor_mode {
-        FeedEditorMode::Moving { origin_render_idx, .. } => Some(*origin_render_idx),
+        FeedEditorMode::Moving {
+            origin_render_idx, ..
+        } => Some(*origin_render_idx),
         _ => None,
     };
 
@@ -64,8 +66,14 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
         .border_style(Style::default().fg(border_color))
         .bg(BASE)
         .title(Line::from(vec![
-            Span::styled(" Feeds ", Style::default().fg(BLUE).add_modifier(Modifier::BOLD)),
-            Span::styled(mode_label, Style::default().fg(mode_color).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " Feeds ",
+                Style::default().fg(BLUE).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                mode_label,
+                Style::default().fg(mode_color).add_modifier(Modifier::BOLD),
+            ),
         ]));
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -82,7 +90,11 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
 
     for (full_idx, item) in tree.iter().enumerate() {
         match item {
-            FeedTreeItem::Category { id, depth, collapsed } => {
+            FeedTreeItem::Category {
+                id,
+                depth,
+                collapsed,
+            } => {
                 let cat_name = app
                     .categories
                     .iter()
@@ -127,7 +139,10 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
                 visual_idx += 1;
 
                 // Inline rename input
-                if is_rename && selected && matches!(app.editor_mode, FeedEditorMode::Renaming { .. }) {
+                if is_rename
+                    && selected
+                    && matches!(app.editor_mode, FeedEditorMode::Renaming { .. })
+                {
                     items.push(ListItem::new(Line::from(vec![
                         Span::styled(indent, Style::default().fg(SURFACE0)),
                         Span::styled(connector, connector_style),
@@ -143,13 +158,19 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
                 } else if is_ghost {
                     Style::default().fg(SUBTEXT0).add_modifier(Modifier::DIM)
                 } else if show_selected {
-                    Style::default().fg(MAUVE).bg(SURFACE0).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(MAUVE)
+                        .bg(SURFACE0)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(TEXT)
                 };
                 let origin_hint = if is_on_origin { " ↩" } else { "" };
                 let drop_marker = if show_selected {
-                    Span::styled("➤ ", Style::default().fg(YELLOW).add_modifier(Modifier::BOLD))
+                    Span::styled(
+                        "➤ ",
+                        Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
+                    )
                 } else {
                     Span::raw("")
                 };
@@ -174,7 +195,10 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     let mut final_items = items;
-    let mut display_visual = full_idx_to_visual.get(&app.editor_cursor).copied().unwrap_or(0);
+    let mut display_visual = full_idx_to_visual
+        .get(&app.editor_cursor)
+        .copied()
+        .unwrap_or(0);
 
     // In Moving mode: insert drop-preview row after the cursor position.
     if let Some(origin) = moving_origin {
@@ -226,7 +250,11 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
     } else {
         app.editor_feeds_list_state.select(None);
     }
-    f.render_stateful_widget(List::new(final_items), inner, &mut app.editor_feeds_list_state);
+    f.render_stateful_widget(
+        List::new(final_items),
+        inner,
+        &mut app.editor_feeds_list_state,
+    );
 }
 
 /// Render the right panel: categories-only tree with add/rename/delete controls.
@@ -237,7 +265,10 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
 
     // For cat-move ghost: find the category ID being moved.
     let moving_cat_id: Option<u64> = if in_moving_mode {
-        if let FeedEditorMode::Moving { origin_render_idx, .. } = &app.editor_mode {
+        if let FeedEditorMode::Moving {
+            origin_render_idx, ..
+        } = &app.editor_mode
+        {
             let items = visible_tree_items(&app.categories, &app.feeds, &app.editor_collapsed);
             match items.get(*origin_render_idx) {
                 Some(FeedTreeItem::Category { id, .. }) => Some(*id),
@@ -318,7 +349,12 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
         .iter()
         .enumerate()
         .map(|(idx, item)| {
-            let FeedTreeItem::Category { id, depth, collapsed } = item else {
+            let FeedTreeItem::Category {
+                id,
+                depth,
+                collapsed,
+            } = item
+            else {
                 return ListItem::new("");
             };
             let selected =
@@ -340,8 +376,16 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
                 ]));
             }
 
-            let direct = app.feeds.iter().filter(|f| f.category_id == Some(*id)).count();
-            let badge = if direct > 0 { format!(" [{direct}]") } else { String::new() };
+            let direct = app
+                .feeds
+                .iter()
+                .filter(|f| f.category_id == Some(*id))
+                .count();
+            let badge = if direct > 0 {
+                format!(" [{direct}]")
+            } else {
+                String::new()
+            };
             let cat_name = app
                 .categories
                 .iter()
@@ -352,7 +396,10 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
             let style = if is_ghost {
                 Style::default().fg(SUBTEXT0).add_modifier(Modifier::DIM)
             } else if selected {
-                Style::default().fg(MANTLE).bg(color).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(MANTLE)
+                    .bg(color)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(color).add_modifier(Modifier::BOLD)
             };
@@ -404,12 +451,21 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // In Moving mode: insert drop-preview row for category.
-    let mut display_cursor = if is_active { app.editor_cat_cursor } else { usize::MAX };
+    let mut display_cursor = if is_active {
+        app.editor_cat_cursor
+    } else {
+        usize::MAX
+    };
     if in_moving_mode && moving_cat_id.is_some() && is_active {
         let cursor = app.editor_cat_cursor;
         if cursor < cats.len() {
             let src_name = moving_cat_id
-                .and_then(|id| app.categories.iter().find(|c| c.id == id).map(|c| c.name.as_str()))
+                .and_then(|id| {
+                    app.categories
+                        .iter()
+                        .find(|c| c.id == id)
+                        .map(|c| c.name.as_str())
+                })
                 .unwrap_or("?");
             let depth_delta = match &app.editor_mode {
                 FeedEditorMode::Moving { depth_delta, .. } => *depth_delta,
@@ -423,7 +479,10 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
             let indent = "  ".repeat(preview_depth as usize);
             let preview = ListItem::new(Line::from(vec![
                 Span::styled(indent, Style::default().fg(SURFACE0)),
-                Span::styled("➤ ", Style::default().fg(YELLOW).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "➤ ",
+                    Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(
                     format!("{src_name} ▼"),
                     Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
@@ -436,9 +495,15 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     if is_active {
-        app.editor_cats_list_state.select(Some(display_cursor.min(final_items.len().saturating_sub(1))));
+        app.editor_cats_list_state.select(Some(
+            display_cursor.min(final_items.len().saturating_sub(1)),
+        ));
     } else {
         app.editor_cats_list_state.select(None);
     }
-    f.render_stateful_widget(List::new(final_items), inner, &mut app.editor_cats_list_state);
+    f.render_stateful_widget(
+        List::new(final_items),
+        inner,
+        &mut app.editor_cats_list_state,
+    );
 }

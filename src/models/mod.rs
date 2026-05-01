@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 mod core_types;
 mod events;
-mod navigation;
 pub mod feed;
+mod navigation;
 pub mod scroll;
 
 pub use core_types::*;
@@ -50,4 +50,3 @@ pub enum FeedTreeItem {
         depth: u8,
     },
 }
-

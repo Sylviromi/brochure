@@ -37,7 +37,11 @@ pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
             SettingsItem::SaveArticleContent => {
                 app.user_data.save_article_content = !app.user_data.save_article_content;
                 let _ = save_user_data(&app.user_data);
-                let state = if app.user_data.save_article_content { "ON" } else { "OFF" };
+                let state = if app.user_data.save_article_content {
+                    "ON"
+                } else {
+                    "OFF"
+                };
                 app.set_status(format!("Save Article Content: {state}"));
             }
             SettingsItem::ClearArticleCache => {
@@ -46,19 +50,31 @@ pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
             SettingsItem::EagerArticleFetch => {
                 app.user_data.eager_article_fetch = !app.user_data.eager_article_fetch;
                 let _ = save_user_data(&app.user_data);
-                let state = if app.user_data.eager_article_fetch { "ON" } else { "OFF" };
+                let state = if app.user_data.eager_article_fetch {
+                    "ON"
+                } else {
+                    "OFF"
+                };
                 app.set_status(format!("Eager Article Fetch: {state}"));
             }
             SettingsItem::AutoFetchOnStart => {
                 app.user_data.auto_fetch_on_start = !app.user_data.auto_fetch_on_start;
                 let _ = save_user_data(&app.user_data);
-                let state = if app.user_data.auto_fetch_on_start { "ON" } else { "OFF" };
+                let state = if app.user_data.auto_fetch_on_start {
+                    "ON"
+                } else {
+                    "OFF"
+                };
                 app.set_status(format!("Auto Fetch On Start: {state}"));
             }
             SettingsItem::BorderStyle => {
                 app.user_data.border_rounded = !app.user_data.border_rounded;
                 let _ = save_user_data(&app.user_data);
-                let state = if app.user_data.border_rounded { "ON" } else { "OFF" };
+                let state = if app.user_data.border_rounded {
+                    "ON"
+                } else {
+                    "OFF"
+                };
                 app.set_status(format!("Rounded Borders: {state}"));
             }
         },
@@ -237,7 +253,9 @@ pub(super) fn handle_opml_path(app: &mut App, key: KeyEvent, tx: &UnboundedSende
                         app.categories.extend(new_cats);
                         let _ = save_feeds(&app.feeds);
                         let _ = save_categories(&app.categories);
-                        app.set_status(format!("Imported {feed_count} feed(s), {cat_count} category(s)"));
+                        app.set_status(format!(
+                            "Imported {feed_count} feed(s), {cat_count} category(s)"
+                        ));
                     }
                     Err(e) => app.set_status(format!("Import failed: {e}")),
                 }
@@ -266,9 +284,7 @@ pub(super) fn handle_saved_category_editor(app: &mut App, key: KeyEvent) {
         KeyCode::Char('r') => {
             let cursor = app.saved_cat_editor_scroll.cursor;
             if cursor < app.user_data.saved_categories.len() {
-                app.editor_input = app.user_data.saved_categories[cursor]
-                    .name
-                    .clone();
+                app.editor_input = app.user_data.saved_categories[cursor].name.clone();
                 app.state = AppState::SavedCategoryEditorRename;
             }
         }
@@ -301,7 +317,9 @@ pub(super) fn handle_saved_category_editor_delete_confirm(app: &mut App, key: Ke
                     .iter()
                     .filter(|s| s.category_id == cat_id)
                     .count();
-                app.user_data.saved_articles.retain(|s| s.category_id != cat_id);
+                app.user_data
+                    .saved_articles
+                    .retain(|s| s.category_id != cat_id);
                 app.user_data.saved_categories.remove(cursor);
                 let new_len = app.user_data.saved_categories.len();
                 app.saved_cat_editor_scroll.clamp(new_len);
@@ -339,10 +357,12 @@ pub(super) fn handle_saved_category_editor_new(app: &mut App, key: KeyEvent) {
                         .max()
                         .unwrap_or(0)
                         + 1;
-                    app.user_data.saved_categories.push(crate::models::SavedCategory {
-                        id: new_id,
-                        name: name.clone(),
-                    });
+                    app.user_data
+                        .saved_categories
+                        .push(crate::models::SavedCategory {
+                            id: new_id,
+                            name: name.clone(),
+                        });
                     let _ = save_user_data(&app.user_data);
                     app.set_status(format!("Category '{name}' created."));
                 } else {

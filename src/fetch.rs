@@ -73,9 +73,7 @@ pub async fn fetch_feed(url: &str) -> Result<(Vec<Article>, Option<i64>), String
                 .captures(&html_content)
                 .map(|caps| caps[1].to_string());
             let content = html2md::parse_html(&html_content);
-            let published_secs = entry.published
-                .or(entry.updated)
-                .map(|dt| dt.timestamp());
+            let published_secs = entry.published.or(entry.updated).map(|dt| dt.timestamp());
 
             Article {
                 title,
@@ -108,7 +106,6 @@ pub async fn fetch_feed_title(url: &str) -> Result<String, String> {
     let parsed = feed_rs::parser::parse(strip_bom(&bytes)).map_err(|e| e.to_string())?;
     Ok(parsed.title.map(|t| t.content).unwrap_or_default())
 }
-
 
 /// Fetch and extract readable article content from a URL using Mozilla's Readability algorithm.
 pub async fn fetch_readable_content(url: &str) -> Result<String, String> {

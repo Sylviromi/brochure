@@ -1,16 +1,19 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph, ScrollbarState},
-    Frame,
 };
 
 use ratatui::prelude::Stylize;
 
-use crate::{app::App, models::{AddFeedStep, AppState, CategoryId}};
+use crate::{
+    app::App,
+    models::{AddFeedStep, AppState, CategoryId},
+};
 
-use super::{border_set, BASE, BLUE, GREEN, MAUVE, RED, SUBTEXT0, SURFACE0, TEXT};
+use super::{BASE, BLUE, GREEN, MAUVE, RED, SUBTEXT0, SURFACE0, TEXT, border_set};
 
 pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
     let area = f.area();
@@ -50,18 +53,22 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
     let url_block = Block::default()
         .border_set(border_set(app.user_data.border_rounded))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(if app.add_feed_step == AddFeedStep::Url {
-            MAUVE
-        } else {
-            SUBTEXT0
-        }))
+        .border_style(
+            Style::default().fg(if app.add_feed_step == AddFeedStep::Url {
+                MAUVE
+            } else {
+                SUBTEXT0
+            }),
+        )
         .bg(BASE)
         .title(Span::styled(
             " Feed URL ",
             Style::default().fg(BLUE).add_modifier(Modifier::BOLD),
         ));
     f.render_widget(
-        Paragraph::new(url_content).block(url_block).style(Style::default().fg(TEXT)),
+        Paragraph::new(url_content)
+            .block(url_block)
+            .style(Style::default().fg(TEXT)),
         url_area,
     );
 
@@ -75,11 +82,13 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
     let title_block = Block::default()
         .border_set(border_set(app.user_data.border_rounded))
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(if app.add_feed_step == AddFeedStep::Title {
-            MAUVE
-        } else {
-            SUBTEXT0
-        }))
+        .border_style(
+            Style::default().fg(if app.add_feed_step == AddFeedStep::Title {
+                MAUVE
+            } else {
+                SUBTEXT0
+            }),
+        )
         .bg(BASE)
         .title(Span::styled(
             title_label,
@@ -99,7 +108,9 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
             }
             Some(_) => {
                 f.render_widget(
-                    Paragraph::new("").block(title_block).style(Style::default().fg(TEXT)),
+                    Paragraph::new("")
+                        .block(title_block)
+                        .style(Style::default().fg(TEXT)),
                     title_area,
                 );
             }
@@ -121,7 +132,9 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
         String::new()
     };
     f.render_widget(
-        Paragraph::new(title_content).block(title_block).style(Style::default().fg(TEXT)),
+        Paragraph::new(title_content)
+            .block(title_block)
+            .style(Style::default().fg(TEXT)),
         title_area,
     );
 }
@@ -164,9 +177,15 @@ pub(super) fn draw_confirm_delete_all(f: &mut Frame, app: &App) {
         )),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  [Enter] ", Style::default().fg(red).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "  [Enter] ",
+                Style::default().fg(red).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Confirm   ", Style::default().fg(TEXT)),
-            Span::styled("[Esc] ", Style::default().fg(GREEN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[Esc] ",
+                Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Cancel", Style::default().fg(TEXT)),
         ]),
     ];
@@ -211,16 +230,27 @@ pub(super) fn draw_confirm_clear_cache(f: &mut Frame, app: &App) {
         )),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  [Enter] ", Style::default().fg(RED).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "  [Enter] ",
+                Style::default().fg(RED).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Confirm   ", Style::default().fg(super::TEXT)),
-            Span::styled("[Esc] ", Style::default().fg(GREEN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[Esc] ",
+                Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Cancel", Style::default().fg(super::TEXT)),
         ]),
     ];
     f.render_widget(Paragraph::new(text).block(block), center);
 }
 
-pub(super) fn draw_confirm_delete_cat(f: &mut Frame, app: &App, cat_id: CategoryId, feed_count: usize) {
+pub(super) fn draw_confirm_delete_cat(
+    f: &mut Frame,
+    app: &App,
+    cat_id: CategoryId,
+    feed_count: usize,
+) {
     use super::RED;
     let cat_name = app
         .categories
@@ -267,9 +297,15 @@ pub(super) fn draw_confirm_delete_cat(f: &mut Frame, app: &App, cat_id: Category
         Line::from(Span::styled(body, Style::default().fg(TEXT))),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  [Enter] ", Style::default().fg(RED).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "  [Enter] ",
+                Style::default().fg(RED).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Confirm   ", Style::default().fg(TEXT)),
-            Span::styled("[Esc] ", Style::default().fg(GREEN).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "[Esc] ",
+                Style::default().fg(GREEN).add_modifier(Modifier::BOLD),
+            ),
             Span::styled("Cancel", Style::default().fg(TEXT)),
         ]),
     ];
@@ -343,14 +379,23 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
             .map(|a| a.link.clone())
     };
     let article_is_saved = article_link.is_some_and(|link| {
-        app.user_data.saved_articles.iter().any(|s| s.article.link == link)
+        app.user_data
+            .saved_articles
+            .iter()
+            .any(|s| s.article.link == link)
     });
 
-    let height = (cats_len as u16 + if article_is_saved { 5 } else { 3 }).min(area.height.saturating_sub(4));
+    let height =
+        (cats_len as u16 + if article_is_saved { 5 } else { 3 }).min(area.height.saturating_sub(4));
     let width = 40u16.min(area.width.saturating_sub(4));
     let x = area.x + (area.width.saturating_sub(width)) / 2;
     let y = area.y + (area.height.saturating_sub(height)) / 2;
-    let popup_area = Rect { x, y, width, height };
+    let popup_area = Rect {
+        x,
+        y,
+        width,
+        height,
+    };
 
     let rounded = app.user_data.border_rounded;
     let block = Block::default()
@@ -374,7 +419,9 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
         0usize
     } else {
         let cursor = app.category_picker_cursor.min(cats_len.saturating_sub(1));
-        cursor.saturating_sub(visible_cats.saturating_sub(1)).min(cats_len - visible_cats)
+        cursor
+            .saturating_sub(visible_cats.saturating_sub(1))
+            .min(cats_len - visible_cats)
     };
 
     for (i, cat) in cats[scroll_top..].iter().take(visible_cats).enumerate() {
@@ -502,7 +549,10 @@ pub(super) fn draw_confirm_delete_saved_cat(f: &mut Frame, app: &App) {
                     .fg(RED)
                     .add_modifier(ratatui::style::Modifier::BOLD),
             ),
-            ratatui::text::Span::styled("Confirm   ", ratatui::style::Style::default().fg(super::TEXT)),
+            ratatui::text::Span::styled(
+                "Confirm   ",
+                ratatui::style::Style::default().fg(super::TEXT),
+            ),
             ratatui::text::Span::styled(
                 "[Esc] ",
                 ratatui::style::Style::default()
@@ -512,8 +562,5 @@ pub(super) fn draw_confirm_delete_saved_cat(f: &mut Frame, app: &App) {
             ratatui::text::Span::styled("Cancel", ratatui::style::Style::default().fg(super::TEXT)),
         ]),
     ];
-    f.render_widget(
-        ratatui::widgets::Paragraph::new(text).block(block),
-        center,
-    );
+    f.render_widget(ratatui::widgets::Paragraph::new(text).block(block), center);
 }

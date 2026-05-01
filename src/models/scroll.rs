@@ -17,7 +17,10 @@ impl Default for ListScroll {
     fn default() -> Self {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
-        Self { cursor: 0, list_state }
+        Self {
+            cursor: 0,
+            list_state,
+        }
     }
 }
 
@@ -63,7 +66,9 @@ pub struct TextScroll {
 
 impl Default for TextScroll {
     fn default() -> Self {
-        Self { offsets: std::collections::HashMap::new() }
+        Self {
+            offsets: std::collections::HashMap::new(),
+        }
     }
 }
 
