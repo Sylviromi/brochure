@@ -264,16 +264,29 @@ impl App {
                         self.editor_cat_cursor = (self.editor_cat_cursor + 1) % wrap_len;
                     }
                 } else {
-                    // Feeds panel: navigate only through Feed items
                     let items =
                         visible_tree_items(&self.categories, &self.feeds, &self.editor_collapsed);
-                    let feed_indices: Vec<usize> = items.iter().enumerate()
-                        .filter(|(_, item)| matches!(item, FeedTreeItem::Feed { .. }))
-                        .map(|(i, _)| i)
-                        .collect();
-                    if !feed_indices.is_empty() {
-                        let cur = feed_indices.iter().position(|&i| i == self.editor_cursor).unwrap_or(0);
-                        self.editor_cursor = feed_indices[(cur + 1) % feed_indices.len()];
+                    if matches!(self.editor_mode, FeedEditorMode::Moving { .. }) {
+                        // During a feed move: navigate ALL items so the cursor can land on a
+                        // category header (dropping there = insert as first child of that category).
+                        if !items.is_empty() {
+                            self.editor_cursor = (self.editor_cursor + 1) % items.len();
+                        }
+                    } else {
+                        // Normal: only Feed items (categories are non-interactive headers).
+                        let feed_indices: Vec<usize> = items
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, item)| matches!(item, FeedTreeItem::Feed { .. }))
+                            .map(|(i, _)| i)
+                            .collect();
+                        if !feed_indices.is_empty() {
+                            let cur = feed_indices
+                                .iter()
+                                .position(|&i| i == self.editor_cursor)
+                                .unwrap_or(0);
+                            self.editor_cursor = feed_indices[(cur + 1) % feed_indices.len()];
+                        }
                     }
                 }
             }
@@ -344,16 +357,30 @@ impl App {
                         self.editor_cat_cursor = self.editor_cat_cursor.checked_sub(1).unwrap_or(wrap_len - 1);
                     }
                 } else {
-                    // Feeds panel: navigate only through Feed items
                     let items =
                         visible_tree_items(&self.categories, &self.feeds, &self.editor_collapsed);
-                    let feed_indices: Vec<usize> = items.iter().enumerate()
-                        .filter(|(_, item)| matches!(item, FeedTreeItem::Feed { .. }))
-                        .map(|(i, _)| i)
-                        .collect();
-                    if !feed_indices.is_empty() {
-                        let cur = feed_indices.iter().position(|&i| i == self.editor_cursor).unwrap_or(0);
-                        self.editor_cursor = feed_indices[cur.checked_sub(1).unwrap_or(feed_indices.len() - 1)];
+                    if matches!(self.editor_mode, FeedEditorMode::Moving { .. }) {
+                        // During a feed move: navigate ALL items.
+                        if !items.is_empty() {
+                            self.editor_cursor =
+                                self.editor_cursor.checked_sub(1).unwrap_or(items.len() - 1);
+                        }
+                    } else {
+                        // Normal: only Feed items.
+                        let feed_indices: Vec<usize> = items
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, item)| matches!(item, FeedTreeItem::Feed { .. }))
+                            .map(|(i, _)| i)
+                            .collect();
+                        if !feed_indices.is_empty() {
+                            let cur = feed_indices
+                                .iter()
+                                .position(|&i| i == self.editor_cursor)
+                                .unwrap_or(0);
+                            self.editor_cursor = feed_indices
+                                [cur.checked_sub(1).unwrap_or(feed_indices.len() - 1)];
+                        }
                     }
                 }
             }

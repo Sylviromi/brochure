@@ -59,6 +59,9 @@ pub enum FeedEditorMode {
         origin_render_idx: usize,
         /// Cursor position before entering move mode — restored on Esc.
         original_cursor: usize,
+        /// Depth offset relative to cursor's depth (categories only).
+        /// 0 = sibling after cursor, +1 = child of cursor, -1 = sibling of cursor's parent.
+        depth_delta: i8,
     },
     /// Renaming the item at this render-list index.
     Renaming {

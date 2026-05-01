@@ -96,7 +96,6 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
                     }
                     KeyCode::Esc => {
                         app.editor_delete_cat = None;
-                        app.set_status("");
                     }
                     _ => {}
                 }
@@ -105,9 +104,10 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
 
             match &app.editor_mode.clone() {
                 // ── Moving mode ───────────────────────────────────────────────
-                FeedEditorMode::Moving { origin_render_idx, original_cursor } => {
+                FeedEditorMode::Moving { origin_render_idx, original_cursor, depth_delta } => {
                     let origin = *origin_render_idx;
                     let orig = *original_cursor;
+                    let depth_delta = *depth_delta;
                     let is_cat_move = {
                         let items = visible_tree_items(
                             &app.categories,
@@ -119,10 +119,30 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
                     match key.code {
                         KeyCode::Char('j') | KeyCode::Down => app.next(),
                         KeyCode::Char('k') | KeyCode::Up => app.previous(),
+                        KeyCode::Left if is_cat_move => {
+                            // Go shallower (sibling of cursor's parent).
+                            app.editor_mode = FeedEditorMode::Moving {
+                                origin_render_idx: origin,
+                                original_cursor: orig,
+                                depth_delta: (depth_delta - 1).max(-1),
+                            };
+                        }
+                        KeyCode::Right if is_cat_move => {
+                            // Go deeper (child of cursor).
+                            app.editor_mode = FeedEditorMode::Moving {
+                                origin_render_idx: origin,
+                                original_cursor: orig,
+                                depth_delta: (depth_delta + 1).min(1),
+                            };
+                        }
                         KeyCode::Char(' ') => {
                             if is_cat_move {
-                                let new_pos =
-                                    apply_category_move(app, origin, app.editor_cat_cursor);
+                                let new_pos = apply_category_move(
+                                    app,
+                                    origin,
+                                    app.editor_cat_cursor,
+                                    depth_delta,
+                                );
                                 if let Some(pos) = new_pos {
                                     app.editor_cat_cursor = pos;
                                 }
@@ -243,16 +263,7 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
                                 {
                                     let cat_id = *id;
                                     let feed_count = count_feeds_recursive(app, cat_id);
-                                    let cat_name = app
-                                        .categories
-                                        .iter()
-                                        .find(|c| c.id == cat_id)
-                                        .map(|c| c.name.clone())
-                                        .unwrap_or_default();
                                     app.editor_delete_cat = Some((cat_id, feed_count));
-                                    app.set_status(format!(
-                                        "Delete '{cat_name}' with {feed_count} feed(s)? [Enter] confirm  [Esc] cancel"
-                                    ));
                                 }
                             }
                             KeyCode::Char(' ') => {
@@ -277,6 +288,7 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
                                         app.editor_mode = FeedEditorMode::Moving {
                                             origin_render_idx: full_idx,
                                             original_cursor: app.editor_cat_cursor,
+                                            depth_delta: 0,
                                         };
                                         // DON'T change panel — stays on Categories
                                     }
@@ -304,6 +316,7 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
                                     app.editor_mode = FeedEditorMode::Moving {
                                         origin_render_idx: origin,
                                         original_cursor: origin,
+                                        depth_delta: 0,
                                     };
                                 }
                             }
@@ -456,10 +469,17 @@ fn is_ancestor_of(categories: &[Category], ancestor_id: CategoryId, node_id: Cat
 /// Apply a category move: move `origin_full_idx` category to be a child of the category
 /// at `dest_cat_cursor` in the cats-only list (or virtual root if out of bounds).
 /// Returns the new `editor_cat_cursor` position for the moved category.
+/// Apply a category move.
+///
+/// `depth_delta` controls where the item lands relative to cursor's depth:
+/// -  0 = sibling after cursor (cursor's parent becomes the new parent)
+/// - +1 = child of cursor (old "drop on" behaviour)
+/// - -1 = sibling after cursor's parent (one level up)
 fn apply_category_move(
     app: &mut App,
     origin_full_idx: usize,
     dest_cat_cursor: usize,
+    depth_delta: i8,
 ) -> Option<usize> {
     let items = visible_tree_items(&app.categories, &app.feeds, &app.editor_collapsed);
     let src_id = match items.get(origin_full_idx) {
@@ -468,20 +488,59 @@ fn apply_category_move(
     };
 
     let cats = visible_cat_only_items(&app.categories, &app.feeds, &app.editor_collapsed);
-    let new_parent_id = if dest_cat_cursor >= cats.len() {
-        None // virtual root
-    } else {
-        match cats.get(dest_cat_cursor) {
-            Some(FeedTreeItem::Category { id, .. }) if *id == src_id => return None, // drop on self
-            Some(FeedTreeItem::Category { id, .. }) => Some(*id),
-            _ => None,
+
+    // Virtual root: move to root level, append.
+    if dest_cat_cursor >= cats.len() {
+        if let Some(cat) = app.categories.iter_mut().find(|c| c.id == src_id) {
+            cat.parent_id = None;
         }
+        place_category_after_sibling(&mut app.categories, src_id, None, None);
+        let _ = save_categories(&app.categories);
+        let new_cats = visible_cat_only_items(&app.categories, &app.feeds, &app.editor_collapsed);
+        return new_cats
+            .iter()
+            .position(|item| matches!(item, FeedTreeItem::Category { id, .. } if *id == src_id));
+    }
+
+    let cursor_cat_id = match cats.get(dest_cat_cursor) {
+        Some(FeedTreeItem::Category { id, .. }) => *id,
+        _ => return None,
     };
 
-    // Prevent cycle
+    // Determine new parent and "insert-after" anchor based on depth_delta.
+    let (new_parent_id, after_anchor_id) = if depth_delta >= 1 {
+        // Child of cursor.
+        if cursor_cat_id == src_id {
+            return None;
+        }
+        (Some(cursor_cat_id), None) // insert as first child
+    } else {
+        // Walk depth_delta levels up from cursor to find the anchor and its parent.
+        let mut anchor_id = cursor_cat_id;
+        for _ in 0..depth_delta.unsigned_abs() {
+            let p = app.categories.iter().find(|c| c.id == anchor_id).and_then(|c| c.parent_id);
+            match p {
+                Some(pid) => anchor_id = pid,
+                None => break,
+            }
+        }
+        let anchor_parent = app
+            .categories
+            .iter()
+            .find(|c| c.id == anchor_id)
+            .and_then(|c| c.parent_id);
+        let after = if anchor_id == src_id { None } else { Some(anchor_id) };
+        (anchor_parent, after)
+    };
+
+    // Prevent cycle.
     if let Some(pid) = new_parent_id
         && is_ancestor_of(&app.categories, src_id, pid)
     {
+        return None;
+    }
+    // Prevent drop on self (sibling case).
+    if after_anchor_id == Some(src_id) {
         return None;
     }
 
@@ -489,13 +548,13 @@ fn apply_category_move(
         cat.parent_id = new_parent_id;
     }
 
-    place_category_first_in_parent(&mut app.categories, src_id, new_parent_id);
+    place_category_after_sibling(&mut app.categories, src_id, after_anchor_id, new_parent_id);
     let _ = save_categories(&app.categories);
 
     let new_cats = visible_cat_only_items(&app.categories, &app.feeds, &app.editor_collapsed);
-    new_cats.iter().position(|item| {
-        matches!(item, FeedTreeItem::Category { id, .. } if *id == src_id)
-    })
+    new_cats
+        .iter()
+        .position(|item| matches!(item, FeedTreeItem::Category { id, .. } if *id == src_id))
 }
 
 /// Apply the pending feed move and return the new render-index of the moved feed (for cursor update).
@@ -572,11 +631,12 @@ fn place_feed_in_parent(
     }
 }
 
-/// Insert `moved_id` (category id) as the first child of `parent`, then
-/// reassign orders among all siblings.
-fn place_category_first_in_parent(
+/// Insert `moved_id` into `parent`'s sibling list right after `after_id`
+/// (or prepend if `after_id` is None), then reassign sequential orders.
+fn place_category_after_sibling(
     categories: &mut [Category],
     moved_id: CategoryId,
+    after_id: Option<CategoryId>,
     parent: Option<CategoryId>,
 ) {
     let mut siblings: Vec<usize> = categories
@@ -588,7 +648,15 @@ fn place_category_first_in_parent(
     siblings.sort_by_key(|&i| categories[i].order);
 
     let moved_pos = categories.iter().position(|c| c.id == moved_id).unwrap();
-    siblings.insert(0, moved_pos);
+    let insert_at = match after_id {
+        Some(aid) => siblings
+            .iter()
+            .position(|&i| categories[i].id == aid)
+            .map(|p| p + 1)
+            .unwrap_or(siblings.len()),
+        None => 0,
+    };
+    siblings.insert(insert_at, moved_pos);
 
     for (order, &idx) in siblings.iter().enumerate() {
         categories[idx].order = order;
