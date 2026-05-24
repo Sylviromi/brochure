@@ -142,7 +142,9 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
             .iter()
             .enumerate()
             .map(|(i, &(fi, ai))| {
-                let article = &app.feeds[fi].articles[ai];
+                let Some(article) = app.feeds.get(fi).and_then(|f| f.articles.get(ai)) else {
+                    return ListItem::new("");
+                };
                 let is_selected = app.selected_article == i
                     && matches!(app.state, AppState::ArticleList | AppState::ArticleDetail);
                 let style = if is_selected {
@@ -185,7 +187,10 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
             })
             .collect();
 
-        app.article_list_state.select(Some(app.selected_article));
+        let clamped = app
+            .selected_article
+            .min(app.category_view_articles.len().saturating_sub(1));
+        app.article_list_state.select(Some(clamped));
         render_scrollable_list(f, items, inner, &mut app.article_list_state, &app.theme);
         if show_footer {
             draw_article_footer(f, app, footer_area, false);
@@ -339,7 +344,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
             current_indices
                 .iter()
                 .position(|&i| i == app.selected_article)
-                .unwrap_or(app.selected_article)
+                .unwrap_or(0)
         };
 
     app.article_list_state.select(Some(visual_selected));

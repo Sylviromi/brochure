@@ -72,7 +72,9 @@ pub(super) fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rec
         .category_view_articles
         .iter()
         .map(|&(fi, ai)| {
-            let article = &app.feeds[fi].articles[ai];
+            let Some(article) = app.feeds.get(fi).and_then(|f| f.articles.get(ai)) else {
+                return ListItem::new("");
+            };
             let style = if article.is_read {
                 Style::default().fg(app.theme.muted_text)
             } else {

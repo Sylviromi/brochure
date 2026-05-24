@@ -46,7 +46,9 @@ pub(crate) fn copy_to_clipboard(text: &str) -> Option<&str> {
 use crate::{
     app::App,
     fetch::{fetch_feed, fetch_readable_content},
-    models::{AppEvent, AppState, Article, CONTENT_STUB_MAX_LEN, FeedSource, SavedArticle, SavedCategory},
+    models::{
+        AppEvent, AppState, Article, CONTENT_STUB_MAX_LEN, FeedSource, SavedArticle, SavedCategory,
+    },
     storage::save_user_data,
 };
 
@@ -391,7 +393,7 @@ fn unsave_article(app: &mut App) {
                 app.state = AppState::SavedCategoryList;
             }
         } else if app.selected_article >= app.saved_view_articles.len() {
-            app.selected_article = app.saved_view_articles.len() - 1;
+            app.selected_article = app.saved_view_articles.len().saturating_sub(1);
         }
     }
 

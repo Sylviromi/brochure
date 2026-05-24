@@ -214,14 +214,12 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
                                         "Article loaded.".to_string()
                                     }
                                     Err(e) => {
-                                        article.content =
-                                            format!("Failed to load article: {e}");
+                                        article.content = format!("Failed to load article: {e}");
                                         format!("Extraction failed: {e}")
                                     }
                                 };
                                 if app.selected_article == art_idx {
-                                    app.content_line_count =
-                                        article.content.lines().count().max(1);
+                                    app.content_line_count = article.content.lines().count().max(1);
                                 }
                                 Some(msg)
                             } else {
@@ -232,38 +230,36 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
                         }
                     }
                     FeedSource::Feed(feed_idx) => {
-                        let (status_msg, line_count) =
-                            if let Some(feed) = app.feeds.get_mut(feed_idx)
-                                && let Some(article) = feed.articles.get_mut(art_idx)
-                            {
-                                match result {
-                                    Ok(html) => {
-                                        article.content =
-                                            html_to_markdown_rs::convert(&html, None)
-                                                .ok()
-                                                .and_then(|r| r.content)
-                                                .unwrap_or_default();
-                                        let lc = if art_idx == app.selected_article {
-                                            article.content.lines().count().max(1)
-                                        } else {
-                                            app.content_line_count
-                                        };
-                                        ("Article loaded.".to_string(), lc)
-                                    }
-                                    Err(e) => {
-                                        article.content =
-                                            format!("Failed to load article: {e}");
-                                        let lc = if art_idx == app.selected_article {
-                                            article.content.lines().count().max(1)
-                                        } else {
-                                            app.content_line_count
-                                        };
-                                        (format!("Extraction failed: {e}"), lc)
-                                    }
+                        let (status_msg, line_count) = if let Some(feed) =
+                            app.feeds.get_mut(feed_idx)
+                            && let Some(article) = feed.articles.get_mut(art_idx)
+                        {
+                            match result {
+                                Ok(html) => {
+                                    article.content = html_to_markdown_rs::convert(&html, None)
+                                        .ok()
+                                        .and_then(|r| r.content)
+                                        .unwrap_or_default();
+                                    let lc = if art_idx == app.selected_article {
+                                        article.content.lines().count().max(1)
+                                    } else {
+                                        app.content_line_count
+                                    };
+                                    ("Article loaded.".to_string(), lc)
                                 }
-                            } else {
-                                ("Unknown article.".to_string(), app.content_line_count)
-                            };
+                                Err(e) => {
+                                    article.content = format!("Failed to load article: {e}");
+                                    let lc = if art_idx == app.selected_article {
+                                        article.content.lines().count().max(1)
+                                    } else {
+                                        app.content_line_count
+                                    };
+                                    (format!("Extraction failed: {e}"), lc)
+                                }
+                            }
+                        } else {
+                            ("Unknown article.".to_string(), app.content_line_count)
+                        };
                         app.set_status(status_msg);
                         app.content_line_count = line_count;
                     }
@@ -434,13 +430,16 @@ fn on_feed_fetched(
 
     // Update fetch progress counter
     app.feeds_pending = app.feeds_pending.saturating_sub(1);
+
+    // Repopulate category/all-feeds views after every fetch so stale
+    // (feed_idx, article_idx) pairs never survive to a render frame.
+    if app.in_all_feeds_context {
+        app.populate_all_feeds_view();
+    } else if let Some(cat_id) = app.selected_sidebar_category {
+        app.populate_category_view(cat_id);
+    }
+
     if app.feeds_pending == 0 {
-        // Refresh the all-feeds/category view once the batch completes.
-        if app.in_all_feeds_context {
-            app.populate_all_feeds_view();
-        } else if let Some(cat_id) = app.selected_sidebar_category {
-            app.populate_category_view(cat_id);
-        }
         app.feeds_total = 0;
         app.set_status("Feeds loaded.");
         let _ = storage::save_feeds(&app.feeds);

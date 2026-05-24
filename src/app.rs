@@ -727,16 +727,32 @@ impl App {
                 if has_articles {
                     self.state = AppState::ArticleDetail;
                     let content = if self.in_category_context {
-                        let (fi, ai) = self.category_view_articles[self.selected_article];
-                        self.feeds[fi].articles[ai].content.clone()
+                        let Some(&(fi, ai)) =
+                            self.category_view_articles.get(self.selected_article)
+                        else {
+                            return;
+                        };
+                        let Some(feed) = self.feeds.get(fi) else {
+                            return;
+                        };
+                        let Some(article) = feed.articles.get(ai) else {
+                            return;
+                        };
+                        article.content.clone()
                     } else if self.in_saved_context {
-                        self.saved_view_articles[self.selected_article]
-                            .content
-                            .clone()
+                        let Some(saved) = self.saved_view_articles.get(self.selected_article)
+                        else {
+                            return;
+                        };
+                        saved.content.clone()
                     } else {
-                        self.feeds[self.selected_feed].articles[self.selected_article]
-                            .content
-                            .clone()
+                        let Some(feed) = self.feeds.get(self.selected_feed) else {
+                            return;
+                        };
+                        let Some(article) = feed.articles.get(self.selected_article) else {
+                            return;
+                        };
+                        article.content.clone()
                     };
                     self.content_line_count = content.lines().count().max(1);
                 }
@@ -760,6 +776,9 @@ impl App {
         }
         sort_articles_by_date(&mut triples);
         self.category_view_articles = triples.into_iter().map(|(fi, ai, _)| (fi, ai)).collect();
+        self.selected_article = self
+            .selected_article
+            .min(self.category_view_articles.len().saturating_sub(1));
     }
 
     /// Clear the category context (cursor moved off a category onto a feed).
@@ -787,6 +806,9 @@ impl App {
         sort_articles_by_date(&mut triples);
         self.category_view_articles = triples.into_iter().map(|(fi, ai, _)| (fi, ai)).collect();
         self.in_category_context = true;
+        self.selected_article = self
+            .selected_article
+            .min(self.category_view_articles.len().saturating_sub(1));
     }
 
     /// Toggle the collapsed state of a category in the sidebar.
@@ -847,6 +869,9 @@ impl App {
                 self.in_saved_context = false;
             }
         }
+        self.selected_article = self
+            .selected_article
+            .min(self.saved_view_articles.len().saturating_sub(1));
     }
 
     /// True when currently moving a category — used to skip feeds during navigation.
