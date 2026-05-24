@@ -189,9 +189,7 @@ fn dedup_body_header(body: &str, title: &str, hero_url: Option<&str>) -> String 
     }
 
     let h1_prefix = format!("# {}", title);
-    if i < lines.len()
-        && (lines[i].trim() == h1_prefix.as_str() || lines[i].trim() == title)
-    {
+    if i < lines.len() && (lines[i].trim() == h1_prefix.as_str() || lines[i].trim() == title) {
         i += 1;
         if i < lines.len() && lines[i].trim().is_empty() {
             i += 1;
