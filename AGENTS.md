@@ -3,25 +3,7 @@
 ## Session start
 Read these files at the beginning of every session:
 - `~/.claude/shared/task-workflow.md`
-- `~/.claude/shared/synopsis.md`
 - `~/.claude/shared/rust-conventions.md`
-
----
-
-## Keeping This File Current
-
-**Update AGENTS.md whenever you:**
-
-- Add, rename, or restructure a module or directory
-- Change a module's sole responsibility
-- Add a new persisted type or data file
-- Add or change a script in `scripts/`
-- Change the testing workflow
-- Establish a new non-negotiable rule
-- **Change the task workflow**
-
-**Do not let AGENTS.md drift from the code.** If you notice a stale reference (wrong file path, removed type, changed
-rule), fix it in the same commit.
 
 ---
 
