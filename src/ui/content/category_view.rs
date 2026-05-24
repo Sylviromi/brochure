@@ -6,15 +6,11 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     prelude::Stylize,
     style::Style,
-    text::{Line, Span},
     widgets::{List, ListItem, Paragraph},
 };
 
 use super::super::{content_block, render_scrollbar};
-use super::{
-    footer::draw_article_footer,
-    utils::{age_color, short_age, truncate_title},
-};
+use super::{article_list::build_article_list_item, footer::draw_article_footer};
 
 /// Render the article list panel as a flat date-sorted preview when the sidebar
 /// cursor rests on a category header (FeedList state, no navigation cursor).
@@ -75,37 +71,15 @@ pub(super) fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rec
             let Some(article) = app.feeds.get(fi).and_then(|f| f.articles.get(ai)) else {
                 return ListItem::new("");
             };
-            let style = if article.is_read {
-                Style::default().fg(app.theme.muted_text)
-            } else {
-                Style::default().fg(app.theme.text)
-            };
-
-            let age_str: Option<String> = article.published_secs.map(short_age);
-            let age_width = age_str.as_ref().map(|s| s.chars().count()).unwrap_or(0);
-
-            // Subtract icon width (2) and age width from available title space.
-            let title_available = list_render_area
-                .width
-                .saturating_sub(2)
-                .saturating_sub(age_width as u16) as usize;
-
-            let mut spans = vec![
-                Span::styled(
-                    article.get_icon(),
-                    article.get_icon_style(app.theme.unread, app.theme.muted_text, app.theme.link),
-                ),
-                Span::raw(truncate_title(&article.title, title_available)),
-            ];
-            if let Some(ref age) = age_str {
-                spans.push(
-                    age.clone()
-                        .fg(age_color(article.published_secs.unwrap(), &app.theme))
-                        .dim(),
-                );
-            }
-
-            ListItem::new(Line::from(spans)).style(style)
+            build_article_list_item(
+                article,
+                false,
+                false,
+                list_render_area.width,
+                app.tick,
+                app.article_title_start_tick,
+                &app.theme,
+            )
         })
         .collect();
     app.article_list_state.select(None);

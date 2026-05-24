@@ -21,7 +21,7 @@ use super::{
 };
 
 /// Builds a single article list item with icon, title (scrolling if selected), and age badge.
-fn build_article_list_item(
+pub(super) fn build_article_list_item(
     article: &Article,
     is_selected: bool,
     is_nav_highlight: bool,
@@ -55,15 +55,17 @@ fn build_article_list_item(
                 0
             },
     );
-    if is_selected {
+    let displayed_title = if is_selected {
         let elapsed = tick.saturating_sub(article_title_start_tick);
-        title_spans.push(Span::raw(scroll_title(
-            &article.title,
-            title_available,
-            elapsed,
-        )));
+        scroll_title(&article.title, title_available, elapsed)
     } else {
-        title_spans.push(Span::raw(truncate_title(&article.title, title_available)));
+        truncate_title(&article.title, title_available)
+    };
+    let title_width = displayed_title.chars().count();
+    title_spans.push(Span::raw(displayed_title));
+    let padding = title_available.saturating_sub(title_width);
+    if padding > 0 {
+        title_spans.push(Span::raw(" ".repeat(padding)));
     }
     if let Some(ref age) = age_str {
         title_spans.push(
@@ -137,6 +139,12 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
             return;
         }
 
+        let effective_width = if app.category_view_articles.len() > inner.height as usize {
+            inner.width.saturating_sub(1)
+        } else {
+            inner.width
+        };
+
         let items: Vec<ListItem> = app
             .category_view_articles
             .iter()
@@ -147,43 +155,16 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
                 };
                 let is_selected = app.selected_article == i
                     && matches!(app.state, AppState::ArticleList | AppState::ArticleDetail);
-                let style = if is_selected {
-                    Style::default()
-                        .fg(app.theme.accent)
-                        .bg(app.theme.border)
-                        .bold()
-                } else if article.is_read {
-                    Style::default().fg(app.theme.muted_text)
-                } else {
-                    Style::default().fg(app.theme.text)
-                };
-                let title_available = (inner.width as usize).saturating_sub(2);
-                let displayed_title = if is_selected {
-                    let elapsed = app.tick.saturating_sub(app.article_title_start_tick);
-                    scroll_title(&article.title, title_available, elapsed)
-                } else {
-                    article.title.clone()
-                };
-                let age_str: Option<String> = article.published_secs.map(short_age);
-                let mut spans = vec![
-                    Span::styled(
-                        article.get_icon(),
-                        article.get_icon_style(
-                            app.theme.unread,
-                            app.theme.muted_text,
-                            app.theme.link,
-                        ),
-                    ),
-                    Span::raw(displayed_title),
-                ];
-                if let Some(ref age) = age_str {
-                    spans.push(
-                        age.clone()
-                            .fg(age_color(article.published_secs.unwrap(), &app.theme))
-                            .dim(),
-                    );
-                }
-                ListItem::new(Line::from(spans)).style(style)
+                let is_nav_highlight = is_navigating && app.selected_article == i && !is_selected;
+                build_article_list_item(
+                    article,
+                    is_selected,
+                    is_nav_highlight,
+                    effective_width,
+                    app.tick,
+                    app.article_title_start_tick,
+                    &app.theme,
+                )
             })
             .collect();
 
@@ -284,6 +265,18 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
 
     let (current_indices, archived_indices, has_archived) = split_articles(articles);
 
+    let total_items = current_indices.len()
+        + if has_archived {
+            1 + archived_indices.len()
+        } else {
+            0
+        };
+    let effective_width = if total_items > list_area.height as usize {
+        list_area.width.saturating_sub(1)
+    } else {
+        list_area.width
+    };
+
     // Build list items: current articles + optional separator + archived articles
     let mut items: Vec<ListItem> = Vec::new();
 
@@ -297,7 +290,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
             article,
             is_selected,
             is_nav_highlight,
-            list_area.width,
+            effective_width,
             app.tick,
             app.article_title_start_tick,
             &app.theme,
@@ -322,7 +315,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
             article,
             is_selected,
             is_nav_highlight,
-            list_area.width,
+            effective_width,
             app.tick,
             app.article_title_start_tick,
             &app.theme,
