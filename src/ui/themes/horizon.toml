@@ -1,0 +1,17 @@
+name = "Horizon"
+
+[colors]
+accent     = "#e95678"
+link       = "#26bbd9"
+success    = "#29d398"
+notice     = "#fab795"
+bg         = "#1c1e26"
+bg_dark    = "#16181f"
+text       = "#d5d8da"
+muted_text = "#6c6f93"
+border     = "#2e303e"
+unread     = "#fac29a"
+teal       = "#26bbd9"
+sky        = "#59e1e3"
+pink       = "#ee64ac"
+error      = "#e95678"

@@ -1,0 +1,17 @@
+name = "Catppuccin Mocha"
+
+[colors]
+accent     = "#cba6f7"
+link       = "#89b4fa"
+success    = "#a6e3a1"
+notice     = "#fab387"
+bg         = "#1e1e2e"
+bg_dark    = "#181825"
+text       = "#cdd6f4"
+muted_text = "#a6adc8"
+border     = "#313244"
+unread     = "#f9e2af"
+teal       = "#94e2d5"
+sky        = "#89dceb"
+pink       = "#f5c2e7"
+error      = "#f38ba8"

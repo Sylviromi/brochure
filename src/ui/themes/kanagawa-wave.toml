@@ -1,0 +1,17 @@
+name = "Kanagawa Wave"
+
+[colors]
+accent     = "#957fb8"
+link       = "#7e9cd8"
+success    = "#76946a"
+notice     = "#ffa066"
+bg         = "#1f1f28"
+bg_dark    = "#16161d"
+text       = "#dcd7ba"
+muted_text = "#727169"
+border     = "#2a2a37"
+unread     = "#dca561"
+teal       = "#6a9589"
+sky        = "#7fb4ca"
+pink       = "#d27e99"
+error      = "#c34043"

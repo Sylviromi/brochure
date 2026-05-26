@@ -1,0 +1,17 @@
+name = "One Dark"
+
+[colors]
+accent     = "#c678dd"
+link       = "#61afef"
+success    = "#98c379"
+notice     = "#d19a66"
+bg         = "#282c34"
+bg_dark    = "#21252b"
+text       = "#abb2bf"
+muted_text = "#5c6370"
+border     = "#3e4451"
+unread     = "#e5c07b"
+teal       = "#56b6c2"
+sky        = "#61afef"
+pink       = "#c678dd"
+error      = "#e06c75"

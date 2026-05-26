@@ -1,0 +1,17 @@
+name = "Catppuccin Macchiato"
+
+[colors]
+accent     = "#c6a0f6"
+link       = "#8aadf4"
+success    = "#a6da95"
+notice     = "#f5a97f"
+bg         = "#24273a"
+bg_dark    = "#1e2030"
+text       = "#cad3f5"
+muted_text = "#a5adcb"
+border     = "#363a4f"
+unread     = "#eed49f"
+teal       = "#8bd5ca"
+sky        = "#91d7e3"
+pink       = "#f5bde6"
+error      = "#ed8796"

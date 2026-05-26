@@ -1,0 +1,17 @@
+name = "Dracula"
+
+[colors]
+accent     = "#bd93f9"
+link       = "#6272a4"
+success    = "#50fa7b"
+notice     = "#ffb86c"
+bg         = "#282a36"
+bg_dark    = "#191a21"
+text       = "#f8f8f2"
+muted_text = "#6272a4"
+border     = "#44475a"
+unread     = "#f1fa8c"
+teal       = "#8be9fd"
+sky        = "#8be9fd"
+pink       = "#ff79c6"
+error      = "#ff5555"

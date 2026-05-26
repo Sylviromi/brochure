@@ -1,0 +1,17 @@
+name = "Nord"
+
+[colors]
+accent     = "#b48ead"
+link       = "#81a1c1"
+success    = "#a3be8c"
+notice     = "#d08770"
+bg         = "#2e3440"
+bg_dark    = "#242933"
+text       = "#eceff4"
+muted_text = "#d8dee9"
+border     = "#3b4252"
+unread     = "#ebcb8b"
+teal       = "#8fbcbb"
+sky        = "#88c0d0"
+pink       = "#b48ead"
+error      = "#bf616a"

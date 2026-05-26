@@ -22,6 +22,113 @@ pub const COLOR_SLOTS: &[(&str, &str)] = &[
     ("error", "errors / delete actions"),
 ];
 
+/// Ordered list of `(slug, display_name, embedded TOML)` for every built-in theme.
+///
+/// Themes are grouped by family so they appear adjacent in the picker:
+/// Catppuccin → Rosy/Purple → Blue/Navy → Arctic/Cool →
+/// Warm/Earthy → Classic → Bold/Modern.
+static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
+    // ── Catppuccin ────────────────────────────────────────────────────────────
+    (
+        "catppuccin-mocha",
+        "Catppuccin Mocha",
+        include_str!("themes/catppuccin-mocha.toml"),
+    ),
+    (
+        "catppuccin-macchiato",
+        "Catppuccin Macchiato",
+        include_str!("themes/catppuccin-macchiato.toml"),
+    ),
+    // ── Rosy / Purple ─────────────────────────────────────────────────────────
+    (
+        "rose-pine",
+        "Rose Pine",
+        include_str!("themes/rose-pine.toml"),
+    ),
+    ("dracula", "Dracula", include_str!("themes/dracula.toml")),
+    // ── Blue / Navy ───────────────────────────────────────────────────────────
+    (
+        "tokyo-night",
+        "Tokyo Night",
+        include_str!("themes/tokyo-night.toml"),
+    ),
+    (
+        "tokyo-night-storm",
+        "Tokyo Night Storm",
+        include_str!("themes/tokyo-night-storm.toml"),
+    ),
+    (
+        "one-dark",
+        "One Dark",
+        include_str!("themes/one-dark.toml"),
+    ),
+    (
+        "nightfly",
+        "Nightfly",
+        include_str!("themes/nightfly.toml"),
+    ),
+    // ── Arctic / Cool ─────────────────────────────────────────────────────────
+    ("nord", "Nord", include_str!("themes/nord.toml")),
+    (
+        "palenight",
+        "Palenight",
+        include_str!("themes/palenight.toml"),
+    ),
+    // ── Warm / Earthy ─────────────────────────────────────────────────────────
+    (
+        "gruvbox-dark",
+        "Gruvbox Dark",
+        include_str!("themes/gruvbox-dark.toml"),
+    ),
+    (
+        "everforest",
+        "Everforest",
+        include_str!("themes/everforest.toml"),
+    ),
+    (
+        "kanagawa-wave",
+        "Kanagawa Wave",
+        include_str!("themes/kanagawa-wave.toml"),
+    ),
+    (
+        "ayu-dark",
+        "Ayu Dark",
+        include_str!("themes/ayu-dark.toml"),
+    ),
+    // ── Classic ───────────────────────────────────────────────────────────────
+    (
+        "solarized-dark",
+        "Solarized Dark",
+        include_str!("themes/solarized-dark.toml"),
+    ),
+    (
+        "monokai",
+        "Monokai",
+        include_str!("themes/monokai.toml"),
+    ),
+    (
+        "melange-dark",
+        "Melange Dark",
+        include_str!("themes/melange-dark.toml"),
+    ),
+    // ── Bold / Modern ─────────────────────────────────────────────────────────
+    (
+        "oxocarbon",
+        "Oxocarbon",
+        include_str!("themes/oxocarbon.toml"),
+    ),
+    (
+        "synthwave-84",
+        "Synthwave '84",
+        include_str!("themes/synthwave-84.toml"),
+    ),
+    (
+        "horizon",
+        "Horizon",
+        include_str!("themes/horizon.toml"),
+    ),
+];
+
 /// Full color palette for the application UI.
 ///
 /// Every named slot maps to one semantic role (e.g. `accent` = focused border,
@@ -76,146 +183,31 @@ impl ColorTheme {
         ]
     }
 
-    /// Catppuccin Mocha — the original brochure palette.
+    /// Convenience alias used as the default fallback throughout the app.
     pub fn catppuccin_mocha() -> Self {
-        Self {
-            name: String::from("Catppuccin Mocha"),
-            accent: Color::Rgb(203, 166, 247),
-            link: Color::Rgb(137, 180, 250),
-            success: Color::Rgb(166, 227, 161),
-            notice: Color::Rgb(250, 179, 135),
-            bg: Color::Rgb(30, 30, 46),
-            bg_dark: Color::Rgb(24, 24, 37),
-            text: Color::Rgb(205, 214, 244),
-            muted_text: Color::Rgb(166, 173, 200),
-            border: Color::Rgb(49, 50, 68),
-            unread: Color::Rgb(249, 226, 175),
-            teal: Color::Rgb(148, 226, 213),
-            sky: Color::Rgb(137, 220, 235),
-            pink: Color::Rgb(245, 194, 231),
-            error: Color::Rgb(243, 139, 168),
-        }
+        Self::builtin("catppuccin-mocha").expect("catppuccin-mocha is always present")
     }
 
-    /// Gruvbox Dark — warm retro palette.
-    pub fn gruvbox_dark() -> Self {
-        Self {
-            name: String::from("Gruvbox Dark"),
-            accent: Color::Rgb(211, 134, 155),
-            link: Color::Rgb(131, 165, 152),
-            success: Color::Rgb(184, 187, 38),
-            notice: Color::Rgb(254, 128, 25),
-            bg: Color::Rgb(40, 40, 40),
-            bg_dark: Color::Rgb(29, 32, 33),
-            text: Color::Rgb(235, 219, 178),
-            muted_text: Color::Rgb(168, 153, 132),
-            border: Color::Rgb(60, 56, 54),
-            unread: Color::Rgb(250, 189, 47),
-            teal: Color::Rgb(142, 192, 124),
-            sky: Color::Rgb(131, 165, 152),
-            pink: Color::Rgb(211, 134, 155),
-            error: Color::Rgb(251, 73, 52),
-        }
-    }
-
-    /// Dracula — high-contrast purple/pink palette.
-    pub fn dracula() -> Self {
-        Self {
-            name: String::from("Dracula"),
-            accent: Color::Rgb(189, 147, 249),
-            link: Color::Rgb(98, 114, 164),
-            success: Color::Rgb(80, 250, 123),
-            notice: Color::Rgb(255, 184, 108),
-            bg: Color::Rgb(40, 42, 54),
-            bg_dark: Color::Rgb(25, 26, 33),
-            text: Color::Rgb(248, 248, 242),
-            muted_text: Color::Rgb(98, 114, 164),
-            border: Color::Rgb(68, 71, 90),
-            unread: Color::Rgb(241, 250, 140),
-            teal: Color::Rgb(139, 233, 253),
-            sky: Color::Rgb(139, 233, 253),
-            pink: Color::Rgb(255, 121, 198),
-            error: Color::Rgb(255, 85, 85),
-        }
-    }
-
-    /// Nord — cool arctic palette.
-    pub fn nord() -> Self {
-        Self {
-            name: String::from("Nord"),
-            accent: Color::Rgb(180, 142, 173),
-            link: Color::Rgb(129, 161, 193),
-            success: Color::Rgb(163, 190, 140),
-            notice: Color::Rgb(208, 135, 112),
-            bg: Color::Rgb(46, 52, 64),
-            bg_dark: Color::Rgb(36, 41, 51),
-            text: Color::Rgb(236, 239, 244),
-            muted_text: Color::Rgb(216, 222, 233),
-            border: Color::Rgb(59, 66, 82),
-            unread: Color::Rgb(235, 203, 139),
-            teal: Color::Rgb(143, 188, 187),
-            sky: Color::Rgb(136, 192, 208),
-            pink: Color::Rgb(180, 142, 173),
-            error: Color::Rgb(191, 97, 106),
-        }
-    }
-
-    /// GNOME Adwaita Dark — clean GTK palette.
-    pub fn gnome() -> Self {
-        Self {
-            name: String::from("GNOME"),
-            accent: Color::Rgb(53, 132, 228),
-            link: Color::Rgb(98, 160, 234),
-            success: Color::Rgb(38, 162, 105),
-            notice: Color::Rgb(230, 97, 0),
-            bg: Color::Rgb(30, 30, 30),
-            bg_dark: Color::Rgb(20, 20, 20),
-            text: Color::Rgb(255, 255, 255),
-            muted_text: Color::Rgb(154, 153, 150),
-            border: Color::Rgb(48, 48, 48),
-            unread: Color::Rgb(229, 165, 10),
-            teal: Color::Rgb(28, 113, 216),
-            sky: Color::Rgb(153, 193, 241),
-            pink: Color::Rgb(192, 97, 203),
-            error: Color::Rgb(224, 27, 36),
-        }
-    }
-
-    /// Returns the built-in theme matching `name`, or `None` if not found.
-    ///
-    /// Recognised names: `"catppuccin-mocha"`, `"gruvbox-dark"`, `"dracula"`, `"nord"`, `"gnome"`.
-    pub fn builtin(name: &str) -> Option<Self> {
-        match name {
-            "catppuccin-mocha" => Some(Self::catppuccin_mocha()),
-            "gruvbox-dark" => Some(Self::gruvbox_dark()),
-            "dracula" => Some(Self::dracula()),
-            "nord" => Some(Self::nord()),
-            "gnome" => Some(Self::gnome()),
-            _ => None,
-        }
+    /// Returns the built-in theme matching `slug`, or `None` if not found.
+    pub fn builtin(slug: &str) -> Option<Self> {
+        BUILTIN_THEMES
+            .iter()
+            .find(|(s, _, _)| *s == slug)
+            .and_then(|(_, _, toml)| Self::from_toml_str(toml).ok())
     }
 
     /// Returns the slug (persisted key) for a built-in theme display name.
     pub fn slug(display_name: &str) -> &'static str {
-        match display_name {
-            "Catppuccin Mocha" => "catppuccin-mocha",
-            "Gruvbox Dark" => "gruvbox-dark",
-            "Dracula" => "dracula",
-            "Nord" => "nord",
-            "GNOME" => "gnome",
-            _ => "custom",
-        }
+        BUILTIN_THEMES
+            .iter()
+            .find(|(_, name, _)| *name == display_name)
+            .map(|(slug, _, _)| *slug)
+            .unwrap_or("custom")
     }
 
     /// All built-in theme display names, in picker order.
-    pub fn builtin_names() -> &'static [&'static str] {
-        &[
-            "Catppuccin Mocha",
-            "Gruvbox Dark",
-            "Dracula",
-            "Nord",
-            "GNOME",
-        ]
+    pub fn builtin_names() -> Vec<&'static str> {
+        BUILTIN_THEMES.iter().map(|(_, name, _)| *name).collect()
     }
 
     /// Convert a `Color::Rgb` value to a `#rrggbb` hex string.
@@ -353,7 +345,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtin_catppuccin_mocha_has_correct_mauve() {
+    fn catppuccin_mocha_loads_correctly() {
         let t = ColorTheme::catppuccin_mocha();
         assert_eq!(t.accent, Color::Rgb(203, 166, 247));
         assert_eq!(t.name, "Catppuccin Mocha");
@@ -361,12 +353,26 @@ mod tests {
 
     #[test]
     fn builtin_lookup_by_slug() {
-        assert!(ColorTheme::builtin("catppuccin-mocha").is_some());
-        assert!(ColorTheme::builtin("gruvbox-dark").is_some());
-        assert!(ColorTheme::builtin("dracula").is_some());
-        assert!(ColorTheme::builtin("nord").is_some());
-        assert!(ColorTheme::builtin("gnome").is_some());
+        for (slug, _, _) in BUILTIN_THEMES {
+            assert!(
+                ColorTheme::builtin(slug).is_some(),
+                "failed to load slug: {slug}"
+            );
+        }
         assert!(ColorTheme::builtin("unknown").is_none());
+    }
+
+    #[test]
+    fn builtin_names_returns_all_20() {
+        assert_eq!(ColorTheme::builtin_names().len(), 20);
+    }
+
+    #[test]
+    fn slug_round_trips() {
+        for (slug, name, _) in BUILTIN_THEMES {
+            assert_eq!(ColorTheme::slug(name), *slug, "slug mismatch for {name}");
+        }
+        assert_eq!(ColorTheme::slug("Unknown Theme"), "custom");
     }
 
     #[test]

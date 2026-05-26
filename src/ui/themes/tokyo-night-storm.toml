@@ -1,0 +1,17 @@
+name = "Tokyo Night Storm"
+
+[colors]
+accent     = "#7aa2f7"
+link       = "#7dcfff"
+success    = "#9ece6a"
+notice     = "#ff9e64"
+bg         = "#24283b"
+bg_dark    = "#1f2335"
+text       = "#c0caf5"
+muted_text = "#565f89"
+border     = "#3b4261"
+unread     = "#e0af68"
+teal       = "#2ac3de"
+sky        = "#7dcfff"
+pink       = "#bb9af7"
+error      = "#f7768e"

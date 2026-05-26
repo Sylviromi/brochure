@@ -1,0 +1,17 @@
+name = "Monokai"
+
+[colors]
+accent     = "#ae81ff"
+link       = "#66d9e8"
+success    = "#a6e22e"
+notice     = "#fd971f"
+bg         = "#272822"
+bg_dark    = "#1e1f1c"
+text       = "#f8f8f2"
+muted_text = "#75715e"
+border     = "#3e3d32"
+unread     = "#e6db74"
+teal       = "#66d9e8"
+sky        = "#66d9e8"
+pink       = "#f92672"
+error      = "#f92672"

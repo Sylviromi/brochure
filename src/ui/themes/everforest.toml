@@ -1,0 +1,17 @@
+name = "Everforest"
+
+[colors]
+accent     = "#a7c080"
+link       = "#7fbbb3"
+success    = "#a7c080"
+notice     = "#e69875"
+bg         = "#2d353b"
+bg_dark    = "#272e33"
+text       = "#d3c6aa"
+muted_text = "#859289"
+border     = "#3d484d"
+unread     = "#dbbc7f"
+teal       = "#7fbbb3"
+sky        = "#83c092"
+pink       = "#e67e80"
+error      = "#e67e80"

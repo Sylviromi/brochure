@@ -1,0 +1,17 @@
+name = "Rose Pine"
+
+[colors]
+accent     = "#c4a7e7"
+link       = "#9ccfd8"
+success    = "#31748f"
+notice     = "#f6c177"
+bg         = "#191724"
+bg_dark    = "#0f0d16"
+text       = "#e0def4"
+muted_text = "#908caa"
+border     = "#26233a"
+unread     = "#f6c177"
+teal       = "#9ccfd8"
+sky        = "#9ccfd8"
+pink       = "#eb6f92"
+error      = "#eb6f92"
