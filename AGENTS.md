@@ -49,3 +49,19 @@ Use the `<type>: <lowercase description>` format:
 - Each commit compiles on its own (when possible)
 - Subject line is 72 chars or fewer
 - Do not use `-i`/interactive flags (`rebase -i`, `add -i`, `add -p`)
+
+---
+
+## Changelog
+
+**Before committing any changes**, review `git diff` for user-facing changes and
+append qualifying entries to `changelog/next-update.md` under the appropriate
+section (`## Features`, `## UI`, `## Fixes`, `## Refactor`).
+
+Each entry must use today's date: `- YYYY-MM-DD: Description`. Append new
+entries below older ones within each section.
+
+**Changelog entries are user-facing only.** Write what the user sees or gains —
+not how it was implemented. No library names, function names, file paths, or
+internal refactoring details. If a change is invisible to the user (code
+cleanup, helper extraction, deduplication), omit it entirely.
