@@ -96,5 +96,17 @@
       "Resolved crash with 2-day archive policy",
       "Fixed UI freezes during batch feed fetching"
     ]
+  },
+  {
+    "version": "0.7.0",
+    "date": "2026-05-26",
+    "summary": "This update brings 20 built-in themes including light mode, plus clipboard and stability improvements.",
+    "highlights": [
+      "Choose from 20 themes, now with light mode support",
+      "Press 'y' in feed list to copy feed URL",
+      "Fixed crash when navigating article list",
+      "Code blocks adapt to the selected theme",
+      "Minor bug fixes and UI improvements"
+    ]
   }
 ]
