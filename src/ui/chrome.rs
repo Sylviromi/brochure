@@ -32,7 +32,7 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(
             " Brochure ",
             Style::default()
-                .fg(app.theme.bg_dark)
+                .fg(app.theme.contrast_color(app.theme.accent))
                 .bg(app.theme.accent)
                 .bold(),
         ),
@@ -43,14 +43,14 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
             tab_spans.push(Span::styled(
                 *label,
                 Style::default()
-                    .fg(app.theme.bg_dark)
+                    .fg(app.theme.contrast_color(app.theme.accent))
                     .bg(app.theme.accent)
                     .bold(),
             ));
         } else {
             tab_spans.push(Span::styled(
                 *label,
-                Style::default().fg(app.theme.muted_text),
+                Style::default().fg(app.theme.muted),
             ));
         }
         tab_spans.push(Span::raw("  "));
@@ -64,20 +64,20 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
     let total_articles: usize = app.feeds.iter().map(|f| f.articles.len()).sum();
     let total_unread: usize = app.feeds.iter().map(|f| f.unread_count).sum();
     let stats = ListItem::new(Line::from(vec![
-        Span::raw("Feeds: "),
+        Span::styled("Feeds: ", Style::default().fg(app.theme.muted)),
         Span::styled(
             feed_count.to_string(),
-            Style::default().fg(app.theme.unread),
+            Style::default().fg(app.theme.warning),
         ),
-        Span::raw("  Total: "),
+        Span::styled("  Total: ", Style::default().fg(app.theme.muted)),
         Span::styled(
             total_articles.to_string(),
-            Style::default().fg(app.theme.unread),
+            Style::default().fg(app.theme.warning),
         ),
-        Span::raw("  Unread: "),
+        Span::styled("  Unread: ", Style::default().fg(app.theme.muted)),
         Span::styled(
             total_unread.to_string(),
-            Style::default().fg(app.theme.unread),
+            Style::default().fg(app.theme.warning),
         ),
         Span::raw(" "),
     ]));
@@ -118,7 +118,7 @@ pub(super) fn draw_progress_bar(f: &mut Frame, app: &App, area: Rect) {
     let unfilled = bar_width.saturating_sub(filled);
     f.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled("━".repeat(filled), Style::default().fg(app.theme.unread)),
+            Span::styled("━".repeat(filled), Style::default().fg(app.theme.warning)),
             Span::styled("─".repeat(unfilled), Style::default().fg(app.theme.border)),
         ]))
         .bg(app.theme.bg),
@@ -126,7 +126,7 @@ pub(super) fn draw_progress_bar(f: &mut Frame, app: &App, area: Rect) {
     );
     f.render_widget(
         Paragraph::new(counter)
-            .style(Style::default().fg(app.theme.muted_text))
+            .style(Style::default().fg(app.theme.muted))
             .bg(app.theme.bg),
         cols[1],
     );
@@ -228,7 +228,7 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
 
     f.render_widget(
         Paragraph::new(hints)
-            .style(Style::default().fg(app.theme.muted_text))
+            .style(Style::default().fg(app.theme.muted))
             .alignment(Alignment::Right)
             .bg(app.theme.bg),
         cols[1],

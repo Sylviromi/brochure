@@ -31,11 +31,11 @@ pub(super) fn build_article_list_item(
     theme: &crate::ui::theme::ColorTheme,
 ) -> ListItem<'static> {
     let style = if is_selected {
-        Style::default().fg(theme.accent).bg(theme.border).bold()
+        Style::default().fg(theme.accent).bg(theme.selection).bold()
     } else if is_nav_highlight {
         Style::default().fg(theme.accent)
     } else if article.is_read {
-        Style::default().fg(theme.muted_text)
+        Style::default().fg(theme.muted)
     } else {
         Style::default().fg(theme.text)
     };
@@ -45,7 +45,7 @@ pub(super) fn build_article_list_item(
 
     let mut title_spans: Vec<Span> = Vec::new();
     if article.published_secs.is_none() {
-        title_spans.push("⚠ ".fg(theme.unread));
+        title_spans.push("⚠ ".fg(theme.warning));
     }
     let title_available = (list_width as usize).saturating_sub(
         2 + age_width
@@ -78,7 +78,7 @@ pub(super) fn build_article_list_item(
     ListItem::new(Line::from(
         vec![Span::styled(
             article.get_icon(),
-            article.get_icon_style(theme.unread, theme.muted_text, theme.link),
+            article.get_icon_style(theme.warning, theme.muted, theme.link),
         )]
         .into_iter()
         .chain(title_spans)
@@ -130,7 +130,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
         if app.category_view_articles.is_empty() {
             f.render_widget(
                 Paragraph::new(" No articles in this category.")
-                    .style(Style::default().fg(app.theme.muted_text)),
+                    .style(Style::default().fg(app.theme.muted)),
                 inner,
             );
             if show_footer {
@@ -191,7 +191,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
         f.render_widget(block, area);
         f.render_widget(
             Paragraph::new(" Select a category to view saved articles.")
-                .style(Style::default().fg(app.theme.muted_text)),
+                .style(Style::default().fg(app.theme.muted)),
             inner,
         );
         if show_footer {
@@ -254,7 +254,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
         }
         f.render_widget(
             Paragraph::new(" No articles found or fetching...")
-                .style(Style::default().fg(app.theme.muted_text)),
+                .style(Style::default().fg(app.theme.muted)),
             list_area,
         );
         if show_footer {
@@ -300,7 +300,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
     // Add separator if there are archived articles
     if has_archived {
         items.push(ListItem::new(Line::from(
-            " ── Archived ──".fg(app.theme.muted_text),
+            " ── Archived ──".fg(app.theme.muted),
         )));
     }
 

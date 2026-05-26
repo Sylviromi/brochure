@@ -46,7 +46,7 @@ pub(super) fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rec
     if app.category_view_articles.is_empty() {
         f.render_widget(
             Paragraph::new(" No articles in this category.")
-                .style(Style::default().fg(app.theme.muted_text)),
+                .style(Style::default().fg(app.theme.muted)),
             inner,
         );
         draw_article_footer(f, app, footer_area, false);

@@ -59,15 +59,15 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
                         .sum();
                     let style = if selected {
                         Style::default()
-                            .fg(app.theme.unread)
-                            .bg(app.theme.border)
+                            .fg(app.theme.warning)
+                            .bg(app.theme.selection)
                             .bold()
                     } else {
                         Style::default().fg(app.theme.text)
                     };
                     ListItem::new(Line::from(vec![
                         Span::styled("🞴 All Feeds ", style),
-                        format!("[{total_unread}]").fg(app.theme.muted_text),
+                        format!("[{total_unread}]").fg(app.theme.muted),
                     ]))
                 }
                 FeedTreeItem::Category {
@@ -88,7 +88,7 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
                     let connector =
                         tree_connector(&tree, render_idx, *depth, app.user_data.border_rounded, "");
                     let style = if selected {
-                        Style::default().fg(app.theme.bg_dark).bg(color).bold()
+                        Style::default().fg(app.theme.contrast_color(color)).bg(color).bold()
                     } else {
                         Style::default().fg(color).bold()
                     };
@@ -113,13 +113,13 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
                     let style = if selected {
                         Style::default()
                             .fg(app.theme.accent)
-                            .bg(app.theme.border)
+                            .bg(app.theme.selection)
                             .bold()
                     } else {
                         Style::default().fg(app.theme.text)
                     };
                     let connector_style = if selected {
-                        Style::default().fg(app.theme.accent).bg(app.theme.border)
+                        Style::default().fg(app.theme.accent).bg(app.theme.selection)
                     } else {
                         Style::default().fg(app.theme.border)
                     };
@@ -140,20 +140,20 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
                         indent.fg(app.theme.border),
                         Span::styled(connector, connector_style),
                         Span::styled(displayed_title, style),
-                        count_str.fg(app.theme.unread).bold(),
+                        count_str.fg(app.theme.warning).bold(),
                     ];
                     if !feed.fetched
                         && feed.fetch_error.is_none()
                         && app.state != AppState::ArticleDetail
                     {
                         let spinner = SPINNER_FRAMES[app.tick % SPINNER_FRAMES.len()];
-                        spans.push(format!(" {spinner}").fg(app.theme.unread));
+                        spans.push(format!(" {spinner}").fg(app.theme.warning));
                     } else if feed.fetch_error.is_some() {
                         // ⚠ (red) when feed is empty — broken; ! (yellow) when stale cached data exists.
                         if feed.articles.is_empty() {
                             spans.push(" ⚠".fg(app.theme.error));
                         } else {
-                            spans.push(" !".fg(app.theme.unread));
+                            spans.push(" !".fg(app.theme.warning));
                         }
                     }
                     ListItem::new(Line::from(spans))

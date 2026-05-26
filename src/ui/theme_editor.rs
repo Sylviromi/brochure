@@ -133,7 +133,7 @@ fn draw_theme_list(f: &mut Frame, app: &App, area: Rect) {
 
     if app.user_data.custom_themes.is_empty() {
         items.push(ListItem::new(
-            Line::from("  (no custom themes)").fg(app.theme.muted_text),
+            Line::from("  (no custom themes)").fg(app.theme.muted),
         ));
     }
 
@@ -168,7 +168,7 @@ fn draw_color_preview(f: &mut Frame, app: &App, area: Rect) {
 
     let block = content_block(
         Line::from(format!(" {title_str} "))
-            .fg(app.theme.notice)
+            .fg(app.theme.header)
             .bold(),
         false,
         app.user_data.border_rounded,
@@ -189,7 +189,7 @@ fn draw_color_preview(f: &mut Frame, app: &App, area: Rect) {
             let swatch = get_swatch(app, hex);
             let (hashtag, rendered_hex) = to_renderable_hex(app, hex);
             Line::from(vec![
-                format!("  {slot:<10} ").fg(app.theme.muted_text),
+                format!("  {slot:<10} ").fg(app.theme.muted),
                 swatch,
                 Span::from(" "),
                 hashtag,
@@ -329,7 +329,7 @@ fn draw_color_edit(f: &mut Frame, app: &App, area: Rect) {
 
             let prefix = if is_cursor { " ▶ " } else { "   " };
             let row_style = if is_cursor {
-                Style::default().bg(app.theme.border)
+                Style::default().bg(app.theme.selection)
             } else {
                 Style::default()
             };
@@ -342,7 +342,7 @@ fn draw_color_edit(f: &mut Frame, app: &App, area: Rect) {
                     row_style.fg(if is_cursor {
                         app.theme.accent
                     } else {
-                        app.theme.muted_text
+                        app.theme.muted
                     }),
                 ),
                 swatch,
@@ -405,7 +405,7 @@ fn draw_text_input_popup(f: &mut Frame, app: &App) {
     let (before, cursor_ch, after) =
         split_cursor(&app.theme_editor.path_input, app.theme_editor.input_cursor);
     let text = vec![
-        Line::from(prompt).fg(app.theme.muted_text),
+        Line::from(prompt).fg(app.theme.muted),
         Line::from(vec![
             before.fg(app.theme.text).bold(),
             cursor_ch.fg(app.theme.bg).bg(app.theme.success).bold(),
@@ -468,9 +468,9 @@ fn draw_hex_input_popup(f: &mut Frame, app: &App) {
     let swatch = get_swatch(app, &app.theme_editor.hex_input);
 
     let text = vec![
-        Line::from("Hex color (#rrggbb):").fg(app.theme.muted_text),
+        Line::from("Hex color (#rrggbb):").fg(app.theme.muted),
         Line::from(vec![
-            "#".fg(app.theme.muted_text).bold(),
+            "#".fg(app.theme.muted).bold(),
             before.fg(app.theme.text).bold(),
             cursor_ch.fg(app.theme.bg).bg(app.theme.success).bold(),
             after.fg(app.theme.text).bold(),
@@ -510,5 +510,5 @@ fn get_swatch(app: &App, hex: &str) -> Span<'static> {
 fn to_renderable_hex<'a>(app: &App, hex: &'a str) -> (Span<'static>, Span<'a>) {
     let h = hex.trim_start_matches('#');
 
-    ("#".fg(app.theme.muted_text), h.fg(app.theme.text))
+    ("#".fg(app.theme.muted), h.fg(app.theme.text))
 }

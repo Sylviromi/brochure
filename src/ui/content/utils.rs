@@ -57,9 +57,9 @@ pub(super) fn age_color(secs: i64, theme: &ColorTheme) -> Color {
     if diff < 3600 {
         theme.success
     } else if diff < 86400 {
-        theme.unread
+        theme.warning
     } else {
-        theme.muted_text
+        theme.muted
     }
 }
 

@@ -27,7 +27,7 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
 
     if app.user_data.saved_categories.is_empty() {
         let msg = Paragraph::new("  No categories yet. Save an article with [s] to create one.")
-            .style(Style::default().fg(app.theme.muted_text));
+            .style(Style::default().fg(app.theme.muted));
         f.render_widget(msg, inner);
         return;
     }
@@ -51,14 +51,14 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
                 let (before, cursor_ch, after) =
                     split_cursor(&app.feed_editor.input, app.feed_editor.input_cursor);
                 Line::from(vec![
-                    "  ".fg(app.theme.unread),
-                    before.fg(app.theme.unread),
+                    "  ".fg(app.theme.warning),
+                    before.fg(app.theme.warning),
                     cursor_ch.fg(app.theme.accent).bold(),
-                    after.fg(app.theme.unread),
+                    after.fg(app.theme.warning),
                 ])
             } else {
                 let style = if i == app.saved_cat_editor_scroll.cursor {
-                    Style::default().bg(app.theme.border).fg(app.theme.accent)
+                    Style::default().bg(app.theme.selection).fg(app.theme.accent)
                 } else {
                     Style::default().fg(app.theme.text)
                 };
@@ -67,7 +67,7 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
 
             let count_span = Span::styled(
                 format!("  [{count} article{}]", if count == 1 { "" } else { "s" }),
-                Style::default().fg(app.theme.muted_text),
+                Style::default().fg(app.theme.muted),
             );
 
             let mut spans = name_line.spans;
@@ -94,10 +94,10 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
         let (before, cursor_ch, after) =
             split_cursor(&app.feed_editor.input, app.feed_editor.input_cursor);
         let input_line = Line::from(vec![
-            "  Category name: ".fg(app.theme.unread),
-            before.fg(app.theme.unread),
+            "  Category name: ".fg(app.theme.warning),
+            before.fg(app.theme.warning),
             cursor_ch.fg(app.theme.accent).bold(),
-            after.fg(app.theme.unread),
+            after.fg(app.theme.warning),
         ]);
         f.render_widget(Paragraph::new(input_line), input_area);
     }

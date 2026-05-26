@@ -35,18 +35,18 @@ fn base_md_style(theme: &crate::ui::theme::ColorTheme) -> MarkdownStyle {
         italic: Style::new().italic(),
         strikethrough: Style::new().crossed_out(),
         inline_code: Style::new()
-            .fg(theme.teal)
-            .bg(ratatui::style::Color::Rgb(40, 40, 40)),
-        code_block: Style::new().fg(theme.teal),
+            .fg(theme.code)
+            .bg(theme.code_bg),
+        code_block: Style::new().fg(theme.code),
         code_block_bg: theme.bg_dark,
         code_block_alignment: Alignment::Left,
         link: Style::new().fg(theme.link).underlined(),
         link_prefix: "🔗 ",
-        quote: Style::new().fg(theme.muted_text),
+        quote: Style::new().fg(theme.muted),
         quote_alignment: Alignment::Left,
         quote_indicator: "▍ ",
         image: Style::new()
-            .fg(theme.muted_text)
+            .fg(theme.muted)
             .add_modifier(Modifier::ITALIC | Modifier::DIM),
         image_prefix: "📷 ",
         list_bullet: "• ",
@@ -292,7 +292,7 @@ pub(super) fn draw_article_detail(
         f.render_widget(block, area);
         f.render_widget(
             Paragraph::new("Select an article to preview.")
-                .style(Style::default().fg(app.theme.muted_text)),
+                .style(Style::default().fg(app.theme.muted)),
             inner,
         );
         return;

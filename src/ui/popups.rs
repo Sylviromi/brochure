@@ -114,7 +114,7 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
             Style::default().fg(if app.add_feed.step == AddFeedStep::Url {
                 app.theme.accent
             } else {
-                app.theme.muted_text
+                app.theme.muted
             }),
         )
         .bg(app.theme.bg)
@@ -138,7 +138,7 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
             Style::default().fg(if app.add_feed.step == AddFeedStep::Title {
                 app.theme.accent
             } else {
-                app.theme.muted_text
+                app.theme.muted
             }),
         )
         .bg(app.theme.bg)
@@ -153,7 +153,7 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
                 f.render_widget(
                     Paragraph::new(t.as_str())
                         .block(title_block)
-                        .style(Style::default().fg(app.theme.muted_text)),
+                        .style(Style::default().fg(app.theme.muted)),
                     title_area,
                 );
                 return;
@@ -404,7 +404,7 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
         let real_idx = scroll_top + i;
         let is_selected = app.category_picker.cursor == real_idx;
         let style = if is_selected {
-            Style::default().bg(app.theme.border).fg(app.theme.accent)
+            Style::default().bg(app.theme.selection).fg(app.theme.accent)
         } else {
             Style::default().fg(app.theme.text)
         };
@@ -426,7 +426,7 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
         ]));
     } else {
         let new_style = if app.category_picker.cursor == new_idx {
-            Style::default().bg(app.theme.border).fg(app.theme.link)
+            Style::default().bg(app.theme.selection).fg(app.theme.link)
         } else {
             Style::default().fg(app.theme.link)
         };
@@ -441,7 +441,7 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
 
         let unsave_idx = cats_len + 1;
         let unsave_style = if app.category_picker.cursor == unsave_idx {
-            Style::default().bg(app.theme.border).fg(app.theme.error)
+            Style::default().bg(app.theme.selection).fg(app.theme.error)
         } else {
             Style::default().fg(app.theme.error)
         };
@@ -530,7 +530,7 @@ pub(super) fn draw_update_popup(f: &mut Frame, app: &mut App) {
     };
 
     let block = content_block(
-        title.fg(app.theme.notice).bold(),
+        title.fg(app.theme.header).bold(),
         true,
         app.user_data.border_rounded,
         &app.theme,

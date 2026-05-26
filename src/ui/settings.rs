@@ -173,7 +173,7 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
                 };
                 ListItem::new(Line::from(vec![
                     connector.fg(app.theme.border),
-                    label.fg(app.theme.notice).bold(),
+                    label.fg(app.theme.header).bold(),
                 ]))
             }
             Row::Item {
@@ -220,7 +220,7 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
                 } else if *on {
                     Style::default().fg(app.theme.success).bold()
                 } else {
-                    Style::default().fg(app.theme.muted_text)
+                    Style::default().fg(app.theme.muted)
                 };
                 ListItem::new(Line::from(vec![
                     prefix.fg(app.theme.border),
@@ -250,7 +250,7 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
                         .bg(app.theme.accent)
                         .bold()
                 } else {
-                    Style::default().fg(app.theme.unread).bold()
+                    Style::default().fg(app.theme.warning).bold()
                 };
                 ListItem::new(Line::from(vec![
                     prefix.fg(app.theme.border),
@@ -299,9 +299,9 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
             app.theme.border
         }))
         .bg(app.theme.bg)
-        .title(" Settings ".fg(app.theme.notice).bold())
+        .title(" Settings ".fg(app.theme.header).bold())
         .title_bottom(
-            format!(" {} ", app.settings_selected.description()).fg(app.theme.muted_text),
+            format!(" {} ", app.settings_selected.description()).fg(app.theme.muted),
         );
 
     f.render_widget(List::new(list_items).block(block), area);

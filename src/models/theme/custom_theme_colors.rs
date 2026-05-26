@@ -1,8 +1,8 @@
-//! The 14 named color slots that make up a custom theme palette.
+//! The 16 named color slots that make up a custom theme palette.
 
 use serde::{Deserialize, Serialize};
 
-/// The 14 named color slots that make up a theme palette, stored as `#rrggbb` hex strings.
+/// The 16 named color slots that make up a theme palette, stored as `#rrggbb` hex strings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomThemeColors {
     /// Accent color — used for focused borders and highlighted UI elements.
@@ -11,48 +11,58 @@ pub struct CustomThemeColors {
     pub link: String,
     /// Success/positive indicator color.
     pub success: String,
-    /// Notice/warning color.
-    pub notice: String,
+    /// Section header / popup title color.
+    #[serde(alias = "notice")]
+    pub header: String,
     /// Main background color.
     pub bg: String,
-    /// Dark background — panels and sidebars.
+    /// Dark background — tab bar, footer, chrome.
     pub bg_dark: String,
     /// Primary text color.
     pub text: String,
     /// Secondary/muted text color.
-    pub muted_text: String,
-    /// Unfocused border color.
+    #[serde(alias = "muted_text")]
+    pub muted: String,
+    /// Unfocused border color (structural only).
     pub border: String,
-    /// Unread indicator color.
-    pub unread: String,
-    /// Teal accent — used for category colors and decorative elements.
-    pub teal: String,
-    /// Sky blue accent — used for category colors.
+    /// Warning / unread count / fetch status indicator color.
+    #[serde(alias = "unread")]
+    pub warning: String,
+    /// Code syntax foreground color.
+    #[serde(alias = "teal")]
+    pub code: String,
+    /// Sky blue accent — article metadata, secondary article info.
     pub sky: String,
-    /// Pink accent — used for category colors and decorative elements.
+    /// Pink accent — used for category color cycling.
     pub pink: String,
     /// Error/destructive action color.
     pub error: String,
+    /// List item selection background color.
+    pub selection: String,
+    /// Inline code / code block background color.
+    pub code_bg: String,
 }
 
 impl CustomThemeColors {
-    /// Get a color slot's hex value by index (0–13, matching `COLOR_SLOTS` order).
+    /// Get a color slot's hex value by index (0–15, matching `COLOR_SLOTS` order).
     pub fn get(&self, idx: usize) -> &str {
         match idx {
             0 => &self.accent,
             1 => &self.link,
             2 => &self.success,
-            3 => &self.notice,
+            3 => &self.header,
             4 => &self.bg,
             5 => &self.bg_dark,
             6 => &self.text,
-            7 => &self.muted_text,
+            7 => &self.muted,
             8 => &self.border,
-            9 => &self.unread,
-            10 => &self.teal,
+            9 => &self.warning,
+            10 => &self.code,
             11 => &self.sky,
             12 => &self.pink,
             13 => &self.error,
+            14 => &self.selection,
+            15 => &self.code_bg,
             _ => "#000000",
         }
     }
@@ -63,17 +73,19 @@ impl CustomThemeColors {
             0 => self.accent = hex,
             1 => self.link = hex,
             2 => self.success = hex,
-            3 => self.notice = hex,
+            3 => self.header = hex,
             4 => self.bg = hex,
             5 => self.bg_dark = hex,
             6 => self.text = hex,
-            7 => self.muted_text = hex,
+            7 => self.muted = hex,
             8 => self.border = hex,
-            9 => self.unread = hex,
-            10 => self.teal = hex,
+            9 => self.warning = hex,
+            10 => self.code = hex,
             11 => self.sky = hex,
             12 => self.pink = hex,
             13 => self.error = hex,
+            14 => self.selection = hex,
+            15 => self.code_bg = hex,
             _ => {}
         }
     }
@@ -81,22 +93,24 @@ impl CustomThemeColors {
     /// Serialize to TOML text compatible with `Theme::from_toml_str`.
     pub fn to_toml(&self, name: &str) -> String {
         format!(
-            "name = \"{name}\"\n\n[colors]\naccent    = \"{accent}\"\nlink      = \"{link}\"\nsuccess   = \"{success}\"\nnotice    = \"{notice}\"\nbg        = \"{bg}\"\nbg_dark   = \"{bg_dark}\"\ntext      = \"{text}\"\nmuted_text = \"{muted_text}\"\nborder    = \"{border}\"\nunread    = \"{unread}\"\nteal      = \"{teal}\"\nsky       = \"{sky}\"\npink      = \"{pink}\"\nerror     = \"{error}\"\n",
-            name = name,
-            accent = self.accent,
-            link = self.link,
-            success = self.success,
-            notice = self.notice,
-            bg = self.bg,
-            bg_dark = self.bg_dark,
-            text = self.text,
-            muted_text = self.muted_text,
-            border = self.border,
-            unread = self.unread,
-            teal = self.teal,
-            sky = self.sky,
-            pink = self.pink,
-            error = self.error,
+            "name = \"{name}\"\n\n[colors]\naccent    = \"{accent}\"\nlink      = \"{link}\"\nsuccess   = \"{success}\"\nheader    = \"{header}\"\nbg        = \"{bg}\"\nbg_dark   = \"{bg_dark}\"\ntext      = \"{text}\"\nmuted     = \"{muted}\"\nborder    = \"{border}\"\nwarning   = \"{warning}\"\ncode      = \"{code}\"\nsky       = \"{sky}\"\npink      = \"{pink}\"\nerror     = \"{error}\"\nselection = \"{selection}\"\ncode_bg   = \"{code_bg}\"\n",
+            name      = name,
+            accent    = self.accent,
+            link      = self.link,
+            success   = self.success,
+            header    = self.header,
+            bg        = self.bg,
+            bg_dark   = self.bg_dark,
+            text      = self.text,
+            muted     = self.muted,
+            border    = self.border,
+            warning   = self.warning,
+            code      = self.code,
+            sky       = self.sky,
+            pink      = self.pink,
+            error     = self.error,
+            selection = self.selection,
+            code_bg   = self.code_bg,
         )
     }
 }

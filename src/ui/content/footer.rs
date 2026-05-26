@@ -26,15 +26,15 @@ pub(super) fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_artic
 
         let mut link_spans = vec![
             Span::raw(" "),
-            article.link.clone().fg(app.theme.muted_text),
+            article.link.clone().fg(app.theme.muted),
         ];
         if let Some(secs) = article.published_secs {
             let age = format_age(secs);
             let color = age_color(secs, &app.theme);
-            link_spans.push("  •  ".fg(app.theme.muted_text));
+            link_spans.push("  •  ".fg(app.theme.muted));
             if let Some(number_part) = age.strip_suffix(" ago") {
                 link_spans.push(number_part.to_string().fg(color));
-                link_spans.push(" ago".fg(app.theme.muted_text));
+                link_spans.push(" ago".fg(app.theme.muted));
             } else {
                 link_spans.push(age.fg(color));
             }
@@ -60,7 +60,7 @@ pub(super) fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_artic
         );
         f.render_widget(
             Paragraph::new(pct_str)
-                .style(Style::default().fg(app.theme.unread).bold())
+                .style(Style::default().fg(app.theme.warning).bold())
                 .bg(app.theme.bg),
             bar_chunks[1],
         );
@@ -86,16 +86,16 @@ pub(super) fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_artic
                 })
                 .count();
             let unread_color = if unread_count > 0 {
-                app.theme.unread
+                app.theme.warning
             } else {
                 app.theme.success
             };
             let stat_spans = vec![
-                " ".fg(app.theme.muted_text),
+                " ".fg(app.theme.muted),
                 article_count.to_string().fg(app.theme.link),
-                " articles  •  ".fg(app.theme.muted_text),
+                " articles  •  ".fg(app.theme.muted),
                 unread_count.to_string().fg(unread_color),
-                " unread".fg(app.theme.muted_text),
+                " unread".fg(app.theme.muted),
             ];
             f.render_widget(
                 Paragraph::new(Line::from(stat_spans)).bg(app.theme.bg),
@@ -117,24 +117,24 @@ pub(super) fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_artic
         let article_count = articles.len();
         let unread_count = articles.iter().filter(|a| !a.is_read).count();
         let unread_color = if unread_count > 0 {
-            app.theme.unread
+            app.theme.warning
         } else {
             app.theme.success
         };
         let mut stat_spans = vec![
-            " ".fg(app.theme.muted_text),
+            " ".fg(app.theme.muted),
             article_count.to_string().fg(app.theme.link),
-            " articles  •  ".fg(app.theme.muted_text),
+            " articles  •  ".fg(app.theme.muted),
             unread_count.to_string().fg(unread_color),
-            " unread".fg(app.theme.muted_text),
+            " unread".fg(app.theme.muted),
         ];
         if let Some(secs) = last_fetched_secs {
             let age = format_age(secs);
             let color = age_color(secs, &app.theme);
-            stat_spans.push("  •  fetched ".fg(app.theme.muted_text));
+            stat_spans.push("  •  fetched ".fg(app.theme.muted));
             if let Some(number_part) = age.strip_suffix(" ago") {
                 stat_spans.push(number_part.to_string().fg(color));
-                stat_spans.push(" ago".fg(app.theme.muted_text));
+                stat_spans.push(" ago".fg(app.theme.muted));
             } else {
                 stat_spans.push(age.fg(color));
             }

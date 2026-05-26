@@ -25,7 +25,7 @@ fn editor_mode_color(
     theme: &crate::ui::theme::ColorTheme,
 ) -> ratatui::style::Color {
     match mode {
-        FeedEditorMode::Moving { .. } => theme.unread,
+        FeedEditorMode::Moving { .. } => theme.warning,
         _ => theme.success,
     }
 }
@@ -148,7 +148,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
                 let show_selected = selected && !in_moving_mode && is_active;
 
                 let connector_style = if show_selected {
-                    Style::default().fg(app.theme.accent).bg(app.theme.border)
+                    Style::default().fg(app.theme.accent).bg(app.theme.selection)
                 } else {
                     Style::default().fg(app.theme.border)
                 };
@@ -182,23 +182,23 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
 
                 let style = if is_on_origin {
                     Style::default()
-                        .fg(app.theme.muted_text)
-                        .bg(app.theme.border)
+                        .fg(app.theme.muted)
+                        .bg(app.theme.selection)
                 } else if is_ghost {
                     Style::default()
-                        .fg(app.theme.muted_text)
+                        .fg(app.theme.muted)
                         .add_modifier(Modifier::DIM)
                 } else if show_selected {
                     Style::default()
                         .fg(app.theme.accent)
-                        .bg(app.theme.border)
+                        .bg(app.theme.selection)
                         .bold()
                 } else {
                     Style::default().fg(app.theme.text)
                 };
                 let origin_hint = if is_on_origin { " ↩" } else { "" };
                 let drop_marker = if show_selected {
-                    Span::styled("➤ ", Style::default().fg(app.theme.unread).bold())
+                    Span::styled("➤ ", Style::default().fg(app.theme.warning).bold())
                 } else {
                     Span::raw("")
                 };
@@ -208,7 +208,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
                     Span::styled(connector, connector_style),
                     drop_marker,
                     Span::styled(format!("{}{origin_hint}", feed.title), style),
-                    feed.unread_badge().fg(app.theme.unread),
+                    feed.unread_badge().fg(app.theme.warning),
                 ])));
             }
         }
@@ -217,7 +217,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
     if !has_any_feed {
         f.render_widget(
             Paragraph::new(" No feeds. Press [a] to add one.")
-                .style(Style::default().fg(app.theme.muted_text)),
+                .style(Style::default().fg(app.theme.muted)),
             list_area,
         );
         return;
@@ -243,10 +243,10 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
                     let connector = tree_connector(&tree, origin, *depth, rounded, "   ");
                     Some(ListItem::new(Line::from(vec![
                         indent.fg(app.theme.border),
-                        connector.fg(app.theme.unread).bold(),
-                        "➤ ".fg(app.theme.unread).bold(),
-                        f.title.clone().fg(app.theme.unread).bold(),
-                        f.unread_badge().fg(app.theme.unread),
+                        connector.fg(app.theme.warning).bold(),
+                        "➤ ".fg(app.theme.warning).bold(),
+                        f.title.clone().fg(app.theme.warning).bold(),
+                        f.unread_badge().fg(app.theme.warning),
                     ])))
                 }
                 _ => None,
@@ -293,7 +293,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
         let truncated: String = url.chars().take(max_chars.saturating_sub(1)).collect();
         f.render_widget(
             Paragraph::new(format!(" {truncated}"))
-                .style(Style::default().fg(app.theme.muted_text)),
+                .style(Style::default().fg(app.theme.muted)),
             url_area,
         );
     }
@@ -361,7 +361,7 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
     if cats.is_empty() {
         f.render_widget(
             Paragraph::new(" No categories. [n] Create one.")
-                .style(Style::default().fg(app.theme.muted_text)),
+                .style(Style::default().fg(app.theme.muted)),
             inner,
         );
         return;
@@ -440,7 +440,7 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
 
             let style = if is_ghost {
                 Style::default()
-                    .fg(app.theme.muted_text)
+                    .fg(app.theme.muted)
                     .add_modifier(Modifier::DIM)
             } else if selected {
                 Style::default()
@@ -459,7 +459,7 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
             let badge_style = if selected && !is_ghost {
                 Style::default().fg(app.theme.bg_dark).bg(color)
             } else {
-                Style::default().fg(app.theme.muted_text)
+                Style::default().fg(app.theme.muted)
             };
 
             ListItem::new(Line::from(vec![
@@ -533,8 +533,8 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
             let indent = "  ".repeat(preview_depth as usize);
             let preview = ListItem::new(Line::from(vec![
                 indent.fg(app.theme.border),
-                "➤ ".fg(app.theme.unread).bold(),
-                format!("{src_name} ▼").fg(app.theme.unread).bold(),
+                "➤ ".fg(app.theme.warning).bold(),
+                format!("{src_name} ▼").fg(app.theme.warning).bold(),
             ]));
             let insert_at = (cursor + 1).min(final_items.len());
             final_items.insert(insert_at, preview);
