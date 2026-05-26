@@ -1,0 +1,17 @@
+name = "Catppuccin Latte"
+
+[colors]
+accent     = "#8839ef"
+link       = "#1e66f5"
+success    = "#40a02b"
+notice     = "#fe640b"
+bg         = "#eff1f5"
+bg_dark    = "#e6e9ef"
+text       = "#4c4f69"
+muted_text = "#8c8fa1"
+border     = "#ccd0da"
+unread     = "#df8e1d"
+teal       = "#179299"
+sky        = "#04a5e5"
+pink       = "#ea76cb"
+error      = "#d20f39"

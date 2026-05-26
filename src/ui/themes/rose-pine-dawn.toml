@@ -1,0 +1,17 @@
+name = "Rose Pine Dawn"
+
+[colors]
+accent     = "#907aa9"
+link       = "#56949f"
+success    = "#286983"
+notice     = "#ea9d34"
+bg         = "#faf4ed"
+bg_dark    = "#ede0d4"
+text       = "#575279"
+muted_text = "#9893a5"
+border     = "#dfdad9"
+unread     = "#ea9d34"
+teal       = "#56949f"
+sky        = "#56949f"
+pink       = "#b4637a"
+error      = "#b4637a"

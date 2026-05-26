@@ -39,11 +39,21 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         "Catppuccin Macchiato",
         include_str!("themes/catppuccin-macchiato.toml"),
     ),
+    (
+        "catppuccin-latte",
+        "Catppuccin Latte",
+        include_str!("themes/catppuccin-latte.toml"),
+    ),
     // ── Rosy / Purple ─────────────────────────────────────────────────────────
     (
         "rose-pine",
         "Rose Pine",
         include_str!("themes/rose-pine.toml"),
+    ),
+    (
+        "rose-pine-dawn",
+        "Rose Pine Dawn",
+        include_str!("themes/rose-pine-dawn.toml"),
     ),
     ("dracula", "Dracula", include_str!("themes/dracula.toml")),
     // ── Blue / Navy ───────────────────────────────────────────────────────────
@@ -63,17 +73,12 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         include_str!("themes/one-dark.toml"),
     ),
     (
-        "nightfly",
-        "Nightfly",
-        include_str!("themes/nightfly.toml"),
+        "one-light",
+        "One Light",
+        include_str!("themes/one-light.toml"),
     ),
     // ── Arctic / Cool ─────────────────────────────────────────────────────────
     ("nord", "Nord", include_str!("themes/nord.toml")),
-    (
-        "palenight",
-        "Palenight",
-        include_str!("themes/palenight.toml"),
-    ),
     // ── Warm / Earthy ─────────────────────────────────────────────────────────
     (
         "gruvbox-dark",
@@ -90,11 +95,6 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         "Kanagawa Wave",
         include_str!("themes/kanagawa-wave.toml"),
     ),
-    (
-        "ayu-dark",
-        "Ayu Dark",
-        include_str!("themes/ayu-dark.toml"),
-    ),
     // ── Classic ───────────────────────────────────────────────────────────────
     (
         "solarized-dark",
@@ -102,14 +102,14 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         include_str!("themes/solarized-dark.toml"),
     ),
     (
+        "solarized-light",
+        "Solarized Light",
+        include_str!("themes/solarized-light.toml"),
+    ),
+    (
         "monokai",
         "Monokai",
         include_str!("themes/monokai.toml"),
-    ),
-    (
-        "melange-dark",
-        "Melange Dark",
-        include_str!("themes/melange-dark.toml"),
     ),
     // ── Bold / Modern ─────────────────────────────────────────────────────────
     (
