@@ -6,22 +6,22 @@ use ratatui::style::Color;
 /// Metadata for each color slot: `(field_name, short_label)` in the order used by
 /// [`CustomThemeColors::get`] / [`CustomThemeColors::set`].
 pub const COLOR_SLOTS: &[(&str, &str)] = &[
-    ("accent",    "primary accent / focused border"),
-    ("link",      "panel titles / interactive elements"),
-    ("success",   "success / read indicator"),
-    ("header",    "section headers / popup titles"),
-    ("bg",        "main background"),
-    ("bg_dark",   "darkest background / chrome"),
-    ("text",      "primary foreground"),
-    ("muted",     "secondary / muted text"),
-    ("border",    "unfocused borders"),
-    ("warning",   "unread counts / fetch status / warnings"),
-    ("code",      "code syntax foreground"),
-    ("sky",       "article metadata / dates"),
-    ("pink",      "category palette accent"),
-    ("error",     "errors / delete actions"),
+    ("accent", "primary accent / focused border"),
+    ("link", "panel titles / interactive elements"),
+    ("success", "success / read indicator"),
+    ("header", "section headers / popup titles"),
+    ("bg", "main background"),
+    ("bg_dark", "darkest background / chrome"),
+    ("text", "primary foreground"),
+    ("muted", "secondary / muted text"),
+    ("border", "unfocused borders"),
+    ("warning", "unread counts / fetch status / warnings"),
+    ("code", "code syntax foreground"),
+    ("sky", "article metadata / dates"),
+    ("pink", "category palette accent"),
+    ("error", "errors / delete actions"),
     ("selection", "list item selection background"),
-    ("code_bg",   "code block background"),
+    ("code_bg", "code block background"),
 ];
 
 /// Ordered list of `(slug, display_name, embedded TOML)` for every built-in theme.
@@ -69,11 +69,7 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         "Tokyo Night Storm",
         include_str!("themes/tokyo-night-storm.toml"),
     ),
-    (
-        "one-dark",
-        "One Dark",
-        include_str!("themes/one-dark.toml"),
-    ),
+    ("one-dark", "One Dark", include_str!("themes/one-dark.toml")),
     (
         "one-light",
         "One Light",
@@ -108,11 +104,7 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         "Solarized Light",
         include_str!("themes/solarized-light.toml"),
     ),
-    (
-        "monokai",
-        "Monokai",
-        include_str!("themes/monokai.toml"),
-    ),
+    ("monokai", "Monokai", include_str!("themes/monokai.toml")),
     // ── Bold / Modern ─────────────────────────────────────────────────────────
     (
         "oxocarbon",
@@ -124,11 +116,7 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         "Synthwave '84",
         include_str!("themes/synthwave-84.toml"),
     ),
-    (
-        "horizon",
-        "Horizon",
-        include_str!("themes/horizon.toml"),
-    ),
+    ("horizon", "Horizon", include_str!("themes/horizon.toml")),
 ];
 
 /// Full color palette for the application UI.
@@ -248,45 +236,45 @@ impl ColorTheme {
             parse_hex(hex).with_context(|| format!("invalid hex for {key}: {hex}"))
         };
         Ok(Self {
-            name:      ct.name.clone(),
-            accent:    p("accent",    &c.accent)?,
-            link:      p("link",      &c.link)?,
-            success:   p("success",   &c.success)?,
-            header:    p("header",    &c.header)?,
-            bg:        p("bg",        &c.bg)?,
-            bg_dark:   p("bg_dark",   &c.bg_dark)?,
-            text:      p("text",      &c.text)?,
-            muted:     p("muted",     &c.muted)?,
-            border:    p("border",    &c.border)?,
-            warning:   p("warning",   &c.warning)?,
-            code:      p("code",      &c.code)?,
-            sky:       p("sky",       &c.sky)?,
-            pink:      p("pink",      &c.pink)?,
-            error:     p("error",     &c.error)?,
+            name: ct.name.clone(),
+            accent: p("accent", &c.accent)?,
+            link: p("link", &c.link)?,
+            success: p("success", &c.success)?,
+            header: p("header", &c.header)?,
+            bg: p("bg", &c.bg)?,
+            bg_dark: p("bg_dark", &c.bg_dark)?,
+            text: p("text", &c.text)?,
+            muted: p("muted", &c.muted)?,
+            border: p("border", &c.border)?,
+            warning: p("warning", &c.warning)?,
+            code: p("code", &c.code)?,
+            sky: p("sky", &c.sky)?,
+            pink: p("pink", &c.pink)?,
+            error: p("error", &c.error)?,
             selection: p("selection", &c.selection)?,
-            code_bg:   p("code_bg",   &c.code_bg)?,
+            code_bg: p("code_bg", &c.code_bg)?,
         })
     }
 
     /// Convert this runtime theme into [`CustomThemeColors`] hex strings.
     pub fn to_custom_colors(&self) -> CustomThemeColors {
         CustomThemeColors {
-            accent:    Self::color_to_hex(self.accent),
-            link:      Self::color_to_hex(self.link),
-            success:   Self::color_to_hex(self.success),
-            header:    Self::color_to_hex(self.header),
-            bg:        Self::color_to_hex(self.bg),
-            bg_dark:   Self::color_to_hex(self.bg_dark),
-            text:      Self::color_to_hex(self.text),
-            muted:     Self::color_to_hex(self.muted),
-            border:    Self::color_to_hex(self.border),
-            warning:   Self::color_to_hex(self.warning),
-            code:      Self::color_to_hex(self.code),
-            sky:       Self::color_to_hex(self.sky),
-            pink:      Self::color_to_hex(self.pink),
-            error:     Self::color_to_hex(self.error),
+            accent: Self::color_to_hex(self.accent),
+            link: Self::color_to_hex(self.link),
+            success: Self::color_to_hex(self.success),
+            header: Self::color_to_hex(self.header),
+            bg: Self::color_to_hex(self.bg),
+            bg_dark: Self::color_to_hex(self.bg_dark),
+            text: Self::color_to_hex(self.text),
+            muted: Self::color_to_hex(self.muted),
+            border: Self::color_to_hex(self.border),
+            warning: Self::color_to_hex(self.warning),
+            code: Self::color_to_hex(self.code),
+            sky: Self::color_to_hex(self.sky),
+            pink: Self::color_to_hex(self.pink),
+            error: Self::color_to_hex(self.error),
             selection: Self::color_to_hex(self.selection),
-            code_bg:   Self::color_to_hex(self.code_bg),
+            code_bg: Self::color_to_hex(self.code_bg),
         }
     }
 
@@ -318,28 +306,32 @@ impl ColorTheme {
 
         // Helper that tries the canonical key first, then a legacy alias.
         let parse_or = |key: &str, alias: &str| -> anyhow::Result<Color> {
-            if colors.contains_key(key) { parse(key) } else { parse(alias) }
+            if colors.contains_key(key) {
+                parse(key)
+            } else {
+                parse(alias)
+            }
         };
 
         Ok(Self {
             name,
-            accent:    parse("accent")?,
-            link:      parse("link")?,
-            success:   parse("success")?,
-            header:    parse_or("header",    "notice")?,
-            bg:        parse("bg")?,
-            bg_dark:   parse("bg_dark")?,
-            text:      parse("text")?,
-            muted:     parse_or("muted",     "muted_text")?,
-            border:    parse("border")?,
-            warning:   parse_or("warning",   "unread")?,
-            code:      parse_or("code",      "teal")?,
-            sky:       parse("sky")?,
-            pink:      parse("pink")?,
-            error:     parse("error")?,
+            accent: parse("accent")?,
+            link: parse("link")?,
+            success: parse("success")?,
+            header: parse_or("header", "notice")?,
+            bg: parse("bg")?,
+            bg_dark: parse("bg_dark")?,
+            text: parse("text")?,
+            muted: parse_or("muted", "muted_text")?,
+            border: parse("border")?,
+            warning: parse_or("warning", "unread")?,
+            code: parse_or("code", "teal")?,
+            sky: parse("sky")?,
+            pink: parse("pink")?,
+            error: parse("error")?,
             // New slots: fall back to sensible defaults for old themes that lack them.
             selection: parse("selection").or_else(|_| parse("border"))?,
-            code_bg:   parse("code_bg").or_else(|_| parse("bg_dark"))?,
+            code_bg: parse("code_bg").or_else(|_| parse("bg_dark"))?,
         })
     }
 }
@@ -433,13 +425,13 @@ error      = "#f38ba8"
 "##;
         let t = ColorTheme::from_toml_str(src).unwrap();
         assert_eq!(t.name, "Legacy");
-        assert_eq!(t.header,  Color::Rgb(250, 179, 135)); // was notice
-        assert_eq!(t.muted,   Color::Rgb(166, 173, 200)); // was muted_text
+        assert_eq!(t.header, Color::Rgb(250, 179, 135)); // was notice
+        assert_eq!(t.muted, Color::Rgb(166, 173, 200)); // was muted_text
         assert_eq!(t.warning, Color::Rgb(249, 226, 175)); // was unread
-        assert_eq!(t.code,    Color::Rgb(148, 226, 213)); // was teal
+        assert_eq!(t.code, Color::Rgb(148, 226, 213)); // was teal
         // selection and code_bg fall back to border/bg_dark when absent
-        assert_eq!(t.selection, Color::Rgb(49, 50, 68));  // border
-        assert_eq!(t.code_bg,   Color::Rgb(24, 24, 37));  // bg_dark
+        assert_eq!(t.selection, Color::Rgb(49, 50, 68)); // border
+        assert_eq!(t.code_bg, Color::Rgb(24, 24, 37)); // bg_dark
     }
 
     #[test]

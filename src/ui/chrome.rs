@@ -29,56 +29,37 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
     ];
 
     let mut tab_spans: Vec<Span> = vec![
-        Span::styled(
-            " Brochure ",
-            Style::default()
-                .fg(app.theme.contrast_color(app.theme.accent))
-                .bg(app.theme.accent)
-                .bold(),
-        ),
+        " Brochure "
+            .fg(app.theme.contrast_color(app.theme.accent))
+            .bg(app.theme.accent)
+            .bold(),
         Span::raw("  "),
     ];
     for (label, tab) in &tabs {
         if app.selected_tab == *tab {
-            tab_spans.push(Span::styled(
-                *label,
-                Style::default()
+            tab_spans.push(
+                (*label)
                     .fg(app.theme.contrast_color(app.theme.accent))
                     .bg(app.theme.accent)
                     .bold(),
-            ));
+            );
         } else {
-            tab_spans.push(Span::styled(
-                *label,
-                Style::default().fg(app.theme.muted),
-            ));
+            tab_spans.push((*label).fg(app.theme.muted));
         }
         tab_spans.push(Span::raw("  "));
     }
-    tab_spans.push(Span::styled(
-        "  [Tab] switch tab",
-        Style::default().fg(app.theme.border),
-    ));
+    tab_spans.push("  [Tab] switch tab".fg(app.theme.border));
 
     let feed_count = app.feeds.iter().filter(|f| f.url != FAVORITES_URL).count();
     let total_articles: usize = app.feeds.iter().map(|f| f.articles.len()).sum();
     let total_unread: usize = app.feeds.iter().map(|f| f.unread_count).sum();
     let stats = ListItem::new(Line::from(vec![
-        Span::styled("Feeds: ", Style::default().fg(app.theme.muted)),
-        Span::styled(
-            feed_count.to_string(),
-            Style::default().fg(app.theme.warning),
-        ),
-        Span::styled("  Total: ", Style::default().fg(app.theme.muted)),
-        Span::styled(
-            total_articles.to_string(),
-            Style::default().fg(app.theme.warning),
-        ),
-        Span::styled("  Unread: ", Style::default().fg(app.theme.muted)),
-        Span::styled(
-            total_unread.to_string(),
-            Style::default().fg(app.theme.warning),
-        ),
+        "Feeds: ".fg(app.theme.muted),
+        feed_count.to_string().fg(app.theme.warning),
+        "  Total: ".fg(app.theme.muted),
+        total_articles.to_string().fg(app.theme.warning),
+        "  Unread: ".fg(app.theme.muted),
+        total_unread.to_string().fg(app.theme.warning),
         Span::raw(" "),
     ]));
     let stats_width = stats.width() as u16;
@@ -118,8 +99,8 @@ pub(super) fn draw_progress_bar(f: &mut Frame, app: &App, area: Rect) {
     let unfilled = bar_width.saturating_sub(filled);
     f.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled("━".repeat(filled), Style::default().fg(app.theme.warning)),
-            Span::styled("─".repeat(unfilled), Style::default().fg(app.theme.border)),
+            "━".repeat(filled).fg(app.theme.warning),
+            "─".repeat(unfilled).fg(app.theme.border),
         ]))
         .bg(app.theme.bg),
         cols[0],
@@ -202,20 +183,14 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         let viewport = status_width.saturating_sub(prefix_len + 1);
 
         if body_len <= viewport {
-            Span::styled(
-                format!("{prefix}{body} "),
-                Style::default().fg(app.theme.success),
-            )
+            format!("{prefix}{body} ").fg(app.theme.success)
         } else {
             // Scroll 1 char per tick (~250 ms), stop at end.
             let max_offset = body_len.saturating_sub(viewport);
             let elapsed = app.tick.saturating_sub(app.status_msg_start_tick);
             let start = elapsed.min(max_offset);
             let visible: String = body_chars[start..].iter().take(viewport).collect();
-            Span::styled(
-                format!("{prefix}{visible} "),
-                Style::default().fg(app.theme.success),
-            )
+            format!("{prefix}{visible} ").fg(app.theme.success)
         }
     } else {
         Span::raw("")

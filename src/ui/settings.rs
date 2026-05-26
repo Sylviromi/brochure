@@ -300,9 +300,7 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
         }))
         .bg(app.theme.bg)
         .title(" Settings ".fg(app.theme.header).bold())
-        .title_bottom(
-            format!(" {} ", app.settings_selected.description()).fg(app.theme.muted),
-        );
+        .title_bottom(format!(" {} ", app.settings_selected.description()).fg(app.theme.muted));
 
     f.render_widget(List::new(list_items).block(block), area);
 }

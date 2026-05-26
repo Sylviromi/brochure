@@ -94,12 +94,9 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
         let (before, cursor_ch, after) =
             split_cursor(&app.add_feed.url_input, app.add_feed.input_cursor);
         Line::from(vec![
-            Span::styled(before, Style::default().fg(app.theme.text)),
-            Span::styled(
-                cursor_ch,
-                Style::default().fg(app.theme.bg).bg(app.theme.success),
-            ),
-            Span::styled(after, Style::default().fg(app.theme.text)),
+            before.fg(app.theme.text),
+            cursor_ch.fg(app.theme.bg).bg(app.theme.success),
+            after.fg(app.theme.text),
         ])
     } else {
         Line::from(Span::styled(
@@ -183,12 +180,9 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
             let (before, cursor_ch, after) =
                 split_cursor(&app.add_feed.url_input, app.add_feed.input_cursor);
             Line::from(vec![
-                Span::styled(before, Style::default().fg(app.theme.text)),
-                Span::styled(
-                    cursor_ch,
-                    Style::default().fg(app.theme.bg).bg(app.theme.success),
-                ),
-                Span::styled(after, Style::default().fg(app.theme.text)),
+                before.fg(app.theme.text),
+                cursor_ch.fg(app.theme.bg).bg(app.theme.success),
+                after.fg(app.theme.text),
             ])
         } else {
             Line::from(String::new())
@@ -230,13 +224,13 @@ fn draw_confirm_dialog(f: &mut Frame, app: &App, title: &str, body: String, hori
         ));
     let text = vec![
         Line::from(""),
-        Line::from(Span::styled(body, Style::default().fg(app.theme.text))),
+        Line::from(body.fg(app.theme.text)),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  [Enter] ", Style::default().fg(app.theme.error).bold()),
-            Span::styled("Confirm   ", Style::default().fg(app.theme.text)),
-            Span::styled("[Esc] ", Style::default().fg(app.theme.success).bold()),
-            Span::styled("Cancel", Style::default().fg(app.theme.text)),
+            "  [Enter] ".fg(app.theme.error).bold(),
+            "Confirm   ".fg(app.theme.text),
+            "[Esc] ".fg(app.theme.success).bold(),
+            "Cancel".fg(app.theme.text),
         ]),
     ];
     f.render_widget(Paragraph::new(text).block(block), center);
@@ -323,12 +317,9 @@ pub(super) fn draw_opml_path_popup(f: &mut Frame, app: &App) {
 
     let (before, cursor_ch, after) = split_cursor(&app.opml.path_input, app.opml.input_cursor);
     let content = Line::from(vec![
-        Span::styled(before, Style::default().fg(app.theme.text)),
-        Span::styled(
-            cursor_ch,
-            Style::default().fg(app.theme.bg).bg(app.theme.success),
-        ),
-        Span::styled(after, Style::default().fg(app.theme.text)),
+        before.fg(app.theme.text),
+        cursor_ch.fg(app.theme.bg).bg(app.theme.success),
+        after.fg(app.theme.text),
     ]);
 
     f.render_widget(Paragraph::new(content).block(block), center);
@@ -404,7 +395,9 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
         let real_idx = scroll_top + i;
         let is_selected = app.category_picker.cursor == real_idx;
         let style = if is_selected {
-            Style::default().bg(app.theme.selection).fg(app.theme.accent)
+            Style::default()
+                .bg(app.theme.selection)
+                .fg(app.theme.accent)
         } else {
             Style::default().fg(app.theme.text)
         };
@@ -416,13 +409,10 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
         let (before, cursor_ch, after) =
             split_cursor(&app.category_picker.input, app.category_picker.input_cursor);
         lines.push(Line::from(vec![
-            Span::styled("  + ", Style::default().fg(app.theme.link)),
-            Span::styled(before, Style::default().fg(app.theme.text)),
-            Span::styled(
-                cursor_ch,
-                Style::default().fg(app.theme.bg).bg(app.theme.link),
-            ),
-            Span::styled(after, Style::default().fg(app.theme.text)),
+            "  + ".fg(app.theme.link),
+            before.fg(app.theme.text),
+            cursor_ch.fg(app.theme.bg).bg(app.theme.link),
+            after.fg(app.theme.text),
         ]));
     } else {
         let new_style = if app.category_picker.cursor == new_idx {
@@ -610,11 +600,8 @@ pub(super) fn draw_update_popup(f: &mut Frame, app: &mut App) {
     // Pinned dismiss hint
     f.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(
-                "  [Enter/Esc/q] ",
-                Style::default().fg(app.theme.accent).bold(),
-            ),
-            Span::styled("Dismiss", Style::default().fg(app.theme.text)),
+            "  [Enter/Esc/q] ".fg(app.theme.accent).bold(),
+            "Dismiss".fg(app.theme.text),
         ])),
         hint_area,
     );

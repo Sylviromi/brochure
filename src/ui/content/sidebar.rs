@@ -88,7 +88,10 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
                     let connector =
                         tree_connector(&tree, render_idx, *depth, app.user_data.border_rounded, "");
                     let style = if selected {
-                        Style::default().fg(app.theme.contrast_color(color)).bg(color).bold()
+                        Style::default()
+                            .fg(app.theme.contrast_color(color))
+                            .bg(color)
+                            .bold()
                     } else {
                         Style::default().fg(color).bold()
                     };
@@ -119,7 +122,9 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
                         Style::default().fg(app.theme.text)
                     };
                     let connector_style = if selected {
-                        Style::default().fg(app.theme.accent).bg(app.theme.selection)
+                        Style::default()
+                            .fg(app.theme.accent)
+                            .bg(app.theme.selection)
                     } else {
                         Style::default().fg(app.theme.border)
                     };

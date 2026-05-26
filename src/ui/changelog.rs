@@ -51,33 +51,26 @@ fn draw_about_block(f: &mut Frame, app: &App, area: Rect) {
 
     let name_line = Line::from(vec![
         Span::raw("  "),
-        Span::styled("Brochure", Style::default().fg(app.theme.text).bold()),
+        "Brochure".fg(app.theme.text).bold(),
         Span::raw("  "),
-        Span::styled(
-            format!("v{version}"),
-            Style::default().fg(app.theme.accent).bold(),
-        ),
+        format!("v{version}").fg(app.theme.accent).bold(),
     ]);
-    let desc_line = Line::from(vec![Span::styled(
-        "  A terminal RSS reader built with Ratatui",
-        Style::default().fg(app.theme.muted),
-    )]);
+    let desc_line = Line::from(vec![
+        "  A terminal RSS reader built with Ratatui".fg(app.theme.muted),
+    ]);
 
     let blank_line = Line::raw("");
     let author_line = Line::from(vec![
-        Span::styled("  Author:      ", Style::default().fg(app.theme.muted)),
-        Span::styled("Sylviromi", Style::default().fg(app.theme.text)),
+        "  Author:      ".fg(app.theme.muted),
+        "Sylviromi".fg(app.theme.text),
     ]);
     let license_line = Line::from(vec![
-        Span::styled("  License:     ", Style::default().fg(app.theme.muted)),
-        Span::styled("MIT", Style::default().fg(app.theme.text)),
+        "  License:     ".fg(app.theme.muted),
+        "MIT".fg(app.theme.text),
     ]);
     let repo_line = Line::from(vec![
-        Span::styled("  Repository:  ", Style::default().fg(app.theme.muted)),
-        Span::styled(
-            "https://github.com/Sylviromi/brochure",
-            Style::default().fg(app.theme.link),
-        ),
+        "  Repository:  ".fg(app.theme.muted),
+        "https://github.com/Sylviromi/brochure".fg(app.theme.link),
     ]);
 
     f.render_widget(
@@ -159,82 +152,88 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
 
         full_lines.push(
             Line::from(vec![
-                Span::styled(
-                    connector.to_string(),
-                    if is_cursor {
-                        Style::default().fg(app.theme.bg_dark).bg(app.theme.accent)
+                connector
+                    .to_string()
+                    .fg(if is_cursor {
+                        app.theme.bg_dark
                     } else {
-                        Style::default().fg(app.theme.border)
-                    },
-                ),
-                Span::styled(
-                    toggle_indicator,
-                    Style::default().fg(toggle_color).bg(if is_cursor {
+                        app.theme.border
+                    })
+                    .bg(if is_cursor {
                         app.theme.accent
                     } else {
                         app.theme.bg
                     }),
-                ),
-                Span::styled(
-                    " ",
-                    if is_cursor {
-                        Style::default().fg(app.theme.bg_dark).bg(app.theme.accent)
+                toggle_indicator.fg(toggle_color).bg(if is_cursor {
+                    app.theme.accent
+                } else {
+                    app.theme.bg
+                }),
+                " ".fg(if is_cursor {
+                    app.theme.bg_dark
+                } else {
+                    app.theme.border
+                })
+                .bg(if is_cursor {
+                    app.theme.accent
+                } else {
+                    app.theme.bg
+                }),
+                format!("v{}", entry.version)
+                    .fg(if is_cursor {
+                        app.theme.bg_dark
                     } else {
-                        Style::default().fg(app.theme.border)
-                    },
-                ),
-                Span::styled(
-                    format!("v{}", entry.version),
-                    if is_cursor {
-                        Style::default()
-                            .fg(app.theme.bg_dark)
-                            .bg(app.theme.accent)
-                            .bold()
+                        app.theme.accent
+                    })
+                    .bg(if is_cursor {
+                        app.theme.accent
                     } else {
-                        Style::default().fg(app.theme.accent).bold()
-                    },
-                ),
-                Span::styled(
-                    "  ·  ",
-                    if is_cursor {
-                        Style::default().fg(app.theme.bg_dark).bg(app.theme.accent)
+                        app.theme.bg
+                    })
+                    .bold(),
+                "  ·  "
+                    .fg(if is_cursor {
+                        app.theme.bg_dark
                     } else {
-                        Style::default().fg(app.theme.border)
-                    },
-                ),
-                Span::styled(
-                    entry.date.clone(),
-                    if is_cursor {
-                        Style::default().fg(app.theme.bg_dark).bg(app.theme.accent)
+                        app.theme.border
+                    })
+                    .bg(if is_cursor {
+                        app.theme.accent
                     } else {
-                        Style::default().fg(app.theme.muted)
-                    },
-                ),
+                        app.theme.bg
+                    }),
+                entry
+                    .date
+                    .clone()
+                    .fg(if is_cursor {
+                        app.theme.bg_dark
+                    } else {
+                        app.theme.muted
+                    })
+                    .bg(if is_cursor {
+                        app.theme.accent
+                    } else {
+                        app.theme.bg
+                    }),
             ])
             .style(cursor_highlight),
         );
 
         if !collapsed {
             full_lines.push(Line::from(vec![
-                Span::styled(prefix, Style::default().fg(app.theme.border)),
-                Span::styled(entry.summary.clone(), Style::default().fg(app.theme.text)),
+                prefix.fg(app.theme.border),
+                entry.summary.clone().fg(app.theme.text),
             ]));
             for highlight in &entry.highlights {
                 full_lines.push(Line::from(vec![
-                    Span::styled(prefix, Style::default().fg(app.theme.border)),
-                    Span::styled(
-                        format!("  • {highlight}"),
-                        Style::default().fg(app.theme.muted),
-                    ),
+                    prefix.fg(app.theme.border),
+                    format!("  • {highlight}").fg(app.theme.muted),
                 ]));
             }
         }
 
         if !is_last {
-            full_lines.push(Line::from(vec![Span::styled(
-                prefix,
-                Style::default().fg(app.theme.border),
-            )]));
+            full_lines.push(Line::from(vec![prefix.fg(app.theme.border)]));
         }
 
         entry_ends.push(full_lines.len() - 1);

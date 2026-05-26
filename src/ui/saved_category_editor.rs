@@ -58,7 +58,9 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
                 ])
             } else {
                 let style = if i == app.saved_cat_editor_scroll.cursor {
-                    Style::default().bg(app.theme.selection).fg(app.theme.accent)
+                    Style::default()
+                        .bg(app.theme.selection)
+                        .fg(app.theme.accent)
                 } else {
                     Style::default().fg(app.theme.text)
                 };

@@ -24,10 +24,7 @@ pub(super) fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_artic
             return;
         };
 
-        let mut link_spans = vec![
-            Span::raw(" "),
-            article.link.clone().fg(app.theme.muted),
-        ];
+        let mut link_spans = vec![Span::raw(" "), article.link.clone().fg(app.theme.muted)];
         if let Some(secs) = article.published_secs {
             let age = format_age(secs);
             let color = age_color(secs, &app.theme);

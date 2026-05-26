@@ -148,7 +148,9 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
                 let show_selected = selected && !in_moving_mode && is_active;
 
                 let connector_style = if show_selected {
-                    Style::default().fg(app.theme.accent).bg(app.theme.selection)
+                    Style::default()
+                        .fg(app.theme.accent)
+                        .bg(app.theme.selection)
                 } else {
                     Style::default().fg(app.theme.border)
                 };
@@ -181,9 +183,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
                 }
 
                 let style = if is_on_origin {
-                    Style::default()
-                        .fg(app.theme.muted)
-                        .bg(app.theme.selection)
+                    Style::default().fg(app.theme.muted).bg(app.theme.selection)
                 } else if is_ghost {
                     Style::default()
                         .fg(app.theme.muted)
@@ -198,7 +198,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
                 };
                 let origin_hint = if is_on_origin { " ↩" } else { "" };
                 let drop_marker = if show_selected {
-                    Span::styled("➤ ", Style::default().fg(app.theme.warning).bold())
+                    "➤ ".fg(app.theme.warning).bold()
                 } else {
                     Span::raw("")
                 };
@@ -292,8 +292,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
         let max_chars = url_area.width as usize;
         let truncated: String = url.chars().take(max_chars.saturating_sub(1)).collect();
         f.render_widget(
-            Paragraph::new(format!(" {truncated}"))
-                .style(Style::default().fg(app.theme.muted)),
+            Paragraph::new(format!(" {truncated}")).style(Style::default().fg(app.theme.muted)),
             url_area,
         );
     }

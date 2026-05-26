@@ -22,7 +22,9 @@ pub(super) fn draw_saved_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
 
     // "All Saved" entry (cursor 0)
     let all_style = if app.saved_sidebar_cursor == 0 && is_navigating {
-        Style::default().bg(app.theme.selection).fg(app.theme.warning)
+        Style::default()
+            .bg(app.theme.selection)
+            .fg(app.theme.warning)
     } else {
         Style::default().fg(app.theme.text)
     };
@@ -46,7 +48,9 @@ pub(super) fn draw_saved_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
             .filter(|s| s.category_id == cat.id)
             .count();
         let style = if app.saved_sidebar_cursor == cursor_pos && is_navigating {
-            Style::default().bg(app.theme.selection).fg(app.theme.accent)
+            Style::default()
+                .bg(app.theme.selection)
+                .fg(app.theme.accent)
         } else {
             Style::default().fg(app.theme.text)
         };

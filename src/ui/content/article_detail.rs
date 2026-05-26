@@ -34,9 +34,7 @@ fn base_md_style(theme: &crate::ui::theme::ColorTheme) -> MarkdownStyle {
         bold: Style::new().bold(),
         italic: Style::new().italic(),
         strikethrough: Style::new().crossed_out(),
-        inline_code: Style::new()
-            .fg(theme.code)
-            .bg(theme.code_bg),
+        inline_code: Style::new().fg(theme.code).bg(theme.code_bg),
         code_block: Style::new().fg(theme.code),
         code_block_bg: theme.bg_dark,
         code_block_alignment: Alignment::Left,
