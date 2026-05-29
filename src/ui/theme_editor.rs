@@ -7,7 +7,7 @@ use crate::{
     app::App,
     models::AppState,
     ui::content::utils::split_cursor,
-    ui::theme::{COLOR_SLOTS, ColorTheme},
+    ui::theme::{BUILTIN_DARK_COUNT, COLOR_SLOTS, ColorTheme},
 };
 use ratatui::{
     Frame,
@@ -79,25 +79,54 @@ fn draw_theme_list(f: &mut Frame, app: &App, area: Rect) {
     let builtin_names = ColorTheme::builtin_names();
     let cursor = app.theme_editor.cursor;
 
-    let mut items: Vec<ListItem> = builtin_names
-        .iter()
-        .enumerate()
-        .map(|(i, name)| {
-            let is_active = app.user_data.selected_theme != "custom"
-                && ColorTheme::slug(name) == app.user_data.selected_theme;
-            let is_cursor = i == cursor;
-            let style = if is_cursor {
-                Style::default()
-                    .fg(app.theme.bg_dark)
-                    .bg(app.theme.accent)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(app.theme.text)
-            };
-            let marker = if is_active { " ●" } else { "  " };
-            ListItem::new(Line::from(format!("{marker} {name}")).style(style))
-        })
-        .collect();
+    let mut items: Vec<ListItem> = Vec::new();
+
+    // Dark themes
+    for (i, name) in builtin_names.iter().take(BUILTIN_DARK_COUNT).enumerate() {
+        let is_active = app.user_data.selected_theme != "custom"
+            && ColorTheme::slug(name) == app.user_data.selected_theme;
+        let is_cursor = i == cursor;
+        let style = if is_cursor {
+            Style::default()
+                .fg(app.theme.bg_dark)
+                .bg(app.theme.accent)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(app.theme.text)
+        };
+        let marker = if is_active { " ●" } else { "  " };
+        items.push(ListItem::new(Line::from(format!("{marker} {name}")).style(style)));
+    }
+
+    // Light section header
+    items.push(ListItem::new(
+        Line::from(format!(
+            "  {}",
+            "─ Light ────".to_string()
+                + &"─".repeat(inner.width.saturating_sub(13) as usize)
+        ))
+        .fg(app.theme.border),
+    ));
+
+    // Light themes
+    for (i, name) in builtin_names.iter().skip(BUILTIN_DARK_COUNT).enumerate() {
+        let cursor_idx = BUILTIN_DARK_COUNT + i;
+        let is_active = app.user_data.selected_theme != "custom"
+            && ColorTheme::slug(name) == app.user_data.selected_theme;
+        let is_cursor = cursor_idx == cursor;
+        let style = if is_cursor {
+            Style::default()
+                .fg(app.theme.bg_dark)
+                .bg(app.theme.accent)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(app.theme.text)
+        };
+        let marker = if is_active { " ●" } else { "  " };
+        items.push(ListItem::new(
+            Line::from(format!("{marker} {name}")).style(style),
+        ));
+    }
 
     // Separator
     items.push(ListItem::new(
@@ -137,11 +166,13 @@ fn draw_theme_list(f: &mut Frame, app: &App, area: Rect) {
         ));
     }
 
-    // Adjust list_state cursor past separator row
-    let display_cursor = if cursor < builtin_names.len() {
+    // Adjust list_state cursor past section headers and separator
+    let display_cursor = if cursor < BUILTIN_DARK_COUNT {
         cursor
+    } else if cursor < builtin_names.len() {
+        cursor + 1 // skip light section header
     } else {
-        cursor + 1 // skip separator row
+        cursor + 2 // skip light section header + custom separator
     };
     let mut list_state = ListState::default();
     list_state.select(Some(display_cursor));

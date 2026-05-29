@@ -26,11 +26,11 @@ pub const COLOR_SLOTS: &[(&str, &str)] = &[
 
 /// Ordered list of `(slug, display_name, embedded TOML)` for every built-in theme.
 ///
-/// Themes are grouped by family so they appear adjacent in the picker:
-/// Catppuccin → Rosy/Purple → Blue/Navy → Arctic/Cool →
-/// Warm/Earthy → Classic → Bold/Modern.
+/// Dark themes first, then light themes — each group ordered by family.
+/// Used by the theme editor to render a Dark / Light section split.
 static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
-    // ── Catppuccin ────────────────────────────────────────────────────────────
+    // ── Dark ───────────────────────────────────────────────────────────────────
+    // Catppuccin
     (
         "catppuccin-mocha",
         "Catppuccin Mocha",
@@ -41,24 +41,14 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         "Catppuccin Macchiato",
         include_str!("themes/catppuccin-macchiato.toml"),
     ),
-    (
-        "catppuccin-latte",
-        "Catppuccin Latte",
-        include_str!("themes/catppuccin-latte.toml"),
-    ),
-    // ── Rosy / Purple ─────────────────────────────────────────────────────────
+    // Rosy / Purple
     (
         "rose-pine",
         "Rose Pine",
         include_str!("themes/rose-pine.toml"),
     ),
-    (
-        "rose-pine-dawn",
-        "Rose Pine Dawn",
-        include_str!("themes/rose-pine-dawn.toml"),
-    ),
     ("dracula", "Dracula", include_str!("themes/dracula.toml")),
-    // ── Blue / Navy ───────────────────────────────────────────────────────────
+    // Blue / Navy
     (
         "tokyo-night",
         "Tokyo Night",
@@ -70,14 +60,9 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         include_str!("themes/tokyo-night-storm.toml"),
     ),
     ("one-dark", "One Dark", include_str!("themes/one-dark.toml")),
-    (
-        "one-light",
-        "One Light",
-        include_str!("themes/one-light.toml"),
-    ),
-    // ── Arctic / Cool ─────────────────────────────────────────────────────────
+    // Arctic / Cool
     ("nord", "Nord", include_str!("themes/nord.toml")),
-    // ── Warm / Earthy ─────────────────────────────────────────────────────────
+    // Warm / Earthy
     (
         "gruvbox-dark",
         "Gruvbox Dark",
@@ -93,19 +78,14 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         "Kanagawa Wave",
         include_str!("themes/kanagawa-wave.toml"),
     ),
-    // ── Classic ───────────────────────────────────────────────────────────────
+    // Classic
     (
         "solarized-dark",
         "Solarized Dark",
         include_str!("themes/solarized-dark.toml"),
     ),
-    (
-        "solarized-light",
-        "Solarized Light",
-        include_str!("themes/solarized-light.toml"),
-    ),
     ("monokai", "Monokai", include_str!("themes/monokai.toml")),
-    // ── Bold / Modern ─────────────────────────────────────────────────────────
+    // Bold / Modern
     (
         "oxocarbon",
         "Oxocarbon",
@@ -117,7 +97,31 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         include_str!("themes/synthwave-84.toml"),
     ),
     ("horizon", "Horizon", include_str!("themes/horizon.toml")),
+    // ── Light ──────────────────────────────────────────────────────────────────
+    (
+        "catppuccin-latte",
+        "Catppuccin Latte",
+        include_str!("themes/catppuccin-latte.toml"),
+    ),
+    (
+        "rose-pine-dawn",
+        "Rose Pine Dawn",
+        include_str!("themes/rose-pine-dawn.toml"),
+    ),
+    (
+        "one-light",
+        "One Light",
+        include_str!("themes/one-light.toml"),
+    ),
+    (
+        "solarized-light",
+        "Solarized Light",
+        include_str!("themes/solarized-light.toml"),
+    ),
 ];
+
+/// Number of dark built-in themes (positions 0..DARK_COUNT in BUILTIN_THEMES).
+pub const BUILTIN_DARK_COUNT: usize = 16;
 
 /// Full color palette for the application UI.
 ///
