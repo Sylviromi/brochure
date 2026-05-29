@@ -86,13 +86,15 @@ pub(super) fn handle_theme_editor(app: &mut App, key: KeyEvent) {
         }
 
         KeyCode::Up | KeyCode::Char('k') if total > 0 => {
-            if let Some(c) = cursor_prev(app.theme_editor.cursor, total, app.user_data.scroll_loop) {
+            if let Some(c) = cursor_prev(app.theme_editor.cursor, total, app.user_data.scroll_loop)
+            {
                 app.theme_editor.cursor = c;
                 app.theme = resolve_at_cursor(app);
             }
         }
         KeyCode::Down | KeyCode::Char('j') if total > 0 => {
-            if let Some(c) = cursor_next(app.theme_editor.cursor, total, app.user_data.scroll_loop) {
+            if let Some(c) = cursor_next(app.theme_editor.cursor, total, app.user_data.scroll_loop)
+            {
                 app.theme_editor.cursor = c;
                 app.theme = resolve_at_cursor(app);
             }
@@ -227,12 +229,20 @@ pub(super) fn handle_theme_editor_new(app: &mut App, key: KeyEvent) {
             app.state = AppState::ThemeEditor;
         }
         KeyCode::Up | KeyCode::Char('k') if total > 0 => {
-            if let Some(c) = cursor_prev(app.theme_editor.clone_cursor, total, app.user_data.scroll_loop) {
+            if let Some(c) = cursor_prev(
+                app.theme_editor.clone_cursor,
+                total,
+                app.user_data.scroll_loop,
+            ) {
                 app.theme_editor.clone_cursor = c;
             }
         }
         KeyCode::Down | KeyCode::Char('j') if total > 0 => {
-            if let Some(c) = cursor_next(app.theme_editor.clone_cursor, total, app.user_data.scroll_loop) {
+            if let Some(c) = cursor_next(
+                app.theme_editor.clone_cursor,
+                total,
+                app.user_data.scroll_loop,
+            ) {
                 app.theme_editor.clone_cursor = c;
             }
         }
@@ -296,12 +306,20 @@ pub(super) fn handle_theme_editor_color_edit(app: &mut App, key: KeyEvent) {
             app.state = AppState::ThemeEditor;
         }
         KeyCode::Up | KeyCode::Char('k') => {
-            if let Some(c) = cursor_prev(app.theme_editor.color_cursor, COLOR_SLOTS.len(), app.user_data.scroll_loop) {
+            if let Some(c) = cursor_prev(
+                app.theme_editor.color_cursor,
+                COLOR_SLOTS.len(),
+                app.user_data.scroll_loop,
+            ) {
                 app.theme_editor.color_cursor = c;
             }
         }
         KeyCode::Down | KeyCode::Char('j') => {
-            if let Some(c) = cursor_next(app.theme_editor.color_cursor, COLOR_SLOTS.len(), app.user_data.scroll_loop) {
+            if let Some(c) = cursor_next(
+                app.theme_editor.color_cursor,
+                COLOR_SLOTS.len(),
+                app.user_data.scroll_loop,
+            ) {
                 app.theme_editor.color_cursor = c;
             }
         }

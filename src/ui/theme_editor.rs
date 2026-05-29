@@ -95,15 +95,16 @@ fn draw_theme_list(f: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(app.theme.text)
         };
         let marker = if is_active { " ●" } else { "  " };
-        items.push(ListItem::new(Line::from(format!("{marker} {name}")).style(style)));
+        items.push(ListItem::new(
+            Line::from(format!("{marker} {name}")).style(style),
+        ));
     }
 
     // Light section header
     items.push(ListItem::new(
         Line::from(format!(
             "  {}",
-            "─ Light ────".to_string()
-                + &"─".repeat(inner.width.saturating_sub(13) as usize)
+            "─ Light ────".to_string() + &"─".repeat(inner.width.saturating_sub(13) as usize)
         ))
         .fg(app.theme.border),
     ));
@@ -132,8 +133,7 @@ fn draw_theme_list(f: &mut Frame, app: &App, area: Rect) {
     items.push(ListItem::new(
         Line::from(format!(
             "  {}",
-            "─ Custom ───".to_string()
-                + &"─".repeat(inner.width.saturating_sub(13) as usize)
+            "─ Custom ───".to_string() + &"─".repeat(inner.width.saturating_sub(13) as usize)
         ))
         .fg(app.theme.border),
     ));
