@@ -70,3 +70,5 @@ entries below older ones within each section.
 not how it was implemented. No library names, function names, file paths, or
 internal refactoring details. If a change is invisible to the user (code
 cleanup, helper extraction, deduplication), omit it entirely.
+
+`changelog/next-update.md` is gitignored — do **not** `git add` or commit it.
