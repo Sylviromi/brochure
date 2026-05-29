@@ -195,7 +195,7 @@ fn sort_articles_by_date(triples: &mut [(usize, usize, Option<i64>)]) {
 
 /// Advance a cursor index, wrapping or clamping based on `wrap`. Returns `None` when
 /// already at the end and not wrapping (caller should early-return).
-fn cursor_next(cursor: usize, len: usize, wrap: bool) -> Option<usize> {
+pub(crate) fn cursor_next(cursor: usize, len: usize, wrap: bool) -> Option<usize> {
     if len == 0 {
         return None;
     }
@@ -208,7 +208,7 @@ fn cursor_next(cursor: usize, len: usize, wrap: bool) -> Option<usize> {
 
 /// Retreat a cursor index, wrapping or clamping based on `wrap`. Returns `None` when
 /// already at the start and not wrapping.
-fn cursor_prev(cursor: usize, len: usize, wrap: bool) -> Option<usize> {
+pub(crate) fn cursor_prev(cursor: usize, len: usize, wrap: bool) -> Option<usize> {
     if len == 0 {
         return None;
     }

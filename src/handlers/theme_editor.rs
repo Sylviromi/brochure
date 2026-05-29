@@ -8,7 +8,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use super::handle_text_input;
 use crate::{
-    app::{App, resolve_theme},
+    app::{App, cursor_next, cursor_prev, resolve_theme},
     models::{AppState, CustomTheme},
     storage::{default_export_path, expand_home_dir, save_user_data},
     ui::theme::{COLOR_SLOTS, ColorTheme},
@@ -86,12 +86,16 @@ pub(super) fn handle_theme_editor(app: &mut App, key: KeyEvent) {
         }
 
         KeyCode::Up | KeyCode::Char('k') if total > 0 => {
-            app.theme_editor.cursor = app.theme_editor.cursor.checked_sub(1).unwrap_or(total - 1);
-            app.theme = resolve_at_cursor(app);
+            if let Some(c) = cursor_prev(app.theme_editor.cursor, total, app.user_data.scroll_loop) {
+                app.theme_editor.cursor = c;
+                app.theme = resolve_at_cursor(app);
+            }
         }
         KeyCode::Down | KeyCode::Char('j') if total > 0 => {
-            app.theme_editor.cursor = (app.theme_editor.cursor + 1) % total;
-            app.theme = resolve_at_cursor(app);
+            if let Some(c) = cursor_next(app.theme_editor.cursor, total, app.user_data.scroll_loop) {
+                app.theme_editor.cursor = c;
+                app.theme = resolve_at_cursor(app);
+            }
         }
 
         // Enter — activate selected theme.
@@ -223,14 +227,14 @@ pub(super) fn handle_theme_editor_new(app: &mut App, key: KeyEvent) {
             app.state = AppState::ThemeEditor;
         }
         KeyCode::Up | KeyCode::Char('k') if total > 0 => {
-            app.theme_editor.clone_cursor = app
-                .theme_editor
-                .clone_cursor
-                .checked_sub(1)
-                .unwrap_or(total - 1);
+            if let Some(c) = cursor_prev(app.theme_editor.clone_cursor, total, app.user_data.scroll_loop) {
+                app.theme_editor.clone_cursor = c;
+            }
         }
         KeyCode::Down | KeyCode::Char('j') if total > 0 => {
-            app.theme_editor.clone_cursor = (app.theme_editor.clone_cursor + 1) % total;
+            if let Some(c) = cursor_next(app.theme_editor.clone_cursor, total, app.user_data.scroll_loop) {
+                app.theme_editor.clone_cursor = c;
+            }
         }
         KeyCode::Enter => {
             let colors = if is_builtin(app.theme_editor.clone_cursor) {
@@ -292,14 +296,14 @@ pub(super) fn handle_theme_editor_color_edit(app: &mut App, key: KeyEvent) {
             app.state = AppState::ThemeEditor;
         }
         KeyCode::Up | KeyCode::Char('k') => {
-            app.theme_editor.color_cursor = app
-                .theme_editor
-                .color_cursor
-                .checked_sub(1)
-                .unwrap_or(COLOR_SLOTS.len() - 1);
+            if let Some(c) = cursor_prev(app.theme_editor.color_cursor, COLOR_SLOTS.len(), app.user_data.scroll_loop) {
+                app.theme_editor.color_cursor = c;
+            }
         }
         KeyCode::Down | KeyCode::Char('j') => {
-            app.theme_editor.color_cursor = (app.theme_editor.color_cursor + 1) % COLOR_SLOTS.len();
+            if let Some(c) = cursor_next(app.theme_editor.color_cursor, COLOR_SLOTS.len(), app.user_data.scroll_loop) {
+                app.theme_editor.color_cursor = c;
+            }
         }
         KeyCode::Enter => {
             if let Some(id) = app.theme_editor.editing_id
