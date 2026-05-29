@@ -63,10 +63,12 @@ fn header_style(theme: &crate::ui::theme::ColorTheme) -> MarkdownStyle {
     s
 }
 
-/// Body style: title is centered, paragraphs use the user's alignment.
+/// Body style: headings and paragraphs use the user's alignment.
 fn body_style(theme: &crate::ui::theme::ColorTheme, body_alignment: Alignment) -> MarkdownStyle {
     let mut s = base_md_style(theme);
-    s.heading_1_alignment = Alignment::Center;
+    s.heading_1_alignment = body_alignment;
+    s.heading_2_alignment = body_alignment;
+    s.heading_3_alignment = body_alignment;
     s.paragraph_alignment = body_alignment;
     s
 }
