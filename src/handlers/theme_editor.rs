@@ -56,6 +56,23 @@ fn next_id(app: &App) -> u32 {
         + 1
 }
 
+/// Resolve the theme at the current cursor position without modifying user_data.
+/// Used for live preview as the user navigates the theme list.
+fn resolve_at_cursor(app: &App) -> ColorTheme {
+    if is_builtin(app.theme_editor.cursor) {
+        let name = ColorTheme::builtin_names()[app.theme_editor.cursor];
+        let slug = ColorTheme::slug(name);
+        ColorTheme::builtin(slug).unwrap_or_else(ColorTheme::catppuccin_mocha)
+    } else {
+        let idx = custom_idx(app.theme_editor.cursor);
+        app.user_data
+            .custom_themes
+            .get(idx)
+            .and_then(|ct| ColorTheme::from_custom_theme(ct).ok())
+            .unwrap_or_else(ColorTheme::catppuccin_mocha)
+    }
+}
+
 // ── Main editor ───────────────────────────────────────────────────────────────
 
 /// Handles key events for `ThemeEditor` — the full-screen theme list.
@@ -64,14 +81,17 @@ pub(super) fn handle_theme_editor(app: &mut App, key: KeyEvent) {
 
     match key.code {
         KeyCode::Esc | KeyCode::Char('q') => {
+            app.theme = resolve_theme(&app.user_data);
             app.state = AppState::SettingsList;
         }
 
         KeyCode::Up | KeyCode::Char('k') if total > 0 => {
             app.theme_editor.cursor = app.theme_editor.cursor.checked_sub(1).unwrap_or(total - 1);
+            app.theme = resolve_at_cursor(app);
         }
         KeyCode::Down | KeyCode::Char('j') if total > 0 => {
             app.theme_editor.cursor = (app.theme_editor.cursor + 1) % total;
+            app.theme = resolve_at_cursor(app);
         }
 
         // Enter — activate selected theme.
