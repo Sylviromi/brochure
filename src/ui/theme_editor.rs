@@ -128,11 +128,12 @@ fn draw_theme_list(f: &mut Frame, app: &App, area: Rect) {
         ));
     }
 
-    // Separator
+    // Custom section header
     items.push(ListItem::new(
         Line::from(format!(
             "  {}",
-            "─".repeat(inner.width.saturating_sub(2) as usize)
+            "─ Custom ───".to_string()
+                + &"─".repeat(inner.width.saturating_sub(13) as usize)
         ))
         .fg(app.theme.border),
     ));
@@ -166,13 +167,13 @@ fn draw_theme_list(f: &mut Frame, app: &App, area: Rect) {
         ));
     }
 
-    // Adjust list_state cursor past section headers and separator
+    // Adjust list_state cursor past section headers
     let display_cursor = if cursor < BUILTIN_DARK_COUNT {
         cursor
     } else if cursor < builtin_names.len() {
-        cursor + 1 // skip light section header
+        cursor + 1 // skip "Light" section header
     } else {
-        cursor + 2 // skip light section header + custom separator
+        cursor + 2 // skip "Light" + "Custom" section headers
     };
     let mut list_state = ListState::default();
     list_state.select(Some(display_cursor));
