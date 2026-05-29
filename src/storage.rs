@@ -154,7 +154,6 @@ pub fn save_articles(feeds: &[Feed], save_content: bool) -> anyhow::Result<()> {
                     .iter()
                     .map(|a| Article {
                         content: String::new(),
-                        images: Vec::new(),
                         ..a.clone()
                     })
                     .collect()
