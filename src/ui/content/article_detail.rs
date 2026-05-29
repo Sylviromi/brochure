@@ -11,7 +11,7 @@ use limner::{
 };
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment as RatAlignment, Constraint, Direction, Layout, Rect},
     prelude::Stylize,
     style::{Modifier, Style},
     widgets::{Paragraph, Wrap},
@@ -452,10 +452,20 @@ pub(super) fn draw_article_detail(
             continue;
         }
 
+        let x = match p.alignment {
+            Some(RatAlignment::Center) => {
+                content_area.x + (content_area.width.saturating_sub(p.cell_cols)) / 2
+            }
+            Some(RatAlignment::Right) => {
+                content_area.x + content_area.width.saturating_sub(p.cell_cols)
+            }
+            _ => content_area.x,
+        };
+
         f.render_widget(
             Image::new(protocol),
             Rect {
-                x: content_area.x,
+                x,
                 y: y0 as u16,
                 width: p.cell_cols.min(content_area.width),
                 height: p.cell_rows,
