@@ -338,6 +338,13 @@ pub(super) fn draw_article_detail(
     let header_md = build_header_markdown(&article, header_image_url.as_deref());
     let mut body_md = build_body_markdown(&article, header_image_url.as_deref(), &body_images);
 
+    // When previewing an article with no cached content, show a hint instead
+    // of falling back to the description-as-body.
+    let preview_hint_mode = is_preview && article.content.is_empty();
+    if preview_hint_mode {
+        body_md = String::from("*Full article not fetched. Press Enter to focus and read.*\n");
+    }
+
     // ── Animated loading while full-article fetch is in flight ──────────────
     if app.article_fetching && article.content.len() < CONTENT_STUB_MAX_LEN {
         let spinner = SPINNER_FRAMES[app.tick % SPINNER_FRAMES.len()];
@@ -346,8 +353,13 @@ pub(super) fn draw_article_detail(
 
     // Render with independent alignment styles.
     let h_style = header_style(&app.theme);
-    let b_style = body_style(&app.theme, app.body_alignment);
+    let mut b_style = body_style(&app.theme, app.body_alignment);
     let content_width = content_area.width;
+
+    if preview_hint_mode && !app.article_fetching {
+        b_style.paragraph = Style::new().fg(app.theme.muted);
+        b_style.italic = Style::new().fg(app.theme.muted).italic();
+    }
 
     let mut render_width = content_width;
 
@@ -357,37 +369,64 @@ pub(super) fn draw_article_detail(
         Vec<limner::ImageInfo>,
         Vec<limner::LinkInfo>,
         usize,
+        usize,
     ) {
         let hdr = render_markdown(&header_md, &h_style, w);
         let bdy = render_markdown(&body_md, &b_style, w);
-        let header_len = hdr.lines.len();
+        let header_line_count = hdr.lines.len();
         let mut lines = hdr.lines;
         lines.extend(bdy.lines);
         let mut images = hdr.images;
         for mut img in bdy.images {
-            img.line_index += header_len;
+            img.line_index += header_line_count;
             images.push(img);
         }
         let mut links = hdr.links;
-        let link_offset = header_len;
+        let link_offset = header_line_count;
         for mut lnk in bdy.links {
             lnk.line_index += link_offset;
             links.push(lnk);
         }
         let line_count = count_lines(&lines, w);
-        (lines, images, links, line_count)
+        (lines, images, links, line_count, header_line_count)
     };
 
-    let (mut result_lines, mut result_images, mut result_links, mut line_count) =
-        render_and_merge(render_width);
+    let (
+        mut result_lines,
+        mut result_images,
+        mut result_links,
+        mut line_count,
+        mut header_line_count,
+    ) = render_and_merge(render_width);
 
     if line_count > content_area.height as usize {
         render_width = render_width.saturating_sub(2);
-        let (lines, images, links, lc) = render_and_merge(render_width);
+        let (lines, images, links, lc, hlc) = render_and_merge(render_width);
         result_lines = lines;
         result_images = images;
         result_links = links;
         line_count = lc;
+        header_line_count = hlc;
+    }
+
+    // Vertically center the hint below the header in preview mode.
+    if preview_hint_mode && !app.article_fetching && line_count < content_area.height as usize {
+        let pad = (content_area.height as usize - line_count) / 2;
+        let blank = ratatui::text::Line::from("");
+        let body_part = result_lines.split_off(header_line_count);
+        result_lines.extend(std::iter::repeat(blank).take(pad));
+        result_lines.extend(body_part);
+        for img in &mut result_images {
+            if img.line_index >= header_line_count {
+                img.line_index += pad;
+            }
+        }
+        for lnk in &mut result_links {
+            if lnk.line_index >= header_line_count {
+                lnk.line_index += pad;
+            }
+        }
+        line_count += pad;
     }
 
     // Scroll offset for the entire unified content.
