@@ -367,6 +367,7 @@ pub(super) fn draw_article_detail(
     if preview_hint_mode && !app.article_fetching {
         b_style.paragraph = Style::new().fg(app.theme.muted);
         b_style.italic = Style::new().fg(app.theme.muted).italic();
+        b_style.paragraph_alignment = Alignment::Center;
     }
 
     let mut render_width = content_width;
