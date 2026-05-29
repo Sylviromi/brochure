@@ -6,7 +6,7 @@
 use crate::{app::App, handlers::article::get_selected_article, models::CONTENT_STUB_MAX_LEN};
 use limner::{
     Alignment, MarkdownStyle,
-    render_image::{Image, prepare_inline_images},
+    render_image::{Image, fit_cell_size, prepare_inline_images},
     render_markdown,
 };
 use ratatui::{
@@ -378,7 +378,6 @@ pub(super) fn draw_article_detail(
         Vec<limner::ImageInfo>,
         Vec<limner::LinkInfo>,
         usize,
-        usize,
     ) {
         let hdr = render_markdown(&header_md, &h_style, w);
         let bdy = render_markdown(&body_md, &b_style, w);
@@ -396,33 +395,73 @@ pub(super) fn draw_article_detail(
             lnk.line_index += link_offset;
             links.push(lnk);
         }
-        let line_count = count_lines(&lines, w);
-        (lines, images, links, line_count, header_line_count)
+        (lines, images, links, header_line_count)
     };
 
-    let (
-        mut result_lines,
-        mut result_images,
-        mut result_links,
-        mut line_count,
-        mut header_line_count,
-    ) = render_and_merge(render_width);
+    let (mut result_lines, mut result_images, mut result_links, mut header_line_count) =
+        render_and_merge(render_width);
 
-    if line_count > content_area.height as usize {
+    if count_lines(&result_lines, render_width) > content_area.height as usize {
         render_width = render_width.saturating_sub(2);
-        let (lines, images, links, lc, hlc) = render_and_merge(render_width);
+        let (lines, images, links, hlc) = render_and_merge(render_width);
         result_lines = lines;
         result_images = images;
         result_links = links;
-        line_count = lc;
         header_line_count = hlc;
     }
+
+    // Scroll offset for the entire unified content.
+    let scroll_offset = app.article_scroll.get(&article.link);
+
+    // Inject inline images into the rendered line buffer.
+    let font_size = app.picker.as_ref().map(|p| p.font_size());
+    let mut placements = if let Some(picker) = &app.picker
+        && !app.image_cache.is_empty()
+    {
+        let font_size = font_size.as_ref().expect("picker exists");
+        prepare_inline_images(
+            &mut result_lines,
+            &result_images,
+            &app.image_cache,
+            &mut app.protocol_cache,
+            picker,
+            font_size,
+            render_width,
+            10,
+        )
+    } else {
+        Vec::new()
+    };
+
+    // Recompute header line count accounting for injected header images.
+    let effective_header_lines = {
+        let mut h = header_line_count;
+        if let Some(font_size) = &font_size {
+            for img in &result_images {
+                if img.line_index >= header_line_count {
+                    break;
+                }
+                if !app.protocol_cache.contains_key(&img.url) {
+                    continue;
+                }
+                let Some(dyn_img) = app.image_cache.get(&img.url) else {
+                    continue;
+                };
+                let (_cols, rows) = fit_cell_size(dyn_img, font_size, render_width, 10);
+                h += rows as usize - 1;
+            }
+        }
+        h
+    };
+
+    // Recompute line count after image injection.
+    let mut line_count = count_lines(&result_lines, render_width);
 
     // Vertically center the hint below the header in preview mode.
     if preview_hint_mode && !app.article_fetching && line_count < content_area.height as usize {
         let pad = (content_area.height as usize - line_count) / 2;
         let blank = ratatui::text::Line::from("");
-        let body_part = result_lines.split_off(header_line_count);
+        let body_part = result_lines.split_off(effective_header_lines);
         result_lines.extend(std::iter::repeat_n(blank, pad));
         result_lines.extend(body_part);
         for img in &mut result_images {
@@ -435,35 +474,18 @@ pub(super) fn draw_article_detail(
                 lnk.line_index += pad;
             }
         }
+        for p in &mut placements {
+            if p.line_start >= effective_header_lines {
+                p.line_start += pad;
+            }
+        }
         line_count += pad;
     }
-
-    // Scroll offset for the entire unified content.
-    let scroll_offset = app.article_scroll.get(&article.link);
 
     if !is_preview {
         app.content_area_height = content_area.height;
         app.content_line_count = line_count;
     }
-
-    // Inject inline images into the rendered line buffer.
-    let placements = if let Some(picker) = &app.picker
-        && !app.image_cache.is_empty()
-    {
-        let font_size = picker.font_size();
-        prepare_inline_images(
-            &mut result_lines,
-            &result_images,
-            &app.image_cache,
-            &mut app.protocol_cache,
-            picker,
-            &font_size,
-            render_width,
-            10,
-        )
-    } else {
-        Vec::new()
-    };
 
     // Always store images so spawn_article_image_downloads picks them up in both
     // preview and full-detail mode.
