@@ -71,6 +71,13 @@ fn body_style(theme: &crate::ui::theme::ColorTheme, body_alignment: Alignment) -
     s
 }
 
+/// Returns `true` when the description contains only link text (e.g. HN/Lobsters "Comments" links).
+fn is_description_just_links(desc: &str) -> bool {
+    let stripped = strip_html(desc).trim().to_string();
+    let plain = strip_html_to_plain(desc).trim().to_string();
+    !plain.is_empty() && stripped.is_empty()
+}
+
 /// Remove HTML tags from a string, also stripping `<a>` anchor content (comment links etc).
 fn strip_html(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -223,7 +230,7 @@ fn build_header_markdown(
         parts.push(String::new());
     }
 
-    if !is_body_like_description(article) {
+    if !is_body_like_description(article) && !is_description_just_links(&article.description) {
         parts.push(strip_html_to_plain(&article.description));
         parts.push(String::new());
     }
@@ -334,16 +341,15 @@ pub(super) fn draw_article_detail(
         None => article.images.clone(),
     };
 
+    let preview_hint_mode = is_preview && article.content.is_empty();
+
     // Build separate header and body markdown.
     let header_md = build_header_markdown(&article, header_image_url.as_deref());
-    let mut body_md = build_body_markdown(&article, header_image_url.as_deref(), &body_images);
-
-    // When previewing an article with no cached content, show a hint instead
-    // of falling back to the description-as-body.
-    let preview_hint_mode = is_preview && article.content.is_empty();
-    if preview_hint_mode {
-        body_md = String::from("*Full article not fetched. Press Enter to focus and read.*\n");
-    }
+    let mut body_md = if preview_hint_mode {
+        String::from("*Full article not fetched. Press Enter to focus and read.*\n")
+    } else {
+        build_body_markdown(&article, header_image_url.as_deref(), &body_images)
+    };
 
     // ── Animated loading while full-article fetch is in flight ──────────────
     if app.article_fetching && article.content.len() < CONTENT_STUB_MAX_LEN {
@@ -414,7 +420,7 @@ pub(super) fn draw_article_detail(
         let pad = (content_area.height as usize - line_count) / 2;
         let blank = ratatui::text::Line::from("");
         let body_part = result_lines.split_off(header_line_count);
-        result_lines.extend(std::iter::repeat(blank).take(pad));
+        result_lines.extend(std::iter::repeat_n(blank, pad));
         result_lines.extend(body_part);
         for img in &mut result_images {
             if img.line_index >= header_line_count {
