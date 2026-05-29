@@ -1,10 +1,5 @@
 # CLAUDE.md — Brochure
 
-## Session start
-Read these files at the beginning of every session:
-- `~/.claude/shared/task-workflow.md`
-- `~/.claude/shared/rust-conventions.md`
-
 ---
 
 ## Code Quality (non-negotiable, apply on every edit)
@@ -18,6 +13,16 @@ Whenever you read or edit a file — even for a small fix — also look for:
 
 Make these improvements in the same commit when they are clearly better and low-risk.
 When the improvement is larger or uncertain, surface it to the user as a suggestion.
+
+---
+
+## After Every Change (non-negotiable)
+
+After every code edit, run:
+
+```
+cargo fmt && cargo fix --allow-dirty
+```
 
 ---
 
