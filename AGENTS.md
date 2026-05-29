@@ -21,7 +21,7 @@ When the improvement is larger or uncertain, surface it to the user as a suggest
 After every code edit, run:
 
 ```
-cargo fmt && cargo fix --allow-dirty
+cargo fmt && cargo fix --allow-dirty && cargo clippy
 ```
 
 ---
