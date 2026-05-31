@@ -543,7 +543,11 @@ pub(crate) fn render_article_content(
         };
         let render_rects = compute_image_render_rects(&placements, &result_lines, &viewport);
         for rr in &render_rects {
-            let protocol = if rr.hidden_top > 0 || rr.hidden_left > 0 {
+            let protocol = if rr.hidden_top > 0
+                || rr.hidden_left > 0
+                || rr.render_rect.height < rr.full_rows
+                || rr.render_rect.width < rr.full_cols
+            {
                 let Some(img) = app.image_cache.get(&rr.url) else {
                     continue;
                 };
