@@ -108,5 +108,16 @@
       "Code blocks adapt to the selected theme",
       "Minor bug fixes and UI improvements"
     ]
+  },
+  {
+    "version": "0.7.1",
+    "date": "2026-05-31",
+    "summary": "This update adds skeleton animations during loading, refines the article preview panel, and upgrades the theme editor with live previews. Various fixes improve alignment and image persistence.",
+    "highlights": [
+      "Skeleton animation replaces spinners during loading",
+      "Article preview no longer duplicates description",
+      "Theme editor now live-previews themes",
+      "Minor bug fixes and UI improvements"
+    ]
   }
 ]
