@@ -35,3 +35,4 @@ limner = { version = "0.3.0", features = ["image-protocol"] }
 ratatui-image = { version = "11", default-features = false, features = ["crossterm", "image-defaults"] }
 arboard = "3"
 tui-scrollbar = "0.2.4"
+tui-skeleton = "0.3"

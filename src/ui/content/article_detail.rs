@@ -19,6 +19,7 @@ use ratatui::{
 
 use super::super::{SPINNER_FRAMES, content_block, render_scrollbar};
 use super::{footer::draw_article_footer, utils::format_pub_date};
+use tui_skeleton::{AnimationMode, SkeletonBlock};
 
 /// Base limner style config from the app theme (shared between header and body).
 fn base_md_style(theme: &crate::ui::theme::ColorTheme) -> MarkdownStyle {
@@ -167,6 +168,15 @@ fn count_lines(lines: &[ratatui::text::Line<'static>], width: u16) -> usize {
         .wrap(Wrap { trim: false })
         .line_count(width)
         .max(1)
+}
+
+/// Map a ratatui [`Color`] to the `tui_skeleton` colour enum for the skeleton widget.
+fn to_skeleton_color(c: ratatui::style::Color) -> tui_skeleton::Color {
+    match c {
+        ratatui::style::Color::Rgb(r, g, b) => tui_skeleton::Color::Rgb(r, g, b),
+        ratatui::style::Color::Indexed(i) => tui_skeleton::Color::Indexed(i),
+        _ => tui_skeleton::Color::Reset,
+    }
 }
 
 /// Returns `true` when a markdown line references `hero_url` as an image.
@@ -344,27 +354,27 @@ pub(super) fn draw_article_detail(
     };
 
     let preview_hint_mode = is_preview && article.content.is_empty();
+    let fetching_stub = app.article_fetching && article.content.len() < CONTENT_STUB_MAX_LEN;
 
     // Build separate header and body markdown.
     let header_md = build_header_markdown(&article, header_image_url.as_deref());
-    let mut body_md = if preview_hint_mode {
+    let body_md = if preview_hint_mode && !fetching_stub {
         String::from("*Full article not fetched. Press Enter to focus and read.*\n")
+    } else if fetching_stub {
+        String::new() // skeleton widget renders in place of body text
     } else {
         build_body_markdown(&article, header_image_url.as_deref(), &body_images)
     };
 
-    // ── Animated loading while full-article fetch is in flight ──────────────
-    if app.article_fetching && article.content.len() < CONTENT_STUB_MAX_LEN {
-        let spinner = SPINNER_FRAMES[app.tick % SPINNER_FRAMES.len()];
-        body_md = format!("\n\n\n{} Fetching full article\u{2026}\n", spinner);
-    }
+    // Simple-body messages (hint/spinner) get centered styling and layout.
+    let simple_body = preview_hint_mode || fetching_stub;
 
     // Render with independent alignment styles.
     let h_style = header_style(&app.theme);
     let mut b_style = body_style(&app.theme, app.body_alignment);
     let content_width = content_area.width;
 
-    if preview_hint_mode && !app.article_fetching {
+    if simple_body {
         b_style.paragraph = Style::new().fg(app.theme.muted);
         b_style.italic = Style::new().fg(app.theme.muted).italic();
         b_style.paragraph_alignment = Alignment::Center;
@@ -457,8 +467,8 @@ pub(super) fn draw_article_detail(
     // Recompute line count after image injection.
     let mut line_count = count_lines(&result_lines, render_width);
 
-    // Vertically center the hint below the header in preview mode.
-    if preview_hint_mode && !app.article_fetching && line_count < content_area.height as usize {
+    // Vertically center preview hints below the header (skeleton handles itself).
+    if simple_body && !fetching_stub && line_count < content_area.height as usize {
         let pad = (content_area.height as usize - line_count) / 2;
         let blank = ratatui::text::Line::from("");
         let body_part = result_lines.split_off(effective_header_lines);
@@ -544,6 +554,14 @@ pub(super) fn draw_article_detail(
     }
 
     // ── Render the unified paragraph ──
+    // Cache the visual header height before result_lines moves into the paragraph.
+    let header_visual = {
+        let end = effective_header_lines.min(result_lines.len());
+        Paragraph::new(result_lines[..end].to_vec())
+            .wrap(Wrap { trim: false })
+            .line_count(render_width)
+            .max(1) as usize
+    };
     let paragraph = Paragraph::new(result_lines)
         .wrap(Wrap { trim: false })
         .scroll((scroll_offset, 0));
@@ -558,6 +576,30 @@ pub(super) fn draw_article_detail(
         ..content_area
     };
     f.render_widget(paragraph, para_render_area);
+
+    // ── Skeleton placeholder while article body is fetching ──
+    if fetching_stub {
+        let header_visible = header_visual.saturating_sub(scroll_offset as usize);
+        let body_y = content_top + header_visible as i32;
+        if body_y < content_bottom {
+            let body_height = (content_bottom - body_y) as u16;
+            let elapsed_ms = app.tick as u64 * 250;
+            let block = SkeletonBlock::new(elapsed_ms)
+                .mode(AnimationMode::Noise)
+                .braille(true)
+                .base(to_skeleton_color(app.theme.bg_dark))
+                .highlight(to_skeleton_color(app.theme.sky));
+            f.render_widget(
+                block,
+                Rect {
+                    x: content_area.x,
+                    y: body_y as u16,
+                    width: content_area.width,
+                    height: body_height,
+                },
+            );
+        }
+    }
 
     if has_scrollbar {
         let bar_area = Rect {

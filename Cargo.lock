@@ -329,6 +329,7 @@ dependencies = [
  "tokio",
  "toml",
  "tui-scrollbar",
+ "tui-skeleton",
 ]
 
 [[package]]
@@ -3940,6 +3941,16 @@ checksum = "a79f1c518c67acc6fffef76871a240b27a104c1fa7f1ef3ee64360b17e13e9ad"
 dependencies = [
  "document-features",
  "ratatui-core",
+]
+
+[[package]]
+name = "tui-skeleton"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d3eb5b0d4f9fc43565038283e53913bfd961a63f914d3352a71348c695e508e"
+dependencies = [
+ "ratatui-core",
+ "ratatui-widgets",
 ]
 
 [[package]]
