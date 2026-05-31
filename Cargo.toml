@@ -32,7 +32,17 @@ serde_json = "1.0.149"
 toml = "0.8"
 tokio = { version = "1.50.0", features = ["rt-multi-thread", "macros"] }
 limner = { version = "0.3.0", features = ["image-protocol"] }
-ratatui-image = { version = "11", default-features = false, features = ["crossterm", "image-defaults"] }
-arboard = "3"
+ratatui-image = { version = "11", default-features = false, features = ["crossterm"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+arboard = { version = "3", default-features = false }
 tui-scrollbar = "0.2.4"
 tui-skeleton = "0.3"
+
+[profile.dev]
+debug = 1
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
