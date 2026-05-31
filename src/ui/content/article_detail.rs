@@ -12,12 +12,11 @@ use limner::{
 use ratatui::{
     Frame,
     layout::{Alignment as RatAlignment, Constraint, Direction, Layout, Rect},
-    prelude::Stylize,
     style::{Modifier, Style},
     widgets::{Paragraph, Wrap},
 };
 
-use super::super::{SPINNER_FRAMES, content_block, render_scrollbar};
+use super::super::{content_block, render_scrollbar};
 use super::{footer::draw_article_footer, utils::format_pub_date};
 use tui_skeleton::{AnimationMode, SkeletonBlock};
 
@@ -316,23 +315,12 @@ pub(super) fn draw_article_detail(
     }
     let Some(article) = article else { return };
 
-    // Spinner-only border title (article metadata is in the content markdown).
+    // Determine if the current feed is being refreshed (shown as skeleton overlay).
     let feed_refreshing = !app.in_saved_context
         && !app.in_category_context
         && app.feeds.get(app.selected_feed).is_some_and(|f| !f.fetched);
-    let border_title = if feed_refreshing {
-        let spinner = SPINNER_FRAMES[app.tick % SPINNER_FRAMES.len()];
-        format!(" {} ", spinner)
-    } else {
-        String::new()
-    };
 
-    let block = content_block(
-        border_title.fg(app.theme.accent).bold(),
-        !is_preview,
-        app.user_data.border_rounded,
-        &app.theme,
-    );
+    let block = content_block("", !is_preview, app.user_data.border_rounded, &app.theme);
     let inner_area = block.inner(area);
     f.render_widget(block, area);
 
@@ -353,14 +341,16 @@ pub(super) fn draw_article_detail(
         None => article.images.clone(),
     };
 
-    let preview_hint_mode = is_preview && article.content.is_empty() && article.error.is_none();
+    let preview_hint_mode =
+        is_preview && article.content.is_empty() && article.error.is_none() && !feed_refreshing;
     let fetching_stub = app.article_fetching && article.content.len() < CONTENT_STUB_MAX_LEN;
+    let loading = fetching_stub || feed_refreshing;
 
     // Build separate header and body markdown.
     let header_md = build_header_markdown(&article, header_image_url.as_deref());
-    let body_md = if preview_hint_mode && !fetching_stub {
+    let body_md = if preview_hint_mode && !loading {
         String::from("*Full article not fetched. Press Enter to focus and read.*\n")
-    } else if fetching_stub {
+    } else if loading {
         String::new() // skeleton widget renders in place of body text
     } else if let Some(err) = &article.error {
         format!("*{err}*\n")
@@ -369,7 +359,7 @@ pub(super) fn draw_article_detail(
     };
 
     // Simple-body messages (hint/spinner) get centered styling and layout.
-    let simple_body = preview_hint_mode || fetching_stub || article.error.is_some();
+    let simple_body = preview_hint_mode || loading || article.error.is_some();
 
     // Render with independent alignment styles.
     let h_style = header_style(&app.theme);
@@ -470,7 +460,7 @@ pub(super) fn draw_article_detail(
     let mut line_count = count_lines(&result_lines, render_width);
 
     // Vertically center preview hints below the header (skeleton handles itself).
-    if simple_body && !fetching_stub && line_count < content_area.height as usize {
+    if simple_body && !loading && line_count < content_area.height as usize {
         let pad = (content_area.height as usize - line_count) / 2;
         let blank = ratatui::text::Line::from("");
         let body_part = result_lines.split_off(effective_header_lines);
@@ -580,7 +570,7 @@ pub(super) fn draw_article_detail(
     f.render_widget(paragraph, para_render_area);
 
     // ── Skeleton placeholder while article body is fetching ──
-    if fetching_stub {
+    if loading {
         let header_visible = header_visual.saturating_sub(scroll_offset as usize);
         let body_y = content_top + header_visible as i32;
         if body_y < content_bottom {
