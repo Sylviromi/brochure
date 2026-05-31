@@ -7,14 +7,13 @@ use crate::{app::App, handlers::article::get_selected_article, models::CONTENT_S
 use limner::{
     Alignment, MarkdownStyle,
     render_image::{
-        Image, ImageViewport, compute_image_render_rects, fit_cell_size, make_clipped_protocol,
-        prepare_inline_images,
+        ImageViewport, SlicedImage, compute_image_signed_positions, prepare_inline_images,
     },
     render_markdown,
 };
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect, Size},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     widgets::{Paragraph, Wrap},
 };
@@ -455,7 +454,7 @@ pub(crate) fn render_article_content(
         prepare_inline_images(
             &mut result_lines,
             &result_images,
-            &app.image_cache,
+            &mut app.image_cache,
             &mut app.protocol_cache,
             picker,
             font_size,
@@ -469,19 +468,15 @@ pub(crate) fn render_article_content(
     // Recompute header line count accounting for injected header images.
     let effective_header_lines = {
         let mut h = header_line_count;
-        if let Some(font_size) = &font_size {
-            for img in &result_images {
-                if img.line_index >= header_line_count {
-                    break;
+        for img in &result_images {
+            if img.line_index >= header_line_count {
+                break;
+            }
+            if let Some(sliced) = app.protocol_cache.get(&img.url) {
+                let rows = sliced.size().height;
+                if rows > 0 {
+                    h += rows as usize - 1;
                 }
-                if !app.protocol_cache.contains_key(&img.url) {
-                    continue;
-                }
-                let Some(dyn_img) = app.image_cache.get(&img.url) else {
-                    continue;
-                };
-                let (_cols, rows) = fit_cell_size(dyn_img, font_size, render_width, 10);
-                h += rows as usize - 1;
             }
         }
         h
@@ -531,8 +526,8 @@ pub(crate) fn render_article_content(
         app.article_scroll_offset = scroll_offset;
     }
 
-    // Render inline images with cut-off clipping — partially off-screen images
-    // now show their visible portion instead of being skipped entirely.
+    // Render inline images — SlicedImage handles cut-off clipping automatically
+    // for partially off-screen images.
     if !placements.is_empty() {
         let viewport = ImageViewport {
             content: Rect {
@@ -541,36 +536,11 @@ pub(crate) fn render_article_content(
             },
             scroll: scroll_offset,
         };
-        let render_rects = compute_image_render_rects(&placements, &result_lines, &viewport);
-        for rr in &render_rects {
-            let protocol = if rr.hidden_top > 0
-                || rr.hidden_left > 0
-                || rr.render_rect.height < rr.full_rows
-                || rr.render_rect.width < rr.full_cols
-            {
-                let Some(img) = app.image_cache.get(&rr.url) else {
-                    continue;
-                };
-                let full_size = Size::new(rr.full_cols, rr.full_rows);
-                let visible_size = Size::new(rr.render_rect.width, rr.render_rect.height);
-                let Some(picker) = &app.picker else { continue };
-                let Some(proto) = make_clipped_protocol(
-                    picker,
-                    img,
-                    full_size,
-                    visible_size,
-                    rr.hidden_top,
-                    rr.hidden_left,
-                ) else {
-                    continue;
-                };
-                proto
-            } else if let Some(protocol) = app.protocol_cache.get(&rr.url) {
-                protocol.clone()
-            } else {
-                continue;
-            };
-            f.render_widget(Image::new(&protocol), rr.render_rect);
+        let positions = compute_image_signed_positions(&placements, &result_lines, &viewport);
+        for pos in &positions {
+            if let Some(sliced) = app.protocol_cache.get(&pos.url) {
+                f.render_widget(SlicedImage::new(sliced, pos.position), content_area);
+            }
         }
     }
 
@@ -581,7 +551,7 @@ pub(crate) fn render_article_content(
         Paragraph::new(result_lines[..end].to_vec())
             .wrap(Wrap { trim: false })
             .line_count(render_width)
-            .max(1) as usize
+            .max(1)
     };
     let paragraph = Paragraph::new(result_lines)
         .wrap(Wrap { trim: false })

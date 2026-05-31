@@ -15,6 +15,7 @@ use crate::storage::{
 };
 use crate::ui::theme::ColorTheme;
 use limner::Alignment;
+use limner::render_image::SlicedProtocol;
 use ratatui::layout::Rect;
 use ratatui::widgets::ListState;
 use std::collections::{HashMap, HashSet};
@@ -158,7 +159,7 @@ pub struct App {
 
     // ── Article image rendering ──────────────────────────────────────────────
     /// Per-URL encoded terminal protocols (Kitty / Sixel / half-block).
-    pub protocol_cache: HashMap<String, limner::render_image::Protocol>,
+    pub protocol_cache: HashMap<String, SlicedProtocol>,
     /// Image picker (terminal protocol detection) — initialized in [`run()`].
     pub picker: Option<limner::render_image::Picker>,
     /// Image metadata from the latest markdown render.
