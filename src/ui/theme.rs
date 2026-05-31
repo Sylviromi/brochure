@@ -118,6 +118,7 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         "Solarized Light",
         include_str!("themes/solarized-light.toml"),
     ),
+    ("sepia", "Sepia", include_str!("themes/sepia.toml")),
 ];
 
 /// Number of dark built-in themes (positions 0..DARK_COUNT in BUILTIN_THEMES).
@@ -373,8 +374,8 @@ mod tests {
     }
 
     #[test]
-    fn builtin_names_returns_all_20() {
-        assert_eq!(ColorTheme::builtin_names().len(), 20);
+    fn builtin_names_returns_all_21() {
+        assert_eq!(ColorTheme::builtin_names().len(), 21);
     }
 
     #[test]
