@@ -23,6 +23,35 @@ use tokio::sync::mpsc;
 use crate::app::App;
 use crate::ui::content::utils::now_secs;
 
+use image::DynamicImage;
+
+fn is_svg(bytes: &[u8], url: &str) -> bool {
+    if url.to_lowercase().ends_with(".svg") {
+        return true;
+    }
+    let sample = bytes.get(..4096).unwrap_or(bytes);
+    let lower = String::from_utf8_lossy(sample).to_lowercase();
+    lower.contains("<svg")
+}
+
+fn render_svg(bytes: &[u8]) -> Option<DynamicImage> {
+    let text = std::str::from_utf8(bytes).ok()?;
+    let opt = resvg::usvg::Options::default();
+    let tree = resvg::usvg::Tree::from_str(text, &opt).ok()?;
+    let size = tree.size().to_int_size();
+    let w = size.width().max(1);
+    let h = size.height().max(1);
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h)?;
+    resvg::render(
+        &tree,
+        resvg::tiny_skia::Transform::default(),
+        &mut pixmap.as_mut(),
+    );
+    let data = pixmap.take();
+    let rgba = image::RgbaImage::from_raw(w, h, data)?;
+    Some(DynamicImage::ImageRgba8(rgba))
+}
+
 /// Entry point for the application. Sets up terminal raw mode, alternate screen, mouse capture, and delegates to `run()` for the main event loop.
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -190,10 +219,15 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
 
             AppEvent::ImageDownloaded(url, result) => {
                 app.image_pending.remove(&url);
-                if let Ok(bytes) = result
-                    && let Ok(img) = limner::render_image::img_crate::load_from_memory(&bytes)
-                {
-                    app.image_cache.insert(url, img);
+                if let Ok(bytes) = result {
+                    let img = if is_svg(&bytes, &url) {
+                        render_svg(&bytes)
+                    } else {
+                        limner::render_image::img_crate::load_from_memory(&bytes).ok()
+                    };
+                    if let Some(img) = img {
+                        app.image_cache.insert(url, img);
+                    }
                 }
             }
 
