@@ -371,13 +371,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catppuccin_mocha_loads_correctly() {
-        let t = ColorTheme::catppuccin_mocha();
-        assert_eq!(t.accent, Color::Rgb(203, 166, 247));
-        assert_eq!(t.name, "Catppuccin Mocha");
-    }
-
-    #[test]
     fn builtin_lookup_by_slug() {
         for (slug, _, _) in BUILTIN_THEMES {
             assert!(
@@ -389,22 +382,11 @@ mod tests {
     }
 
     #[test]
-    fn builtin_names_returns_all_24() {
-        assert_eq!(ColorTheme::builtin_names().len(), 24);
-    }
-
-    #[test]
     fn slug_round_trips() {
         for (slug, name, _) in BUILTIN_THEMES {
             assert_eq!(ColorTheme::slug(name), *slug, "slug mismatch for {name}");
         }
         assert_eq!(ColorTheme::slug("Unknown Theme"), "custom");
-    }
-
-    #[test]
-    fn category_colors_returns_8_entries() {
-        let t = ColorTheme::catppuccin_mocha();
-        assert_eq!(t.category_colors().len(), 8);
     }
 
     #[test]

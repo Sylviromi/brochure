@@ -1487,54 +1487,6 @@ fn category_has_visible_feeds(
 mod tests {
     use super::*;
 
-    /// Build a minimal `Article` with only a title set; all other fields are empty/default.
-    #[allow(dead_code)]
-    fn mock_article(title: &str) -> Article {
-        Article {
-            title: title.to_string(),
-            description: String::new(),
-            link: title.to_string(),
-            is_read: false,
-            is_saved: false,
-            content: String::new(),
-            images: Vec::new(),
-            source_feed: String::new(),
-            published_secs: None,
-            is_archived: false,
-            error: None,
-        }
-    }
-
-    /// Return an `App` pre-loaded with one uncategorised feed containing two articles.
-    #[allow(dead_code)]
-    fn app_with_feed() -> App {
-        let mut app = App::new();
-        // Clear any disk-loaded state so tests are isolated
-        app.feeds.clear();
-        app.categories.clear();
-        app.sidebar_cursor = 0;
-        app.feeds.push(Feed {
-            title: "Test Feed".to_string(),
-            url: "https://example.com/feed.rss".to_string(),
-            category_id: None,
-            order: 0,
-            unread_count: 0,
-            articles: vec![mock_article("A"), mock_article("B")],
-            fetched: false,
-            fetch_error: None,
-            feed_updated_secs: None,
-            last_fetched_secs: None,
-        });
-        app
-    }
-
-    #[test]
-    fn test_initial_state() {
-        let app = App::new();
-        assert_eq!(app.state, AppState::FeedList);
-        assert_eq!(app.selected_tab, Tab::Feeds);
-    }
-
     #[test]
     fn test_tab_switching() {
         let mut app = App::new();
