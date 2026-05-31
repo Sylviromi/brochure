@@ -6,12 +6,15 @@
 use crate::{app::App, handlers::article::get_selected_article, models::CONTENT_STUB_MAX_LEN};
 use limner::{
     Alignment, MarkdownStyle,
-    render_image::{Image, fit_cell_size, prepare_inline_images},
+    render_image::{
+        Image, ImageViewport, compute_image_render_rects, fit_cell_size, make_clipped_protocol,
+        prepare_inline_images,
+    },
     render_markdown,
 };
 use ratatui::{
     Frame,
-    layout::{Alignment as RatAlignment, Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect, Size},
     style::{Modifier, Style},
     widgets::{Paragraph, Wrap},
 };
@@ -528,49 +531,43 @@ pub(crate) fn render_article_content(
         app.article_scroll_offset = scroll_offset;
     }
 
-    // Render inline images on top of the reserved empty lines.
-    let content_top = content_area.y as i32;
-    let content_bottom = (content_area.y + content_area.height) as i32;
-    for p in &placements {
-        let Some(protocol) = app.protocol_cache.get(&p.url) else {
-            continue;
-        };
-
-        let visual_y = if p.line_start == 0 {
-            0
-        } else {
-            let end = p.line_start.min(result_lines.len());
-            Paragraph::new(result_lines[..end].to_vec())
-                .wrap(Wrap { trim: false })
-                .line_count(render_width)
-                .max(1) as u16
-        };
-        let y0 = content_top + visual_y as i32 - scroll_offset as i32;
-        let y1 = y0 + p.cell_rows as i32;
-
-        if y0 < content_top || y1 > content_bottom {
-            continue;
-        }
-
-        let x = match p.alignment {
-            Some(RatAlignment::Center) => {
-                content_area.x + (content_area.width.saturating_sub(p.cell_cols)) / 2
-            }
-            Some(RatAlignment::Right) => {
-                content_area.x + content_area.width.saturating_sub(p.cell_cols)
-            }
-            _ => content_area.x,
-        };
-
-        f.render_widget(
-            Image::new(protocol),
-            Rect {
-                x,
-                y: y0 as u16,
-                width: p.cell_cols.min(content_area.width),
-                height: p.cell_rows,
+    // Render inline images with cut-off clipping — partially off-screen images
+    // now show their visible portion instead of being skipped entirely.
+    if !placements.is_empty() {
+        let viewport = ImageViewport {
+            content: Rect {
+                width: render_width,
+                ..content_area
             },
-        );
+            scroll: scroll_offset,
+        };
+        let render_rects = compute_image_render_rects(&placements, &result_lines, &viewport);
+        for rr in &render_rects {
+            let protocol = if rr.hidden_top > 0 || rr.hidden_left > 0 {
+                let Some(img) = app.image_cache.get(&rr.url) else {
+                    continue;
+                };
+                let full_size = Size::new(rr.full_cols, rr.full_rows);
+                let visible_size = Size::new(rr.render_rect.width, rr.render_rect.height);
+                let Some(picker) = &app.picker else { continue };
+                let Some(proto) = make_clipped_protocol(
+                    picker,
+                    img,
+                    full_size,
+                    visible_size,
+                    rr.hidden_top,
+                    rr.hidden_left,
+                ) else {
+                    continue;
+                };
+                proto
+            } else if let Some(protocol) = app.protocol_cache.get(&rr.url) {
+                protocol.clone()
+            } else {
+                continue;
+            };
+            f.render_widget(Image::new(&protocol), rr.render_rect);
+        }
     }
 
     // ── Render the unified paragraph ──
@@ -595,6 +592,8 @@ pub(crate) fn render_article_content(
 
     // ── Skeleton placeholder while article body is fetching ──
     if loading {
+        let content_top = content_area.y as i32;
+        let content_bottom = (content_area.y + content_area.height) as i32;
         let header_visible = header_visual.saturating_sub(scroll_offset as usize);
         let body_y = content_top + header_visible as i32;
         if body_y < content_bottom {
