@@ -119,5 +119,16 @@
       "Theme editor now live-previews themes",
       "Minor bug fixes and UI improvements"
     ]
+  },
+  {
+    "version": "0.8.0",
+    "date": "2026-05-31",
+    "summary": "This release introduces a distraction-free Zen reading mode, four new themes, Everforest contrast adjustments, and color accuracy fixes.",
+    "highlights": [
+      "Zen mode for distraction-free reading (press z)",
+      "Added Sepia, Gruvbox Light, Everforest Light, Powershell themes",
+      "Everforest themes now use soft contrast palette",
+      "Fixed color accuracy in Rose Pine, Catppuccin, Solarized"
+    ]
   }
 ]
