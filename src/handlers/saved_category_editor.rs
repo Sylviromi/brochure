@@ -27,8 +27,8 @@ pub(super) fn handle_saved_category_editor(app: &mut App, key: KeyEvent) {
         KeyCode::Char('r') => {
             let cursor = app.saved_cat_editor_scroll.cursor;
             if cursor < app.user_data.saved_categories.len() {
-                app.feed_editor.input = app.user_data.saved_categories[cursor].name.clone();
-                app.feed_editor.input_cursor = app.feed_editor.input.chars().count();
+                app.feed_editor.input.text = app.user_data.saved_categories[cursor].name.clone();
+                app.feed_editor.input.cursor = app.feed_editor.input.text.chars().count();
                 app.state = AppState::SavedCategoryEditorRename;
             }
         }
@@ -40,7 +40,6 @@ pub(super) fn handle_saved_category_editor(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Char('n') => {
             app.feed_editor.input.clear();
-            app.feed_editor.input_cursor = 0;
             app.state = AppState::SavedCategoryEditorNew;
         }
         KeyCode::Esc | KeyCode::Char('q') => {
@@ -93,7 +92,7 @@ pub(super) fn handle_saved_category_editor_delete_confirm(app: &mut App, key: Ke
 pub(super) fn handle_saved_category_editor_new(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Enter => {
-            let name = app.feed_editor.input.trim().to_string();
+            let name = app.feed_editor.input.text.trim().to_string();
             if !name.is_empty() {
                 // Reuse existing category if same name already exists.
                 let already_exists = app
@@ -121,20 +120,13 @@ pub(super) fn handle_saved_category_editor_new(app: &mut App, key: KeyEvent) {
                 }
             }
             app.feed_editor.input.clear();
-            app.feed_editor.input_cursor = 0;
             app.state = AppState::SavedCategoryEditor;
         }
         KeyCode::Esc => {
             app.feed_editor.input.clear();
-            app.feed_editor.input_cursor = 0;
             app.state = AppState::SavedCategoryEditor;
         }
-        _ => super::handle_text_input(
-            &mut app.feed_editor.input,
-            &mut app.feed_editor.input_cursor,
-            key.code,
-            None,
-        ),
+        _ => app.feed_editor.input.handle_key(key.code, None),
     }
 }
 
@@ -145,7 +137,7 @@ pub(super) fn handle_saved_category_editor_new(app: &mut App, key: KeyEvent) {
 pub(super) fn handle_saved_category_editor_rename(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Enter => {
-            let name = app.feed_editor.input.trim().to_string();
+            let name = app.feed_editor.input.text.trim().to_string();
             if !name.is_empty() {
                 if let Some(cat) = app
                     .user_data
@@ -158,19 +150,12 @@ pub(super) fn handle_saved_category_editor_rename(app: &mut App, key: KeyEvent) 
                 app.set_status("Category renamed.".to_string());
             }
             app.feed_editor.input.clear();
-            app.feed_editor.input_cursor = 0;
             app.state = AppState::SavedCategoryEditor;
         }
         KeyCode::Esc => {
             app.feed_editor.input.clear();
-            app.feed_editor.input_cursor = 0;
             app.state = AppState::SavedCategoryEditor;
         }
-        _ => super::handle_text_input(
-            &mut app.feed_editor.input,
-            &mut app.feed_editor.input_cursor,
-            key.code,
-            None,
-        ),
+        _ => app.feed_editor.input.handle_key(key.code, None),
     }
 }

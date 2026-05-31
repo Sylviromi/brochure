@@ -1,6 +1,6 @@
 //! State for the multi-step "Add Feed" wizard.
 
-use crate::models::{AddFeedStep, AppState, CategoryId};
+use crate::models::{AddFeedStep, AppState, CategoryId, TextInput};
 
 /// All mutable state for the AddFeed wizard flow.
 pub struct AddFeedState {
@@ -17,9 +17,7 @@ pub struct AddFeedState {
     /// Order value to insert the new feed at (None = append at end).
     pub target_order: Option<usize>,
     /// Text buffer for URL input (step 0) and title input (step 1).
-    pub url_input: String,
-    /// Cursor position (in chars) within the active text input.
-    pub input_cursor: usize,
+    pub url_input: TextInput,
 }
 
 impl Default for AddFeedState {
@@ -31,8 +29,7 @@ impl Default for AddFeedState {
             return_state: AppState::SettingsList,
             target_category: None,
             target_order: None,
-            url_input: String::new(),
-            input_cursor: 0,
+            url_input: TextInput::default(),
         }
     }
 }

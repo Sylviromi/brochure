@@ -38,191 +38,192 @@ macro_rules! set_setting {
     }};
 }
 
+#[derive(Clone, Copy)]
+enum SettingDir {
+    Enter,
+    Left,
+    Right,
+}
+
 /// Handles key events for the `SettingsList` state.
 ///
 /// Refreshes the article cache size on every keypress, toggles boolean settings in-place, and
 /// transitions to sub-states for destructive actions. Returns `true` to quit.
 pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
-    // Refresh cache size each time the user interacts with the settings screen.
     app.article_cache_size = article_cache_size();
-    match key.code {
+    let dir = match key.code {
         KeyCode::Char('q') => return true,
-        KeyCode::Esc => app.unselect(),
-        KeyCode::Tab => app.switch_tab_right(),
-        KeyCode::BackTab => app.switch_tab_left(),
-        KeyCode::Up => app.previous(),
-        KeyCode::Down => app.next(),
-        KeyCode::Enter => match app.settings_selected {
-            SettingsItem::ImportOpml => {
-                app.opml.path_input.clear();
-                app.opml.input_cursor = 0;
-                app.state = AppState::OPMLImportPath;
-            }
-            SettingsItem::ExportOpml => {
-                app.opml.path_input = default_export_path();
-                app.opml.input_cursor = app.opml.path_input.chars().count();
-                app.state = AppState::OPMLExportPath;
-            }
-            SettingsItem::ClearData => {
-                app.state = AppState::ClearData;
-            }
-            SettingsItem::CacheFullArticles => {
-                toggle_setting!(
-                    app,
-                    app.user_data.cache_full_articles,
-                    "Save Article Content"
-                );
-            }
-            SettingsItem::ClearArticleCache => {
-                app.state = AppState::ClearArticleCache;
-            }
-            SettingsItem::AutoFetchOnStart => {
-                app.user_data.fetch_policy = app.user_data.fetch_policy.next();
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!(
-                    "Fetch Policy: {}",
-                    app.user_data.fetch_policy.label()
-                ));
-            }
-            SettingsItem::ArchivePolicy => {
-                app.user_data.archive_policy = app.user_data.archive_policy.next();
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!(
-                    "Archive Policy: {}",
-                    app.user_data.archive_policy.label()
-                ));
-            }
-            SettingsItem::ScrollLoop => {
-                toggle_setting!(app, app.user_data.scroll_loop, "Scroll Loop");
-            }
-            SettingsItem::BorderStyle => {
-                toggle_setting!(app, app.user_data.border_rounded, "Rounded Borders");
-            }
-            SettingsItem::BodyAlignment => {
-                app.cycle_alignment_next();
-                app.user_data.body_alignment = app.alignment_label().to_lowercase().to_string();
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!("Body Alignment: {}", app.alignment_label()));
-            }
-            SettingsItem::ZenWidth => {
-                app.cycle_zen_width_next();
-                app.user_data.zen_width = app.zen_width;
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!("Zen Width: {}%", app.zen_width));
-            }
-            SettingsItem::Theme => {
-                // Position cursor on the currently active theme.
-                let builtin_names = ColorTheme::builtin_names();
-                app.theme_editor.cursor = if app.user_data.selected_theme == "custom" {
-                    let custom_pos = app
-                        .user_data
-                        .custom_themes
-                        .iter()
-                        .position(|t| Some(t.id) == app.user_data.selected_custom_id)
-                        .unwrap_or(0);
-                    builtin_names.len() + custom_pos
-                } else {
-                    builtin_names
-                        .iter()
-                        .position(|n| ColorTheme::slug(n) == app.user_data.selected_theme)
-                        .unwrap_or(0)
-                };
-                app.state = AppState::ThemeEditor;
-            }
-        },
-        KeyCode::Left | KeyCode::Char('h') => match app.settings_selected {
-            SettingsItem::ArchivePolicy => {
-                app.user_data.archive_policy = app.user_data.archive_policy.prev();
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!(
-                    "Archive Policy: {}",
-                    app.user_data.archive_policy.label()
-                ));
-            }
-            SettingsItem::AutoFetchOnStart => {
-                app.user_data.fetch_policy = app.user_data.fetch_policy.prev();
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!(
-                    "Fetch Policy: {}",
-                    app.user_data.fetch_policy.label()
-                ));
-            }
-            SettingsItem::CacheFullArticles => {
-                set_setting!(
-                    app,
-                    app.user_data.cache_full_articles,
-                    false,
-                    "Save Article Content"
-                );
-            }
-            SettingsItem::ScrollLoop => {
-                set_setting!(app, app.user_data.scroll_loop, false, "Scroll Loop");
-            }
-            SettingsItem::BorderStyle => {
-                set_setting!(app, app.user_data.border_rounded, false, "Rounded Borders");
-            }
-            SettingsItem::BodyAlignment => {
-                app.cycle_alignment_prev();
-                app.user_data.body_alignment = app.alignment_label().to_lowercase().to_string();
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!("Body Alignment: {}", app.alignment_label()));
-            }
-            SettingsItem::ZenWidth => {
-                app.cycle_zen_width_prev();
-                app.user_data.zen_width = app.zen_width;
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!("Zen Width: {}%", app.zen_width));
-            }
-            _ => {}
-        },
-        KeyCode::Right | KeyCode::Char('l') => match app.settings_selected {
-            SettingsItem::ArchivePolicy => {
-                app.user_data.archive_policy = app.user_data.archive_policy.next();
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!(
-                    "Archive Policy: {}",
-                    app.user_data.archive_policy.label()
-                ));
-            }
-            SettingsItem::AutoFetchOnStart => {
-                app.user_data.fetch_policy = app.user_data.fetch_policy.next();
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!(
-                    "Fetch Policy: {}",
-                    app.user_data.fetch_policy.label()
-                ));
-            }
-            SettingsItem::CacheFullArticles => {
-                set_setting!(
-                    app,
-                    app.user_data.cache_full_articles,
-                    true,
-                    "Save Article Content"
-                );
-            }
-            SettingsItem::ScrollLoop => {
-                set_setting!(app, app.user_data.scroll_loop, true, "Scroll Loop");
-            }
-            SettingsItem::BorderStyle => {
-                set_setting!(app, app.user_data.border_rounded, true, "Rounded Borders");
-            }
-            SettingsItem::BodyAlignment => {
-                app.cycle_alignment_next();
-                app.user_data.body_alignment = app.alignment_label().to_lowercase().to_string();
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!("Body Alignment: {}", app.alignment_label()));
-            }
-            SettingsItem::ZenWidth => {
-                app.cycle_zen_width_next();
-                app.user_data.zen_width = app.zen_width;
-                let _ = save_user_data(&app.user_data);
-                app.set_status(format!("Zen Width: {}%", app.zen_width));
-            }
-            _ => {}
-        },
+        KeyCode::Esc => {
+            app.unselect();
+            return false;
+        }
+        KeyCode::Tab => {
+            app.switch_tab_right();
+            return false;
+        }
+        KeyCode::BackTab => {
+            app.switch_tab_left();
+            return false;
+        }
+        KeyCode::Up => {
+            app.previous();
+            return false;
+        }
+        KeyCode::Down => {
+            app.next();
+            return false;
+        }
+        KeyCode::Enter => SettingDir::Enter,
+        KeyCode::Left | KeyCode::Char('h') => SettingDir::Left,
+        KeyCode::Right | KeyCode::Char('l') => SettingDir::Right,
+        _ => return false,
+    };
+    apply_settings_action(app, dir);
+    false
+}
+
+/// Single dispatch for all settings actions, keyed by (setting, direction).
+fn apply_settings_action(app: &mut App, dir: SettingDir) {
+    match (app.settings_selected, dir) {
+        // ── Modal transitions (Enter only) ─────────────────────────────────
+        (SettingsItem::ImportOpml, SettingDir::Enter) => {
+            app.opml.path_input.clear();
+            app.state = AppState::OPMLImportPath;
+        }
+        (SettingsItem::ExportOpml, SettingDir::Enter) => {
+            app.opml.path_input.text = default_export_path();
+            app.opml.path_input.cursor = app.opml.path_input.text.chars().count();
+            app.state = AppState::OPMLExportPath;
+        }
+        (SettingsItem::ClearData, SettingDir::Enter) => {
+            app.state = AppState::ClearData;
+        }
+        (SettingsItem::ClearArticleCache, SettingDir::Enter) => {
+            app.state = AppState::ClearArticleCache;
+        }
+        (SettingsItem::Theme, SettingDir::Enter) => {
+            let builtin_names = ColorTheme::builtin_names();
+            app.theme_editor.cursor = if app.user_data.selected_theme == "custom" {
+                let custom_pos = app
+                    .user_data
+                    .custom_themes
+                    .iter()
+                    .position(|t| Some(t.id) == app.user_data.selected_custom_id)
+                    .unwrap_or(0);
+                builtin_names.len() + custom_pos
+            } else {
+                builtin_names
+                    .iter()
+                    .position(|n| ColorTheme::slug(n) == app.user_data.selected_theme)
+                    .unwrap_or(0)
+            };
+            app.state = AppState::ThemeEditor;
+        }
+
+        // ── Cycleable enums ────────────────────────────────────────────────
+        (SettingsItem::ArchivePolicy, SettingDir::Left) => {
+            app.user_data.archive_policy = app.user_data.archive_policy.prev();
+            let _ = save_user_data(&app.user_data);
+            app.set_status(format!(
+                "Archive Policy: {}",
+                app.user_data.archive_policy.label()
+            ));
+        }
+        (SettingsItem::ArchivePolicy, _) => {
+            app.user_data.archive_policy = app.user_data.archive_policy.next();
+            let _ = save_user_data(&app.user_data);
+            app.set_status(format!(
+                "Archive Policy: {}",
+                app.user_data.archive_policy.label()
+            ));
+        }
+        (SettingsItem::AutoFetchOnStart, SettingDir::Left) => {
+            app.user_data.fetch_policy = app.user_data.fetch_policy.prev();
+            let _ = save_user_data(&app.user_data);
+            app.set_status(format!(
+                "Fetch Policy: {}",
+                app.user_data.fetch_policy.label()
+            ));
+        }
+        (SettingsItem::AutoFetchOnStart, _) => {
+            app.user_data.fetch_policy = app.user_data.fetch_policy.next();
+            let _ = save_user_data(&app.user_data);
+            app.set_status(format!(
+                "Fetch Policy: {}",
+                app.user_data.fetch_policy.label()
+            ));
+        }
+
+        // ── Boolean toggles ────────────────────────────────────────────────
+        (SettingsItem::CacheFullArticles, SettingDir::Enter) => {
+            toggle_setting!(
+                app,
+                app.user_data.cache_full_articles,
+                "Save Article Content"
+            );
+        }
+        (SettingsItem::CacheFullArticles, SettingDir::Left) => {
+            set_setting!(
+                app,
+                app.user_data.cache_full_articles,
+                false,
+                "Save Article Content"
+            );
+        }
+        (SettingsItem::CacheFullArticles, SettingDir::Right) => {
+            set_setting!(
+                app,
+                app.user_data.cache_full_articles,
+                true,
+                "Save Article Content"
+            );
+        }
+        (SettingsItem::ScrollLoop, SettingDir::Enter) => {
+            toggle_setting!(app, app.user_data.scroll_loop, "Scroll Loop");
+        }
+        (SettingsItem::ScrollLoop, SettingDir::Left) => {
+            set_setting!(app, app.user_data.scroll_loop, false, "Scroll Loop");
+        }
+        (SettingsItem::ScrollLoop, SettingDir::Right) => {
+            set_setting!(app, app.user_data.scroll_loop, true, "Scroll Loop");
+        }
+        (SettingsItem::BorderStyle, SettingDir::Enter) => {
+            toggle_setting!(app, app.user_data.border_rounded, "Rounded Borders");
+        }
+        (SettingsItem::BorderStyle, SettingDir::Left) => {
+            set_setting!(app, app.user_data.border_rounded, false, "Rounded Borders");
+        }
+        (SettingsItem::BorderStyle, SettingDir::Right) => {
+            set_setting!(app, app.user_data.border_rounded, true, "Rounded Borders");
+        }
+
+        // ── App-cycled settings ────────────────────────────────────────────
+        (SettingsItem::BodyAlignment, SettingDir::Left) => {
+            app.cycle_alignment_prev();
+            app.user_data.body_alignment = app.alignment_label().to_lowercase().to_string();
+            let _ = save_user_data(&app.user_data);
+            app.set_status(format!("Body Alignment: {}", app.alignment_label()));
+        }
+        (SettingsItem::BodyAlignment, _) => {
+            app.cycle_alignment_next();
+            app.user_data.body_alignment = app.alignment_label().to_lowercase().to_string();
+            let _ = save_user_data(&app.user_data);
+            app.set_status(format!("Body Alignment: {}", app.alignment_label()));
+        }
+        (SettingsItem::ZenWidth, SettingDir::Left) => {
+            app.cycle_zen_width_prev();
+            app.user_data.zen_width = app.zen_width;
+            let _ = save_user_data(&app.user_data);
+            app.set_status(format!("Zen Width: {}%", app.zen_width));
+        }
+        (SettingsItem::ZenWidth, _) => {
+            app.cycle_zen_width_next();
+            app.user_data.zen_width = app.zen_width;
+            let _ = save_user_data(&app.user_data);
+            app.set_status(format!("Zen Width: {}%", app.zen_width));
+        }
         _ => {}
     }
-    false
 }
 
 /// Handles key events for the two-step `AddFeed` wizard (`Url` then `Title`).
@@ -234,13 +235,12 @@ pub(super) fn handle_add_feed(app: &mut App, key: KeyEvent, tx: &UnboundedSender
     if app.add_feed.step == AddFeedStep::Url {
         match key.code {
             KeyCode::Enter => {
-                let url = app.add_feed.url_input.trim().to_string();
+                let url = app.add_feed.url_input.text.trim().to_string();
                 if url.is_empty() {
                     return;
                 }
                 app.add_feed.url = url.clone();
                 app.add_feed.url_input.clear();
-                app.add_feed.input_cursor = 0;
                 app.add_feed.fetched_title = None;
                 app.add_feed.step = AddFeedStep::Title;
                 let tx2 = tx.clone();
@@ -250,17 +250,12 @@ pub(super) fn handle_add_feed(app: &mut App, key: KeyEvent, tx: &UnboundedSender
                 });
             }
             KeyCode::Esc => app.unselect(),
-            _ => super::handle_text_input(
-                &mut app.add_feed.url_input,
-                &mut app.add_feed.input_cursor,
-                key.code,
-                None,
-            ),
+            _ => app.add_feed.url_input.handle_key(key.code, None),
         }
     } else {
         match key.code {
             KeyCode::Enter => {
-                let typed = app.add_feed.url_input.trim().to_string();
+                let typed = app.add_feed.url_input.text.trim().to_string();
                 let title = if typed.is_empty() {
                     match app.add_feed.fetched_title.clone() {
                         Some(t) if !t.is_empty() => t,
@@ -306,71 +301,61 @@ pub(super) fn handle_add_feed(app: &mut App, key: KeyEvent, tx: &UnboundedSender
                     let _ = tx2.send(AppEvent::FeedFetched(idx, result));
                 });
                 app.add_feed.url_input.clear();
-                app.add_feed.input_cursor = 0;
                 app.add_feed.step = AddFeedStep::Url;
                 app.add_feed.url.clear();
                 app.add_feed.fetched_title = None;
                 app.state = app.add_feed.return_state.clone();
             }
             KeyCode::Esc => app.unselect(),
-            _ => super::handle_text_input(
-                &mut app.add_feed.url_input,
-                &mut app.add_feed.input_cursor,
-                key.code,
-                None,
-            ),
+            _ => app.add_feed.url_input.handle_key(key.code, None),
         }
+    }
+}
+
+/// Base structure for confirmation dialogs: Enter confirms, Esc/q cancels.
+fn handle_confirm_dialog(app: &mut App, key: KeyEvent, on_enter: impl FnOnce(&mut App)) {
+    match key.code {
+        KeyCode::Enter => {
+            on_enter(app);
+            app.state = AppState::SettingsList;
+        }
+        KeyCode::Esc | KeyCode::Char('q') => app.state = AppState::SettingsList,
+        _ => {}
     }
 }
 
 /// Handles key events for the `ClearData` confirmation dialog.
-///
-/// Enter wipes all feeds, categories, and user data from both memory and disk; Esc or `q` cancels.
 pub(super) fn handle_confirm_delete_all(app: &mut App, key: KeyEvent) {
-    match key.code {
-        KeyCode::Enter => {
-            app.feeds.clear();
-            app.categories.clear();
-            app.user_data = crate::models::UserData::default();
-            app.saved_view_articles.clear();
-            app.in_saved_context = false;
-            app.selected_feed = 0;
-            app.selected_article = 0;
-            app.sidebar_cursor = 0;
-            let _ = clear_all_data();
-            app.set_status("All data cleared.".to_string());
-            app.state = AppState::SettingsList;
-        }
-        KeyCode::Esc | KeyCode::Char('q') => app.state = AppState::SettingsList,
-        _ => {}
-    }
+    handle_confirm_dialog(app, key, |app| {
+        app.feeds.clear();
+        app.categories.clear();
+        app.user_data = crate::models::UserData::default();
+        app.saved_view_articles.clear();
+        app.in_saved_context = false;
+        app.selected_feed = 0;
+        app.selected_article = 0;
+        app.sidebar_cursor = 0;
+        let _ = clear_all_data();
+        app.set_status("All data cleared.".to_string());
+    });
 }
 
 /// Handles key events for the `ClearArticleCache` confirmation dialog.
-///
-/// Enter clears the on-disk article cache, resets all in-memory article lists, and clears the
-/// read-links set; Esc or `q` cancels.
 pub(super) fn handle_confirm_clear_cache(app: &mut App, key: KeyEvent) {
-    match key.code {
-        KeyCode::Enter => {
-            let _ = clear_article_cache();
-            app.article_cache_size = 0;
-            // Reset in-memory article state; keep fetched=true so spinner doesn't show
-            for feed in app.feeds.iter_mut() {
-                feed.articles.clear();
-                feed.fetched = true;
-                feed.fetch_error = None;
-                feed.unread_count = 0;
-            }
-            // Clear read list and persist
-            app.user_data.read_links.clear();
-            let _ = save_user_data(&app.user_data);
-            app.set_status("Article cache cleared.".to_string());
-            app.state = AppState::SettingsList;
+    handle_confirm_dialog(app, key, |app| {
+        let _ = clear_article_cache();
+        app.article_cache_size = 0;
+        // Reset in-memory article state; keep fetched=true so spinner doesn't show
+        for feed in app.feeds.iter_mut() {
+            feed.articles.clear();
+            feed.fetched = true;
+            feed.fetch_error = None;
+            feed.unread_count = 0;
         }
-        KeyCode::Esc | KeyCode::Char('q') => app.state = AppState::SettingsList,
-        _ => {}
-    }
+        app.user_data.read_links.clear();
+        let _ = save_user_data(&app.user_data);
+        app.set_status("Article cache cleared.".to_string());
+    });
 }
 
 /// Handles key events for the `OPMLImportPath` and `OPMLExportPath` text-input states.
@@ -380,7 +365,7 @@ pub(super) fn handle_confirm_clear_cache(app: &mut App, key: KeyEvent) {
 pub(super) fn handle_opml_path(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEvent>) {
     match key.code {
         KeyCode::Enter => {
-            let raw = app.opml.path_input.trim().to_string();
+            let raw = app.opml.path_input.text.trim().to_string();
             if raw.is_empty() {
                 app.set_status("Path cannot be empty.".to_string());
                 return;
@@ -423,15 +408,9 @@ pub(super) fn handle_opml_path(app: &mut App, key: KeyEvent, tx: &UnboundedSende
                 }
             }
             app.opml.path_input.clear();
-            app.opml.input_cursor = 0;
             app.state = AppState::SettingsList;
         }
         KeyCode::Esc => app.unselect(),
-        _ => super::handle_text_input(
-            &mut app.opml.path_input,
-            &mut app.opml.input_cursor,
-            key.code,
-            None,
-        ),
+        _ => app.opml.path_input.handle_key(key.code, None),
     }
 }

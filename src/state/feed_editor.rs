@@ -1,6 +1,6 @@
 //! State for the feed editor and saved-category editor screens.
 
-use crate::models::{CategoryId, EditorPanel, FeedEditorMode};
+use crate::models::{CategoryId, EditorPanel, FeedEditorMode, TextInput};
 use std::collections::HashSet;
 
 /// All mutable state for the feed/category editor and saved-category editor.
@@ -12,15 +12,13 @@ pub struct FeedEditorState {
     /// Current interaction mode in the feed editor.
     pub mode: FeedEditorMode,
     /// Text buffer for rename / new-category input in the feed editor and saved-category editor.
-    pub input: String,
+    pub input: TextInput,
     /// Which panel has focus in the split editor (Categories = left, Feeds = right).
     pub panel: EditorPanel,
     /// Cursor in the left (categories-only) panel of the editor.
     pub cat_cursor: usize,
     /// Pending category delete: (id, total_feeds_to_delete). Set on [d], cleared on Esc or after confirm.
     pub delete_cat: Option<(CategoryId, usize)>,
-    /// Cursor position (in chars) within the active text input.
-    pub input_cursor: usize,
 }
 
 impl Default for FeedEditorState {
@@ -29,11 +27,10 @@ impl Default for FeedEditorState {
             cursor: 0,
             collapsed: HashSet::new(),
             mode: FeedEditorMode::Normal,
-            input: String::new(),
+            input: TextInput::default(),
             panel: EditorPanel::Feeds,
             cat_cursor: 0,
             delete_cat: None,
-            input_cursor: 0,
         }
     }
 }

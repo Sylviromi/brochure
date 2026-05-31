@@ -434,8 +434,10 @@ fn draw_text_input_popup(f: &mut Frame, app: &App) {
     let inner = block.inner(popup_area);
     f.render_widget(block, popup_area);
 
-    let (before, cursor_ch, after) =
-        split_cursor(&app.theme_editor.path_input, app.theme_editor.input_cursor);
+    let (before, cursor_ch, after) = split_cursor(
+        &app.theme_editor.path_input.text,
+        app.theme_editor.path_input.cursor,
+    );
     let text = vec![
         Line::from(prompt).fg(app.theme.muted),
         Line::from(vec![
@@ -489,15 +491,18 @@ fn draw_hex_input_popup(f: &mut Frame, app: &App) {
     let inner = block.inner(popup_area);
     f.render_widget(block, popup_area);
 
-    let (before, cursor_ch, after) =
-        split_cursor(&app.theme_editor.hex_input, app.theme_editor.input_cursor);
-    let padding = 7 - app.theme_editor.hex_input.len();
-    let cursor_space = if app.theme_editor.input_cursor == app.theme_editor.hex_input.len() {
+    let (before, cursor_ch, after) = split_cursor(
+        &app.theme_editor.hex_input.text,
+        app.theme_editor.hex_input.cursor,
+    );
+    let padding = 7 - app.theme_editor.hex_input.text.len();
+    let cursor_space = if app.theme_editor.hex_input.cursor == app.theme_editor.hex_input.text.len()
+    {
         ""
     } else {
         " "
     };
-    let swatch = get_swatch(app, &app.theme_editor.hex_input);
+    let swatch = get_swatch(app, &app.theme_editor.hex_input.text);
 
     let text = vec![
         Line::from("Hex color (#rrggbb):").fg(app.theme.muted),

@@ -3,6 +3,7 @@
 //! Dispatches keyboard input to state-specific handlers (feed list, article detail, settings, etc.).
 
 pub(crate) mod article;
+mod category_picker;
 mod changelog;
 mod feed_editor;
 mod feed_list;
@@ -18,44 +19,6 @@ use crate::{
     handlers::article::get_selected_article,
     models::{AppEvent, AppState},
 };
-
-/// Cursor-aware text input: handles Left/Right movement, Backspace (delete before cursor),
-/// and Char insertion at cursor. Shared by all text-input handler modules.
-/// Pass `max_len: Some(n)` to cap input length (e.g. `Some(6)` for hex colors); `None` for unlimited.
-pub(super) fn handle_text_input(
-    input: &mut String,
-    cursor: &mut usize,
-    key: KeyCode,
-    max_len: Option<usize>,
-) {
-    match key {
-        KeyCode::Left if *cursor > 0 => {
-            *cursor -= 1;
-        }
-        KeyCode::Right if *cursor < input.chars().count() => {
-            *cursor += 1;
-        }
-        KeyCode::Backspace if *cursor > 0 => {
-            let byte_idx = input
-                .char_indices()
-                .nth(*cursor - 1)
-                .map(|(i, _)| i)
-                .unwrap_or(input.len());
-            input.remove(byte_idx);
-            *cursor -= 1;
-        }
-        KeyCode::Char(c) if max_len.is_none_or(|max| input.chars().count() < max) => {
-            let byte_idx = input
-                .char_indices()
-                .nth(*cursor)
-                .map(|(i, _)| i)
-                .unwrap_or(input.len());
-            input.insert(byte_idx, c);
-            *cursor += 1;
-        }
-        _ => {}
-    }
-}
 
 /// Handles key events while zen mode is active (full-screen article reading).
 fn handle_zen_mode(app: &mut App, key: KeyEvent, _tx: &UnboundedSender<AppEvent>) -> bool {
@@ -179,7 +142,7 @@ pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEv
         AppState::FeedEditor | AppState::FeedEditorRename => {
             feed_editor::handle_feed_editor(app, key, tx)
         }
-        AppState::CategoryPicker => article::handle_category_picker(app, key, tx),
+        AppState::CategoryPicker => category_picker::handle_category_picker(app, key, tx),
         AppState::SavedCategoryEditor => {
             saved_category_editor::handle_saved_category_editor(app, key)
         }

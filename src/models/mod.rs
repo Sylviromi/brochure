@@ -5,6 +5,7 @@ mod events;
 pub mod feed;
 mod navigation;
 pub mod scroll;
+pub(crate) mod text_input;
 pub(crate) mod theme;
 mod tree;
 
@@ -12,6 +13,7 @@ pub use core_types::*;
 pub use events::*;
 pub use navigation::*;
 pub use scroll::{ListScroll, TextScroll};
+pub(crate) use text_input::TextInput;
 pub use theme::{CustomTheme, CustomThemeColors, ThemeEditorState};
 pub use tree::{Category, CategoryId, FeedTreeItem};
 

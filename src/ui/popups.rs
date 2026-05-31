@@ -92,7 +92,7 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
     f.render_widget(Clear, url_area);
     let url_content = if app.add_feed.step == AddFeedStep::Url {
         let (before, cursor_ch, after) =
-            split_cursor(&app.add_feed.url_input, app.add_feed.input_cursor);
+            split_cursor(&app.add_feed.url_input.text, app.add_feed.url_input.cursor);
         Line::from(vec![
             before.fg(app.theme.text),
             cursor_ch.fg(app.theme.bg).bg(app.theme.success),
@@ -144,7 +144,7 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
             Style::default().fg(app.theme.link).bold(),
         ));
 
-    if app.add_feed.step == AddFeedStep::Title && app.add_feed.url_input.is_empty() {
+    if app.add_feed.step == AddFeedStep::Title && app.add_feed.url_input.text.is_empty() {
         match &app.add_feed.fetched_title {
             Some(t) if !t.is_empty() => {
                 f.render_widget(
@@ -176,9 +176,9 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
     }
 
     let title_content =
-        if app.add_feed.step == AddFeedStep::Title && !app.add_feed.url_input.is_empty() {
+        if app.add_feed.step == AddFeedStep::Title && !app.add_feed.url_input.text.is_empty() {
             let (before, cursor_ch, after) =
-                split_cursor(&app.add_feed.url_input, app.add_feed.input_cursor);
+                split_cursor(&app.add_feed.url_input.text, app.add_feed.url_input.cursor);
             Line::from(vec![
                 before.fg(app.theme.text),
                 cursor_ch.fg(app.theme.bg).bg(app.theme.success),
@@ -315,7 +315,8 @@ pub(super) fn draw_opml_path_popup(f: &mut Frame, app: &App) {
         &app.theme,
     );
 
-    let (before, cursor_ch, after) = split_cursor(&app.opml.path_input, app.opml.input_cursor);
+    let (before, cursor_ch, after) =
+        split_cursor(&app.opml.path_input.text, app.opml.path_input.cursor);
     let content = Line::from(vec![
         before.fg(app.theme.text),
         cursor_ch.fg(app.theme.bg).bg(app.theme.success),
@@ -406,8 +407,10 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
 
     let new_idx = cats_len;
     if app.category_picker.new_mode {
-        let (before, cursor_ch, after) =
-            split_cursor(&app.category_picker.input, app.category_picker.input_cursor);
+        let (before, cursor_ch, after) = split_cursor(
+            &app.category_picker.input.text,
+            app.category_picker.input.cursor,
+        );
         lines.push(Line::from(vec![
             "  + ".fg(app.theme.link),
             before.fg(app.theme.text),

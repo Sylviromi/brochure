@@ -1,5 +1,7 @@
 //! Theme editor UI state: cursors, input buffers, and editing context.
 
+use crate::models::TextInput;
+
 /// State for the theme editor: cursors and editing context.
 #[derive(Default)]
 pub struct ThemeEditorState {
@@ -11,11 +13,8 @@ pub struct ThemeEditorState {
     pub clone_cursor: usize,
     /// ID of the custom theme currently being edited or renamed.
     pub editing_id: Option<u32>,
-    /// Text buffer shared by `ThemeEditorRename` (theme name), `ThemeEditorExport`,
-    /// and `ThemeEditorImport` (file path) states.
-    pub path_input: String,
+    /// Text buffer for theme name (rename) and file path (export/import).
+    pub path_input: TextInput,
     /// Text buffer for hex color entry.
-    pub hex_input: String,
-    /// Cursor position (in chars) within the active theme editor text input field.
-    pub input_cursor: usize,
+    pub hex_input: TextInput,
 }

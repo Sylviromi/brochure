@@ -49,7 +49,7 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
                 && i == app.saved_cat_editor_scroll.cursor
             {
                 let (before, cursor_ch, after) =
-                    split_cursor(&app.feed_editor.input, app.feed_editor.input_cursor);
+                    split_cursor(&app.feed_editor.input.text, app.feed_editor.input.cursor);
                 Line::from(vec![
                     "  ".fg(app.theme.warning),
                     before.fg(app.theme.warning),
@@ -94,7 +94,7 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
             ..area
         };
         let (before, cursor_ch, after) =
-            split_cursor(&app.feed_editor.input, app.feed_editor.input_cursor);
+            split_cursor(&app.feed_editor.input.text, app.feed_editor.input.cursor);
         let input_line = Line::from(vec![
             "  Category name: ".fg(app.theme.warning),
             before.fg(app.theme.warning),

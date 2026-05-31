@@ -1,6 +1,6 @@
 //! State for the CategoryPicker modal (save-to-category flow).
 
-use crate::models::AppState;
+use crate::models::{AppState, TextInput};
 
 /// All mutable state for the CategoryPicker modal.
 pub struct CategoryPickerState {
@@ -9,11 +9,9 @@ pub struct CategoryPickerState {
     /// True when the "New category..." entry is active and user is typing.
     pub new_mode: bool,
     /// Text buffer for the new-category name input inside the picker.
-    pub input: String,
+    pub input: TextInput,
     /// State to return to when the picker closes (ArticleList or ArticleDetail).
     pub return_state: AppState,
-    /// Cursor position (in chars) within the new-category text input.
-    pub input_cursor: usize,
 }
 
 impl Default for CategoryPickerState {
@@ -21,9 +19,8 @@ impl Default for CategoryPickerState {
         Self {
             cursor: 0,
             new_mode: false,
-            input: String::new(),
+            input: TextInput::default(),
             return_state: AppState::ArticleList,
-            input_cursor: 0,
         }
     }
 }

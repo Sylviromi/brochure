@@ -167,7 +167,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
                     )
                 {
                     let (before, cursor_ch, after) =
-                        split_cursor(&app.feed_editor.input, app.feed_editor.input_cursor);
+                        split_cursor(&app.feed_editor.input.text, app.feed_editor.input.cursor);
                     items.push(ListItem::new(Line::from(vec![
                         indent.fg(app.theme.border),
                         Span::styled(connector, connector_style),
@@ -409,7 +409,7 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
             // Rename input row
             if renamed_cat_id == Some(*id) {
                 let (before, cursor_ch, after) =
-                    split_cursor(&app.feed_editor.input, app.feed_editor.input_cursor);
+                    split_cursor(&app.feed_editor.input.text, app.feed_editor.input.cursor);
                 return ListItem::new(Line::from(vec![
                     indent.fg(app.theme.border),
                     connector.fg(app.theme.border),
@@ -487,7 +487,7 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
         let indent = "  ".repeat(depth as usize);
         let insert_at = app.feed_editor.cat_cursor.min(final_items.len());
         let (before, cursor_ch, after) =
-            split_cursor(&app.feed_editor.input, app.feed_editor.input_cursor);
+            split_cursor(&app.feed_editor.input.text, app.feed_editor.input.cursor);
         final_items.insert(
             insert_at,
             ListItem::new(Line::from(vec![

@@ -6,6 +6,23 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::UnboundedSender;
 
+/// Copy text to clipboard and show a truncated status message on the app.
+pub(crate) fn copy_with_status(app: &mut App, text: &str, label: &str) {
+    match copy_to_clipboard(text) {
+        None => {
+            let display = if text.len() > 50 {
+                format!("{}...", &text[..50])
+            } else {
+                text.to_string()
+            };
+            app.set_status(format!("{label}: {display}"));
+        }
+        Some(fallback) => {
+            app.set_status(format!("Copy not available — {label}: {fallback}"));
+        }
+    }
+}
+
 /// Copy text to clipboard using system clipboard tools, with arboard as last resort.
 /// Returns `None` on success, or `Some(text)` if all methods fail (caller should show the text).
 pub(crate) fn copy_to_clipboard(text: &str) -> Option<&str> {
@@ -46,11 +63,11 @@ pub(crate) fn copy_to_clipboard(text: &str) -> Option<&str> {
 use crate::{
     app::App,
     fetch::{fetch_feed, fetch_readable_content},
-    models::{
-        AppEvent, AppState, Article, CONTENT_STUB_MAX_LEN, FeedSource, SavedArticle, SavedCategory,
-    },
+    models::{AppEvent, AppState, Article, CONTENT_STUB_MAX_LEN, FeedSource},
     storage::save_user_data,
 };
+
+use super::category_picker::open_category_picker;
 
 /// Handles key events for `ArticleList` and `ArticleDetail` states.
 ///
@@ -114,44 +131,11 @@ pub(super) async fn handle_article(
             }
         }
         KeyCode::Char('C') => {
-            if app.state == AppState::ArticleDetail {
-                // Copy article link.
+            if app.state == AppState::ArticleDetail || app.in_saved_context {
                 if let Some(article) = get_selected_article(app) {
-                    let link = article.link.clone();
-                    match copy_to_clipboard(&link) {
-                        None => {
-                            let display = if link.len() > 50 {
-                                format!("{}...", &link[..50])
-                            } else {
-                                link.clone()
-                            };
-                            app.set_status(format!("Copied: {display}"));
-                        }
-                        Some(fallback) => {
-                            app.set_status(format!("Copy not available — link: {fallback}"));
-                        }
-                    }
-                }
-            } else if app.in_saved_context {
-                // Saved tab — copy article link instead.
-                if let Some(article) = get_selected_article(app) {
-                    let link = article.link.clone();
-                    match copy_to_clipboard(&link) {
-                        None => {
-                            let display = if link.len() > 50 {
-                                format!("{}...", &link[..50])
-                            } else {
-                                link.clone()
-                            };
-                            app.set_status(format!("Copied: {display}"));
-                        }
-                        Some(fallback) => {
-                            app.set_status(format!("Copy not available — link: {fallback}"));
-                        }
-                    }
+                    copy_with_status(app, &article.link.clone(), "Copied");
                 }
             } else {
-                // Single-feed or category context — copy feed URL.
                 let url = if app.in_category_context {
                     let (fi, _ai) = app
                         .category_view_articles
@@ -163,19 +147,7 @@ pub(super) async fn handle_article(
                     app.feeds.get(app.selected_feed).map(|f| f.url.clone())
                 };
                 if let Some(url) = url {
-                    match copy_to_clipboard(&url) {
-                        None => {
-                            let display = if url.len() > 50 {
-                                format!("{}...", &url[..50])
-                            } else {
-                                url
-                            };
-                            app.set_status(format!("Copied feed URL: {display}"));
-                        }
-                        Some(fallback) => {
-                            app.set_status(format!("Copy not available — URL: {fallback}"));
-                        }
-                    }
+                    copy_with_status(app, &url, "Copied feed URL");
                 }
             }
         }
@@ -186,253 +158,6 @@ pub(super) async fn handle_article(
         _ => {}
     }
     false
-}
-
-/// Handles key events for the `CategoryPicker` overlay.
-///
-/// Manages both the list-navigation mode and the inline text-input mode for creating a new
-/// category.  Saves or unsaves the currently selected article when the user confirms a choice.
-pub(super) fn handle_category_picker(
-    app: &mut App,
-    key: KeyEvent,
-    _tx: &UnboundedSender<AppEvent>,
-) {
-    let cats_len = app.user_data.saved_categories.len();
-    let article_is_saved = get_selected_article(app).is_some_and(|art| {
-        app.user_data
-            .saved_articles
-            .iter()
-            .any(|s| s.article.link == art.link)
-    });
-    // Layout: [0..cats_len) = existing categories, cats_len = "New category...", cats_len+1 = "Unsave" (only if saved)
-    let total_items = if article_is_saved {
-        cats_len + 2
-    } else {
-        cats_len + 1
-    };
-
-    if app.category_picker.new_mode {
-        match key.code {
-            KeyCode::Enter => {
-                let name = app.category_picker.input.trim().to_string();
-                if !name.is_empty() {
-                    // Reuse existing category if same name already exists.
-                    let target_id = app
-                        .user_data
-                        .saved_categories
-                        .iter()
-                        .find(|c| c.name.eq_ignore_ascii_case(&name))
-                        .map(|c| c.id)
-                        .unwrap_or_else(|| {
-                            let new_id = app
-                                .user_data
-                                .saved_categories
-                                .iter()
-                                .map(|c| c.id)
-                                .max()
-                                .unwrap_or(0)
-                                + 1;
-                            app.user_data.saved_categories.push(SavedCategory {
-                                id: new_id,
-                                name: name.clone(),
-                            });
-                            new_id
-                        });
-                    save_to_category(app, target_id);
-                    app.set_status(format!("Saved to '{name}'!"));
-                }
-                app.category_picker.new_mode = false;
-                app.category_picker.input.clear();
-                app.category_picker.input_cursor = 0;
-                app.state = app.category_picker.return_state.clone();
-            }
-            KeyCode::Esc => {
-                app.category_picker.new_mode = false;
-                app.category_picker.input.clear();
-                app.category_picker.input_cursor = 0;
-            }
-            _ => super::handle_text_input(
-                &mut app.category_picker.input,
-                &mut app.category_picker.input_cursor,
-                key.code,
-                None,
-            ),
-        }
-        return;
-    }
-
-    match key.code {
-        KeyCode::Up => {
-            app.category_picker.cursor = app
-                .category_picker
-                .cursor
-                .checked_sub(1)
-                .unwrap_or(total_items - 1);
-        }
-        KeyCode::Down => {
-            app.category_picker.cursor = (app.category_picker.cursor + 1) % total_items;
-        }
-        KeyCode::Enter => {
-            if app.category_picker.cursor < cats_len {
-                // Save to existing category
-                let cat_id = app.user_data.saved_categories[app.category_picker.cursor].id;
-                let cat_name = app.user_data.saved_categories[app.category_picker.cursor]
-                    .name
-                    .clone();
-                save_to_category(app, cat_id);
-                app.set_status(format!("Saved to '{cat_name}'!"));
-                app.state = app.category_picker.return_state.clone();
-            } else if app.category_picker.cursor == cats_len {
-                // "New category..." — enter text input mode
-                app.category_picker.new_mode = true;
-                app.category_picker.input.clear();
-                app.category_picker.input_cursor = 0;
-            } else if article_is_saved {
-                // "Unsave"
-                unsave_article(app);
-                if app.state == AppState::CategoryPicker {
-                    app.state = app.category_picker.return_state.clone();
-                }
-            }
-        }
-        KeyCode::Esc => {
-            app.state = app.category_picker.return_state.clone();
-        }
-        _ => {}
-    }
-}
-
-/// Opens the category picker overlay for the currently selected article.
-///
-/// Pre-selects the cursor on the article's current category if it is already saved.
-fn open_category_picker(app: &mut App) {
-    let article = match get_selected_article(app) {
-        Some(a) => a,
-        None => return,
-    };
-
-    // Pre-select current category if article is already saved.
-    let current_cat_idx = app
-        .user_data
-        .saved_articles
-        .iter()
-        .find(|s| s.article.link == article.link)
-        .and_then(|s| {
-            app.user_data
-                .saved_categories
-                .iter()
-                .position(|c| c.id == s.category_id)
-        });
-
-    app.category_picker.cursor = current_cat_idx.unwrap_or(0);
-    app.category_picker.new_mode = false;
-    app.category_picker.input.clear();
-    app.category_picker.return_state = app.state.clone();
-    app.state = AppState::CategoryPicker;
-}
-
-/// Saves the currently selected article to the given category, or moves it if already saved.
-///
-/// Persists `user_data` to disk and syncs the saved-view preview when in saved context.
-fn save_to_category(app: &mut App, category_id: u32) {
-    let article = match get_selected_article(app) {
-        Some(a) => a,
-        None => return,
-    };
-
-    if let Some(s) = app
-        .user_data
-        .saved_articles
-        .iter_mut()
-        .find(|s| s.article.link == article.link)
-    {
-        s.category_id = category_id;
-    } else {
-        app.user_data.saved_articles.push(SavedArticle {
-            article: article.clone(),
-            category_id,
-        });
-    }
-
-    update_is_saved_flag(app, true);
-    let _ = save_user_data(&app.user_data);
-    if app.in_saved_context {
-        app.sync_saved_preview();
-        if !app.in_saved_context {
-            // View emptied — return to category list.
-            app.selected_article = 0;
-            if matches!(app.state, AppState::ArticleList | AppState::ArticleDetail) {
-                app.state = AppState::SavedCategoryList;
-            }
-        } else if app.selected_article >= app.saved_view_articles.len() {
-            app.selected_article = app.saved_view_articles.len().saturating_sub(1);
-        }
-    }
-}
-
-/// Removes the currently selected article from saved articles and adjusts the saved view.
-///
-/// Also clamps `selected_article` to a valid index when the saved-view list shrinks.
-fn unsave_article(app: &mut App) {
-    let article = match get_selected_article(app) {
-        Some(a) => a,
-        None => return,
-    };
-
-    app.user_data
-        .saved_articles
-        .retain(|s| s.article.link != article.link);
-    update_is_saved_flag(app, false);
-
-    if app.in_saved_context {
-        app.saved_view_articles.retain(|a| a.link != article.link);
-        if app.saved_view_articles.is_empty() {
-            app.in_saved_context = false;
-            app.selected_article = 0;
-            if matches!(
-                app.state,
-                AppState::ArticleList | AppState::ArticleDetail | AppState::CategoryPicker
-            ) {
-                app.state = AppState::SavedCategoryList;
-            }
-        } else if app.selected_article >= app.saved_view_articles.len() {
-            app.selected_article = app.saved_view_articles.len().saturating_sub(1);
-        }
-    }
-
-    app.set_status("Article unsaved.");
-    let _ = save_user_data(&app.user_data);
-}
-
-/// Updates the `is_saved` flag on the in-memory article that is currently selected.
-///
-/// Handles all three view contexts: regular feed, category view, and saved view, including
-/// back-propagation to the source feed when in saved or category context.
-fn update_is_saved_flag(app: &mut App, is_saved: bool) {
-    if app.in_category_context {
-        if let Some(&(fi, ai)) = app.category_view_articles.get(app.selected_article)
-            && let Some(art) = app.feeds.get_mut(fi).and_then(|f| f.articles.get_mut(ai))
-        {
-            art.is_saved = is_saved;
-        }
-    } else if app.in_saved_context {
-        if let Some(art) = app.saved_view_articles.get_mut(app.selected_article) {
-            art.is_saved = is_saved;
-            let link = art.link.clone();
-            let source_feed = art.source_feed.clone();
-            if let Some(feed) = app.feeds.iter_mut().find(|f| f.title == source_feed)
-                && let Some(src) = feed.articles.iter_mut().find(|a| a.link == link)
-            {
-                src.is_saved = is_saved;
-            }
-        }
-    } else if let Some(art) = app
-        .feeds
-        .get_mut(app.selected_feed)
-        .and_then(|f| f.articles.get_mut(app.selected_article))
-    {
-        art.is_saved = is_saved;
-    }
 }
 
 /// Opens the selected article in detail view, marks it as read, and fetches full content if needed.
