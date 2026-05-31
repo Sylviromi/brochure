@@ -97,6 +97,11 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         include_str!("themes/synthwave-84.toml"),
     ),
     ("horizon", "Horizon", include_str!("themes/horizon.toml")),
+    (
+        "powershell",
+        "Powershell",
+        include_str!("themes/powershell.toml"),
+    ),
     // ── Light ──────────────────────────────────────────────────────────────────
     (
         "catppuccin-latte",
@@ -119,10 +124,20 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
         include_str!("themes/solarized-light.toml"),
     ),
     ("sepia", "Sepia", include_str!("themes/sepia.toml")),
+    (
+        "gruvbox-light",
+        "Gruvbox Light",
+        include_str!("themes/gruvbox-light.toml"),
+    ),
+    (
+        "everforest-light",
+        "Everforest Light",
+        include_str!("themes/everforest-light.toml"),
+    ),
 ];
 
 /// Number of dark built-in themes (positions 0..DARK_COUNT in BUILTIN_THEMES).
-pub const BUILTIN_DARK_COUNT: usize = 16;
+pub const BUILTIN_DARK_COUNT: usize = 17;
 
 /// Full color palette for the application UI.
 ///
@@ -374,8 +389,8 @@ mod tests {
     }
 
     #[test]
-    fn builtin_names_returns_all_21() {
-        assert_eq!(ColorTheme::builtin_names().len(), 21);
+    fn builtin_names_returns_all_24() {
+        assert_eq!(ColorTheme::builtin_names().len(), 24);
     }
 
     #[test]
