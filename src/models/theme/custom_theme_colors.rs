@@ -44,49 +44,60 @@ pub struct CustomThemeColors {
 }
 
 impl CustomThemeColors {
+    fn fields(&self) -> [&String; 16] {
+        [
+            &self.accent,
+            &self.link,
+            &self.success,
+            &self.header,
+            &self.bg,
+            &self.bg_dark,
+            &self.text,
+            &self.muted,
+            &self.border,
+            &self.warning,
+            &self.code,
+            &self.sky,
+            &self.pink,
+            &self.error,
+            &self.selection,
+            &self.code_bg,
+        ]
+    }
+
+    fn fields_mut(&mut self) -> [&mut String; 16] {
+        [
+            &mut self.accent,
+            &mut self.link,
+            &mut self.success,
+            &mut self.header,
+            &mut self.bg,
+            &mut self.bg_dark,
+            &mut self.text,
+            &mut self.muted,
+            &mut self.border,
+            &mut self.warning,
+            &mut self.code,
+            &mut self.sky,
+            &mut self.pink,
+            &mut self.error,
+            &mut self.selection,
+            &mut self.code_bg,
+        ]
+    }
+
     /// Get a color slot's hex value by index (0–15, matching `COLOR_SLOTS` order).
     pub fn get(&self, idx: usize) -> &str {
-        match idx {
-            0 => &self.accent,
-            1 => &self.link,
-            2 => &self.success,
-            3 => &self.header,
-            4 => &self.bg,
-            5 => &self.bg_dark,
-            6 => &self.text,
-            7 => &self.muted,
-            8 => &self.border,
-            9 => &self.warning,
-            10 => &self.code,
-            11 => &self.sky,
-            12 => &self.pink,
-            13 => &self.error,
-            14 => &self.selection,
-            15 => &self.code_bg,
-            _ => "#000000",
-        }
+        self.fields()
+            .get(idx)
+            .map(|s| s.as_str())
+            .unwrap_or("#000000")
     }
 
     /// Set a color slot by index. No-op for out-of-range indices.
     pub fn set(&mut self, idx: usize, hex: String) {
-        match idx {
-            0 => self.accent = hex,
-            1 => self.link = hex,
-            2 => self.success = hex,
-            3 => self.header = hex,
-            4 => self.bg = hex,
-            5 => self.bg_dark = hex,
-            6 => self.text = hex,
-            7 => self.muted = hex,
-            8 => self.border = hex,
-            9 => self.warning = hex,
-            10 => self.code = hex,
-            11 => self.sky = hex,
-            12 => self.pink = hex,
-            13 => self.error = hex,
-            14 => self.selection = hex,
-            15 => self.code_bg = hex,
-            _ => {}
+        if let Some(field) = self.fields_mut().get_mut(idx) {
+            **field = hex;
         }
     }
 
