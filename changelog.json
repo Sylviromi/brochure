@@ -130,5 +130,16 @@
       "Everforest themes now use soft contrast palette",
       "Fixed color accuracy in Rose Pine, Catppuccin, Solarized"
     ]
+  },
+  {
+    "version": "0.9.0",
+    "date": "2026-05-31",
+    "summary": "This release adds SVG inline rendering, improves feed fetching against bot protection, and enhances image clipping and error messaging.",
+    "highlights": [
+      "SVG images now render inline with PNG and JPEG.",
+      "Feed fetching mimics browser to evade bot protection.",
+      "Off-screen inline images now clip instead of disappearing.",
+      "Error indicators use descriptive text in sidebar and preview."
+    ]
   }
 ]
