@@ -80,13 +80,11 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
         if let Some(articles) = cached.get(&feed.url) {
             let mut arts = articles.clone();
             for art in &mut arts {
-                art.is_read = !art.link.is_empty() && app.user_data.read_links.contains(&art.link);
-                art.is_saved = !art.link.is_empty()
-                    && app
-                        .user_data
-                        .saved_articles
-                        .iter()
-                        .any(|s| s.article.link == art.link);
+                apply_user_flags(
+                    art,
+                    &app.user_data.read_links,
+                    &app.user_data.saved_articles,
+                );
                 art.source_feed = feed.title.clone();
             }
             feed.unread_count = arts.iter().filter(|a| !a.is_read).count();
@@ -203,69 +201,28 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
                 app.article_fetching = false;
                 match source {
                     FeedSource::Saved => {
-                        let status_msg =
-                            if let Some(article) = app.saved_view_articles.get_mut(art_idx) {
-                                let msg = match result {
-                                    Ok(html) => {
-                                        article.error = None;
-                                        article.content = html_to_markdown_rs::convert(&html, None)
-                                            .ok()
-                                            .and_then(|r| r.content)
-                                            .unwrap_or_default();
-                                        "Article loaded.".to_string()
-                                    }
-                                    Err(e) => {
-                                        article.error = Some(e.to_string());
-                                        article.content = String::new();
-                                        format!("Extraction failed: {e}")
-                                    }
-                                };
-                                if app.selected_article == art_idx {
-                                    app.content_line_count = article.content.lines().count().max(1);
-                                }
-                                Some(msg)
-                            } else {
-                                None
-                            };
-                        if let Some(msg) = status_msg {
+                        if let Some(article) = app.saved_view_articles.get_mut(art_idx) {
+                            let selected = app.selected_article == art_idx;
+                            let (msg, lc) = apply_full_article_result(article, result);
+                            if selected {
+                                app.content_line_count = lc;
+                            }
                             app.set_status(msg);
                         }
                     }
                     FeedSource::Feed(feed_idx) => {
-                        let (status_msg, line_count) = if let Some(feed) =
-                            app.feeds.get_mut(feed_idx)
+                        if let Some(feed) = app.feeds.get_mut(feed_idx)
                             && let Some(article) = feed.articles.get_mut(art_idx)
                         {
-                            match result {
-                                Ok(html) => {
-                                    article.error = None;
-                                    article.content = html_to_markdown_rs::convert(&html, None)
-                                        .ok()
-                                        .and_then(|r| r.content)
-                                        .unwrap_or_default();
-                                    let lc = if art_idx == app.selected_article {
-                                        article.content.lines().count().max(1)
-                                    } else {
-                                        app.content_line_count
-                                    };
-                                    ("Article loaded.".to_string(), lc)
-                                }
-                                Err(e) => {
-                                    article.error = Some(e.to_string());
-                                    article.content = String::new();
-                                    let lc = if art_idx == app.selected_article {
-                                        1
-                                    } else {
-                                        app.content_line_count
-                                    };
-                                    (format!("Extraction failed: {e}"), lc)
-                                }
+                            let selected = art_idx == app.selected_article;
+                            let (msg, lc) = apply_full_article_result(article, result);
+                            if selected {
+                                app.content_line_count = lc;
                             }
+                            app.set_status(msg);
                         } else {
-                            ("Unknown article.".to_string(), app.content_line_count)
-                        };
-                        app.set_status(status_msg);
-                        app.content_line_count = line_count;
+                            app.set_status("Unknown article.");
+                        }
                     }
                 }
             }
@@ -275,6 +232,17 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
     }
 
     Ok(())
+}
+
+/// Merge the user's read-links and saved-articles state onto an article in-place.
+fn apply_user_flags(
+    art: &mut models::Article,
+    read_links: &std::collections::HashSet<String>,
+    saved_articles: &[models::SavedArticle],
+) {
+    art.is_read = !art.link.is_empty() && read_links.contains(&art.link);
+    art.is_saved =
+        !art.link.is_empty() && saved_articles.iter().any(|s| s.article.link == art.link);
 }
 
 /// Merges archived articles from the previous fetch into the updated article list,
@@ -310,9 +278,7 @@ fn apply_archive_policy(
         .map(|a| {
             let mut art = a.clone();
             art.is_archived = true;
-            art.is_read = !art.link.is_empty() && read_links.contains(&art.link);
-            art.is_saved =
-                !art.link.is_empty() && saved_articles.iter().any(|s| s.article.link == art.link);
+            apply_user_flags(&mut art, read_links, saved_articles);
             art
         })
         .collect();
@@ -333,6 +299,30 @@ fn apply_archive_policy(
 
     // Step D — append surviving archived articles to the new article list.
     articles.extend(surviving);
+}
+
+/// Apply a full-article fetch result to an article in-place, updating content and error state.
+/// Returns a `(status_msg, line_count)` pair.
+fn apply_full_article_result(
+    article: &mut models::Article,
+    result: Result<String, String>,
+) -> (String, usize) {
+    match result {
+        Ok(html) => {
+            article.error = None;
+            article.content = html_to_markdown_rs::convert(&html, None)
+                .ok()
+                .and_then(|r| r.content)
+                .unwrap_or_default();
+            let lc = article.content.lines().count().max(1);
+            ("Article loaded.".to_string(), lc)
+        }
+        Err(e) => {
+            article.error = Some(e.to_string());
+            article.content = String::new();
+            (format!("Extraction failed: {e}"), 1)
+        }
+    }
 }
 
 /// Handle a fetched feed result: merge read/starred state, update counts, save cache.
@@ -359,13 +349,11 @@ fn on_feed_fetched(
                 .collect();
 
             for art in &mut articles {
-                art.is_read = !art.link.is_empty() && app.user_data.read_links.contains(&art.link);
-                art.is_saved = !art.link.is_empty()
-                    && app
-                        .user_data
-                        .saved_articles
-                        .iter()
-                        .any(|s| s.article.link == art.link);
+                apply_user_flags(
+                    art,
+                    &app.user_data.read_links,
+                    &app.user_data.saved_articles,
+                );
                 art.source_feed = feed.title.clone();
                 if let Some(saved) = preserved.get(&art.link) {
                     art.content = saved.clone();
