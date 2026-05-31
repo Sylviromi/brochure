@@ -226,6 +226,16 @@ pub(crate) fn cursor_prev(cursor: usize, len: usize, wrap: bool) -> Option<usize
     })
 }
 
+/// Ordered list of all valid zen mode width percentages.
+const ZEN_WIDTHS: &[u8] = &[30, 35, 40, 45, 50, 55, 60, 65, 66, 70, 75, 80, 85, 90];
+
+const ALIGNMENTS: &[Alignment] = &[
+    Alignment::Left,
+    Alignment::Center,
+    Alignment::Right,
+    Alignment::Justify,
+];
+
 impl App {
     /// Construct a fresh `App`, loading feeds, categories, and user data from disk.
     pub fn new() -> Self {
@@ -351,22 +361,16 @@ impl App {
 
     /// Cycle body alignment to the next variant.
     pub fn cycle_alignment_next(&mut self) {
-        self.body_alignment = match self.body_alignment {
-            Alignment::Left => Alignment::Center,
-            Alignment::Center => Alignment::Right,
-            Alignment::Right => Alignment::Justify,
-            Alignment::Justify => Alignment::Left,
-        };
+        if let Some(pos) = ALIGNMENTS.iter().position(|&a| a == self.body_alignment) {
+            self.body_alignment = ALIGNMENTS[(pos + 1) % ALIGNMENTS.len()];
+        }
     }
 
     /// Cycle body alignment to the previous variant.
     pub fn cycle_alignment_prev(&mut self) {
-        self.body_alignment = match self.body_alignment {
-            Alignment::Left => Alignment::Justify,
-            Alignment::Justify => Alignment::Right,
-            Alignment::Right => Alignment::Center,
-            Alignment::Center => Alignment::Left,
-        };
+        if let Some(pos) = ALIGNMENTS.iter().position(|&a| a == self.body_alignment) {
+            self.body_alignment = ALIGNMENTS[(pos + ALIGNMENTS.len() - 1) % ALIGNMENTS.len()];
+        }
     }
 
     /// Human-readable label for the current body alignment.
@@ -381,42 +385,20 @@ impl App {
 
     /// Cycle zen width to the next value (steps of 5%, stops at 90).
     pub fn cycle_zen_width_next(&mut self) {
-        self.zen_width = match self.zen_width {
-            30 => 35,
-            35 => 40,
-            40 => 45,
-            45 => 50,
-            50 => 55,
-            55 => 60,
-            60 => 65,
-            65 => 66,
-            66 => 70,
-            70 => 75,
-            75 => 80,
-            80 => 85,
-            85 => 90,
-            _ => 90,
-        };
+        let pos = ZEN_WIDTHS
+            .iter()
+            .position(|&w| w == self.zen_width)
+            .unwrap_or(ZEN_WIDTHS.len() - 1);
+        self.zen_width = ZEN_WIDTHS[(pos + 1).min(ZEN_WIDTHS.len() - 1)];
     }
 
     /// Cycle zen width to the previous value (steps of 5%, stops at 30).
     pub fn cycle_zen_width_prev(&mut self) {
-        self.zen_width = match self.zen_width {
-            35 => 30,
-            40 => 35,
-            45 => 40,
-            50 => 45,
-            55 => 50,
-            60 => 55,
-            65 => 60,
-            66 => 65,
-            70 => 66,
-            75 => 70,
-            80 => 75,
-            85 => 80,
-            90 => 85,
-            _ => 30,
-        };
+        let pos = ZEN_WIDTHS
+            .iter()
+            .position(|&w| w == self.zen_width)
+            .unwrap_or(0);
+        self.zen_width = ZEN_WIDTHS[pos.saturating_sub(1)];
     }
 
     // ── Tab switching ────────────────────────────────────────────────────────
