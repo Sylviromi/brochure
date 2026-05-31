@@ -31,7 +31,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 toml = "0.8"
 tokio = { version = "1.50.0", features = ["rt-multi-thread", "macros"] }
-limner = { version = "0.4.0", features = ["image-protocol"] }
+limner = { version = "0.5.0", features = ["image-protocol"] }
 ratatui-image = { version = "11", default-features = false, features = ["crossterm"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 resvg = "0.47"
