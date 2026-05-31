@@ -85,6 +85,10 @@ fn default_theme() -> String {
     String::from("catppuccin-mocha")
 }
 
+fn default_zen_width() -> u8 {
+    66
+}
+
 /// Controls how long articles are kept after they disappear from a feed's latest fetch.
 ///
 /// Articles not in the newest fetch are marked archived. Archived articles older than
@@ -269,6 +273,9 @@ pub struct UserData {
     /// Body text alignment for article reading (left/center/right/justify).
     #[serde(default)]
     pub body_alignment: String,
+    /// Width of the zen mode content area as a percentage (30–90, non-wrapping, default 66).
+    #[serde(default = "default_zen_width")]
+    pub zen_width: u8,
     /// Indices of collapsed changelog entries (reversed display order, persisted).
     #[serde(default)]
     pub changelog_collapsed: Vec<usize>,

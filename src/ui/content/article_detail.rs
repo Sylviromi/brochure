@@ -334,6 +334,34 @@ pub(super) fn draw_article_detail(
         (inner_area, Rect::default())
     };
 
+    render_article_content(
+        f,
+        app,
+        content_area,
+        is_preview,
+        feed_refreshing,
+        false,
+        &article,
+    );
+
+    if show_footer {
+        draw_article_footer(f, app, bar_area, true);
+    }
+}
+
+/// Renders article content (markdown body, images, scrollbar) into the given area.
+///
+/// This is the shared rendering core used by both `draw_article_detail` and the
+/// zen-mode full-screen view. The caller is responsible for borders and footers.
+pub(crate) fn render_article_content(
+    f: &mut Frame,
+    app: &mut App,
+    content_area: Rect,
+    is_preview: bool,
+    feed_refreshing: bool,
+    hide_scrollbar: bool,
+    article: &crate::models::Article,
+) {
     // First image is the hero (MediaRSS) image, the rest are body extras.
     let header_image_url: Option<String> = article.images.first().cloned();
     let body_images: Vec<String> = match header_image_url {
@@ -347,7 +375,7 @@ pub(super) fn draw_article_detail(
     let loading = fetching_stub || feed_refreshing;
 
     // Build separate header and body markdown.
-    let header_md = build_header_markdown(&article, header_image_url.as_deref());
+    let header_md = build_header_markdown(article, header_image_url.as_deref());
     let body_md = if preview_hint_mode && !loading {
         String::from("*Full article not fetched. Press Enter to focus and read.*\n")
     } else if loading {
@@ -355,7 +383,7 @@ pub(super) fn draw_article_detail(
     } else if let Some(err) = &article.error {
         format!("*{err}*\n")
     } else {
-        build_body_markdown(&article, header_image_url.as_deref(), &body_images)
+        build_body_markdown(article, header_image_url.as_deref(), &body_images)
     };
 
     // Simple-body messages (hint/spinner) get centered styling and layout.
@@ -403,7 +431,7 @@ pub(super) fn draw_article_detail(
     let (mut result_lines, mut result_images, mut result_links, mut header_line_count) =
         render_and_merge(render_width);
 
-    if count_lines(&result_lines, render_width) > content_area.height as usize {
+    if !hide_scrollbar && count_lines(&result_lines, render_width) > content_area.height as usize {
         render_width = render_width.saturating_sub(2);
         let (lines, images, links, hlc) = render_and_merge(render_width);
         result_lines = lines;
@@ -558,10 +586,6 @@ pub(super) fn draw_article_detail(
         .wrap(Wrap { trim: false })
         .scroll((scroll_offset, 0));
 
-    if show_footer {
-        draw_article_footer(f, app, bar_area, true);
-    }
-
     let has_scrollbar = line_count > content_area.height as usize;
     let para_render_area = Rect {
         width: render_width,
@@ -593,7 +617,7 @@ pub(super) fn draw_article_detail(
         }
     }
 
-    if has_scrollbar {
+    if has_scrollbar && !hide_scrollbar {
         let bar_area = Rect {
             x: content_area.x + content_area.width.saturating_sub(1),
             width: 1,

@@ -112,6 +112,8 @@ pub enum SettingsItem {
     BorderStyle,
     /// Cycle body text alignment for reading.
     BodyAlignment,
+    /// Cycle zen mode content width (30–90%, no wrap).
+    ZenWidth,
     /// Open the theme picker popup.
     Theme,
 }
@@ -134,6 +136,7 @@ impl SettingsItem {
             Self::BodyAlignment => {
                 "Body text alignment for reading (Left / Center / Right / Justify)"
             }
+            Self::ZenWidth => "Width of the zen reading mode as a percentage of the terminal",
             Self::Theme => "Browse built-in themes and create custom ones",
         }
     }
@@ -150,7 +153,8 @@ impl SettingsItem {
             Self::ArchivePolicy => Self::ScrollLoop,
             Self::ScrollLoop => Self::BorderStyle,
             Self::BorderStyle => Self::BodyAlignment,
-            Self::BodyAlignment => Self::Theme,
+            Self::BodyAlignment => Self::ZenWidth,
+            Self::ZenWidth => Self::Theme,
             Self::Theme => Self::ImportOpml,
         }
     }
@@ -159,7 +163,8 @@ impl SettingsItem {
     pub fn prev(self) -> Self {
         match self {
             Self::ImportOpml => Self::Theme,
-            Self::Theme => Self::BodyAlignment,
+            Self::Theme => Self::ZenWidth,
+            Self::ZenWidth => Self::BodyAlignment,
             Self::BodyAlignment => Self::BorderStyle,
             Self::ExportOpml => Self::ImportOpml,
             Self::ClearData => Self::ExportOpml,

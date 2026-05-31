@@ -21,4 +21,5 @@ mod saved_sidebar;
 mod sidebar;
 pub(crate) mod utils;
 
+pub(super) use article_detail::render_article_content;
 pub(super) use layouts::{draw_feeds_tab, draw_saved_tab};

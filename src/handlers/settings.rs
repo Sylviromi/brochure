@@ -104,6 +104,12 @@ pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
                 let _ = save_user_data(&app.user_data);
                 app.set_status(format!("Body Alignment: {}", app.alignment_label()));
             }
+            SettingsItem::ZenWidth => {
+                app.cycle_zen_width_next();
+                app.user_data.zen_width = app.zen_width;
+                let _ = save_user_data(&app.user_data);
+                app.set_status(format!("Zen Width: {}%", app.zen_width));
+            }
             SettingsItem::Theme => {
                 // Position cursor on the currently active theme.
                 let builtin_names = ColorTheme::builtin_names();
@@ -161,6 +167,12 @@ pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
                 let _ = save_user_data(&app.user_data);
                 app.set_status(format!("Body Alignment: {}", app.alignment_label()));
             }
+            SettingsItem::ZenWidth => {
+                app.cycle_zen_width_prev();
+                app.user_data.zen_width = app.zen_width;
+                let _ = save_user_data(&app.user_data);
+                app.set_status(format!("Zen Width: {}%", app.zen_width));
+            }
             _ => {}
         },
         KeyCode::Right | KeyCode::Char('l') => match app.settings_selected {
@@ -199,6 +211,12 @@ pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
                 app.user_data.body_alignment = app.alignment_label().to_lowercase().to_string();
                 let _ = save_user_data(&app.user_data);
                 app.set_status(format!("Body Alignment: {}", app.alignment_label()));
+            }
+            SettingsItem::ZenWidth => {
+                app.cycle_zen_width_next();
+                app.user_data.zen_width = app.zen_width;
+                let _ = save_user_data(&app.user_data);
+                app.set_status(format!("Zen Width: {}%", app.zen_width));
             }
             _ => {}
         },

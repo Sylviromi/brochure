@@ -78,6 +78,9 @@ pub struct App {
     /// None = "All Saved" is selected; Some(id) = a specific category is selected.
     pub selected_saved_category: Option<u32>,
 
+    /// When true, renders only the article full-screen with no chrome (zen reading mode).
+    pub zen_mode: bool,
+
     // ── Category picker ──────────────────────────────────────────────────────
     /// State for the CategoryPicker modal.
     pub category_picker: CategoryPickerState,
@@ -169,6 +172,9 @@ pub struct App {
     /// Body text alignment for article reading.
     pub body_alignment: Alignment,
 
+    /// Width of the zen mode content area as a percentage (30–90).
+    pub zen_width: u8,
+
     // ── Title auto-scroll animation ──────────────────────────────────────────
     /// Value of `tick` when the sidebar cursor last moved — used to scroll long feed titles.
     pub sidebar_title_start_tick: usize,
@@ -257,6 +263,9 @@ impl App {
             }
         };
 
+        // Clamp zen width to valid range: 30–90, default 66.
+        let initial_zen_width = user_data.zen_width.clamp(30, 90);
+
         // Editor cursor uses the non-AllFeeds tree (editor never shows AllFeeds).
         let initial_editor_items = visible_tree_items(&categories, &feeds, &HashSet::new());
         let initial_editor_cursor = initial_editor_items
@@ -286,6 +295,7 @@ impl App {
             saved_view_articles: Vec::new(),
             in_saved_context: false,
             selected_saved_category: None,
+            zen_mode: false,
             category_picker: CategoryPickerState::default(),
             saved_cat_editor_scroll: ListScroll::default(),
             add_feed: AddFeedState::default(),
@@ -321,6 +331,7 @@ impl App {
             article_content_area: Rect::default(),
             article_scroll_offset: 0,
             body_alignment: initial_body_alignment,
+            zen_width: initial_zen_width,
             sidebar_title_start_tick: 0,
             article_title_start_tick: 0,
             theme,
@@ -365,6 +376,46 @@ impl App {
             Alignment::Right => "Right",
             Alignment::Justify => "Justify",
         }
+    }
+
+    /// Cycle zen width to the next value (steps of 5%, stops at 90).
+    pub fn cycle_zen_width_next(&mut self) {
+        self.zen_width = match self.zen_width {
+            30 => 35,
+            35 => 40,
+            40 => 45,
+            45 => 50,
+            50 => 55,
+            55 => 60,
+            60 => 65,
+            65 => 66,
+            66 => 70,
+            70 => 75,
+            75 => 80,
+            80 => 85,
+            85 => 90,
+            _ => 90,
+        };
+    }
+
+    /// Cycle zen width to the previous value (steps of 5%, stops at 30).
+    pub fn cycle_zen_width_prev(&mut self) {
+        self.zen_width = match self.zen_width {
+            35 => 30,
+            40 => 35,
+            45 => 40,
+            50 => 45,
+            55 => 50,
+            60 => 55,
+            65 => 60,
+            66 => 65,
+            70 => 66,
+            75 => 70,
+            80 => 75,
+            85 => 80,
+            90 => 85,
+            _ => 30,
+        };
     }
 
     // ── Tab switching ────────────────────────────────────────────────────────
@@ -623,7 +674,7 @@ impl App {
     /// Determines the article count from whichever context is active (category, saved, or feed),
     /// then advances or retreats `selected_article`. Always resets the title animation tick,
     /// even when already at a boundary (clamp behaviour when not looping).
-    fn move_article_cursor(&mut self, forward: bool) {
+    pub(crate) fn move_article_cursor(&mut self, forward: bool) {
         let len = if self.in_category_context {
             self.category_view_articles.len()
         } else if self.in_saved_context {

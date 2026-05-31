@@ -15,6 +15,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     app::App,
+    handlers::article::get_selected_article,
     models::{AppEvent, AppState},
 };
 
@@ -56,8 +57,93 @@ pub(super) fn handle_text_input(
     }
 }
 
+/// Handles key events while zen mode is active (full-screen article reading).
+fn handle_zen_mode(app: &mut App, key: KeyEvent, _tx: &UnboundedSender<AppEvent>) -> bool {
+    match key.code {
+        KeyCode::Char('z') | KeyCode::Esc => {
+            app.zen_mode = false;
+            false
+        }
+        KeyCode::Char('q') => true,
+        KeyCode::Down | KeyCode::Char('j') => {
+            let max = app
+                .content_line_count
+                .saturating_sub(app.content_area_height as usize) as u16;
+            if let Some(article) = get_selected_article(app) {
+                app.article_scroll.scroll_down(&article.link, max);
+            }
+            false
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            if let Some(article) = get_selected_article(app) {
+                app.article_scroll.scroll_up(&article.link);
+            }
+            false
+        }
+        KeyCode::PageDown => {
+            let lines = app.content_area_height.saturating_sub(1);
+            let max = app
+                .content_line_count
+                .saturating_sub(app.content_area_height as usize) as u16;
+            if let Some(article) = get_selected_article(app) {
+                let key = &article.link;
+                for _ in 0..lines {
+                    app.article_scroll.scroll_down(key, max);
+                }
+            }
+            false
+        }
+        KeyCode::PageUp => {
+            let lines = app.content_area_height.saturating_sub(1);
+            if let Some(article) = get_selected_article(app) {
+                let key = &article.link;
+                for _ in 0..lines {
+                    app.article_scroll.scroll_up(key);
+                }
+            }
+            false
+        }
+        KeyCode::Home => {
+            if let Some(article) = get_selected_article(app) {
+                app.article_scroll.scroll_up(&article.link);
+                // Scroll all the way to top by resetting to 0.
+                // TextScroll only supports incremental up/down, so we
+                // repeatedly scroll up by a large amount. The scroll_up
+                // method uses saturating_sub so this bottoms out at 0.
+                for _ in 0..u16::MAX {
+                    app.article_scroll.scroll_up(&article.link);
+                }
+            }
+            false
+        }
+        KeyCode::End => {
+            let max = app
+                .content_line_count
+                .saturating_sub(app.content_area_height as usize) as u16;
+            if let Some(article) = get_selected_article(app) {
+                for _ in 0..u16::MAX {
+                    app.article_scroll.scroll_down(&article.link, max);
+                }
+            }
+            false
+        }
+        KeyCode::Char('n') => {
+            app.move_article_cursor(true);
+            false
+        }
+        KeyCode::Char('p') => {
+            app.move_article_cursor(false);
+            false
+        }
+        _ => false,
+    }
+}
+
 /// Route a key event to the correct handler based on the current app state.
 pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEvent>) -> bool {
+    if app.zen_mode {
+        return handle_zen_mode(app, key, tx);
+    }
     if app.update_available.is_some() {
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => {

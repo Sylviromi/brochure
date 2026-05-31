@@ -187,6 +187,11 @@ pub(crate) fn render_scrollbar(
 /// Dispatches to per-tab renderers (Feeds, Saved, Settings) and overlays state-specific popups
 /// (add-feed wizard, OPML paths, confirm dialogs, category picker, saved category editor).
 pub fn draw(f: &mut Frame, app: &mut App) {
+    if app.zen_mode {
+        draw_zen_mode(f, app);
+        return;
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -257,5 +262,61 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     }
     if app.update_available.is_some() {
         popups::draw_update_popup(f, app);
+    }
+}
+
+/// Renders the full-screen zen reading mode: centered article content at the user's
+/// configured width with 2 rows of top/bottom padding, scrollbar at the terminal edge,
+/// and a themed background filling the screen.
+fn draw_zen_mode(f: &mut Frame, app: &mut App) {
+    let article = crate::handlers::article::get_selected_article(app);
+    let Some(article) = article else { return };
+
+    // Fill entire screen with the theme background.
+    f.render_widget(Block::default().bg(app.theme.bg), f.area());
+
+    // 2-row vertical padding above and below the content.
+    let v = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(2),
+            Constraint::Min(0),
+            Constraint::Length(2),
+        ])
+        .split(f.area());
+    let content_row = v[1];
+
+    // Compute horizontal margins from the user's zen_width setting.
+    let margin_pct = (100u16.saturating_sub(app.zen_width as u16)) / 2;
+    let h = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(margin_pct),
+            Constraint::Percentage(app.zen_width as u16),
+            Constraint::Percentage(margin_pct),
+        ])
+        .split(content_row);
+    let center = h[1];
+
+    content::render_article_content(
+        f, app, center, false, false, true,
+        &article, // is_preview=false, feed_refreshing=false, hide_scrollbar=true
+    );
+
+    // Render the scrollbar at the far-right edge of the terminal, only if needed.
+    if app.content_line_count > app.content_area_height as usize {
+        let bar_area = Rect {
+            x: f.area().right().saturating_sub(1),
+            width: 1,
+            ..center
+        };
+        render_scrollbar(
+            f,
+            bar_area,
+            app.content_line_count,
+            app.content_area_height as usize,
+            app.article_scroll_offset as usize,
+            &app.theme,
+        );
     }
 }

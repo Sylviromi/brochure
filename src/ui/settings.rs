@@ -151,6 +151,12 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
             value: app.alignment_label().to_string(),
         },
         Row::Cycle {
+            item: SettingsItem::ZenWidth,
+            label: "[ Zen Width ]",
+            in_last: true,
+            value: format!("{}%", app.zen_width),
+        },
+        Row::Cycle {
             item: SettingsItem::Theme,
             label: "[ Theme ]",
             in_last: true,

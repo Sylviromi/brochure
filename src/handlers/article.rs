@@ -179,6 +179,9 @@ pub(super) async fn handle_article(
                 }
             }
         }
+        KeyCode::Char('z') if app.state == AppState::ArticleDetail => {
+            app.zen_mode = true;
+        }
         KeyCode::Esc => app.unselect(),
         _ => {}
     }
