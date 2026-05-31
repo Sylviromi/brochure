@@ -13,7 +13,7 @@ use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
     prelude::Stylize,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
@@ -521,22 +521,11 @@ fn draw_hex_input_popup(f: &mut Frame, app: &App) {
 
 // ── Color parsing helper ──────────────────────────────────────────────────────
 
-/// Parse a `#rrggbb` hex string into a ratatui `Color::Rgb` for swatches.
-fn parse_hex_color(hex: &str) -> Option<Color> {
-    let h = hex.trim_start_matches('#');
-    if h.len() != 6 {
-        return None;
-    }
-    let r = u8::from_str_radix(&h[0..2], 16).ok()?;
-    let g = u8::from_str_radix(&h[2..4], 16).ok()?;
-    let b = u8::from_str_radix(&h[4..6], 16).ok()?;
-    Some(Color::Rgb(r, g, b))
-}
-
 /// Get the proper swatch symbol and color
 fn get_swatch(app: &App, hex: &str) -> Span<'static> {
-    let color = parse_hex_color(hex).unwrap_or(app.theme.error);
-    let symbol = if parse_hex_color(hex).is_some() {
+    let parsed = super::theme::parse_hex(hex).ok();
+    let color = parsed.unwrap_or(app.theme.error);
+    let symbol = if parsed.is_some() {
         "███"
     } else {
         "?¿?"

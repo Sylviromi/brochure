@@ -357,7 +357,7 @@ impl ColorTheme {
 }
 
 /// Parse a CSS hex color string (`#rrggbb`) into a `Color::Rgb`.
-fn parse_hex(hex: &str) -> anyhow::Result<Color> {
+pub(crate) fn parse_hex(hex: &str) -> anyhow::Result<Color> {
     let hex = hex.trim_start_matches('#');
     anyhow::ensure!(hex.len() == 6, "expected 6 hex digits, got {}", hex.len());
     let r = u8::from_str_radix(&hex[0..2], 16)?;
