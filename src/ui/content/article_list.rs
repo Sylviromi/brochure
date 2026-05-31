@@ -2,6 +2,7 @@
 
 use crate::{
     app::App,
+    fetch::feed_error_tag,
     models::{AppState, Article, Tab},
 };
 use ratatui::{
@@ -239,8 +240,9 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
             && let Some(feed) = app.feeds.get(app.selected_feed)
             && let Some(err) = &feed.fetch_error
         {
+            let (tag, _) = feed_error_tag(err);
             let text = Line::from(vec![
-                " ⚠ ".fg(app.theme.error),
+                format!(" [{tag}] ").fg(app.theme.error),
                 err.clone().fg(app.theme.text),
             ]);
             f.render_widget(

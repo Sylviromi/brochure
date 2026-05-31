@@ -26,7 +26,7 @@ readability = { version = "0.3.0", default-features = false }
 open = "5.3.3"
 ratatui = { version = "0.30.0", features = ["unstable-rendered-line-info"] }
 quick-xml = "0.39.2"
-reqwest = { version = "0.13.2", default-features = false, features = ["rustls", "gzip"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["native-tls", "gzip"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 toml = "0.8"

@@ -2,6 +2,7 @@
 
 use crate::{
     app::{App, sidebar_tree_items},
+    fetch::feed_error_tag,
     models::{AppState, FeedTreeItem},
 };
 use ratatui::{
@@ -153,13 +154,14 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
                     {
                         let spinner = SPINNER_FRAMES[app.tick % SPINNER_FRAMES.len()];
                         spans.push(format!(" {spinner}").fg(app.theme.warning));
-                    } else if feed.fetch_error.is_some() {
-                        // ⚠ (red) when feed is empty — broken; ! (yellow) when stale cached data exists.
-                        if feed.articles.is_empty() {
-                            spans.push(" ⚠".fg(app.theme.error));
+                    } else if let Some(err) = &feed.fetch_error {
+                        let (tag, is_permanent) = feed_error_tag(err);
+                        let color = if is_permanent {
+                            app.theme.error
                         } else {
-                            spans.push(" !".fg(app.theme.warning));
-                        }
+                            app.theme.warning
+                        };
+                        spans.push(format!(" [{tag}]").fg(color));
                     }
                     ListItem::new(Line::from(spans))
                 }

@@ -68,13 +68,26 @@ async fn http_get_feed_bytes(url: &str) -> Result<Vec<u8>, String> {
             "application/rss+xml, application/xml, text/xml, */*",
         )
         .header("Accept-Language", "en-US,en;q=0.9")
+        .header("Sec-Fetch-Dest", "document")
+        .header("Sec-Fetch-Mode", "navigate")
+        .header("Sec-Fetch-Site", "none")
         .send()
         .await
         .map_err(|e| format!("Network error: {e}"))?;
     let status = resp.status();
+    let retry_after = resp
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<u64>().ok());
     let body = resp.bytes().await.map_err(|e| e.to_string())?.to_vec();
     if !status.is_success() {
-        return Err(format!("HTTP {status}"));
+        if is_challenge_page(&body) {
+            return Err(
+                "Server returned a challenge page — the feed is behind bot protection.".to_string(),
+            );
+        }
+        return Err(fmt_http_error(status, retry_after));
     }
     if is_challenge_page(&body) {
         return Err(
@@ -98,17 +111,63 @@ pub(crate) fn http_client() -> &'static reqwest::Client {
 
 /// Check if a response body is an HTML challenge page rather than a valid feed.
 fn is_challenge_page(body: &[u8]) -> bool {
-    let text = String::from_utf8_lossy(body);
-    text.contains("Enable JavaScript and cookies")
+    let text = String::from_utf8_lossy(body).to_lowercase();
+    text.contains("enable javascript and cookies")
         || text.contains("challenge-error-text")
-        || text.contains("We have detected unusual activity")
+        || text.contains("we have detected unusual activity")
         || text.contains("cf-browser-verification")
         || text.contains("_cf_chl_opt")
         || text.contains("just a moment")
-        || (text.starts_with("<!DOCTYPE html") || text.starts_with("<html"))
+        || text.contains("sgcaptcha")
+        || text.contains("anubis")
+        || text.contains("not a bot")
+        || text.contains("making sure you're")
+        || (text.starts_with("<!doctype html") || text.starts_with("<html"))
             && !text.contains("<rss")
             && !text.contains("<feed")
-            && !text.contains("<rdf:RDF")
+            && !text.contains("<rdf:rdf")
+}
+
+/// Produce a user-friendly error message for non-success HTTP status codes.
+fn fmt_http_error(status: reqwest::StatusCode, retry_after: Option<u64>) -> String {
+    match status.as_u16() {
+        401 => "HTTP 401 Unauthorized — this feed requires authentication".to_string(),
+        403 => "HTTP 403 Forbidden — server is blocking automated access".to_string(),
+        404 => "HTTP 404 Not Found — the feed URL may have changed or been removed".to_string(),
+        429 => match retry_after {
+            Some(secs) => format!("HTTP 429 Too Many Requests — retry after {secs}s"),
+            None => "HTTP 429 Too Many Requests — try again later".to_string(),
+        },
+        503 => "HTTP 503 Service Unavailable — server is temporarily down".to_string(),
+        _ => format!("HTTP {status}"),
+    }
+}
+
+/// Classify a fetch error string into a short tag for display in the sidebar.
+/// Returns `(tag, is_permanent)` where `is_permanent` means the problem is
+/// unlikely to resolve on its own (blocked, invalid URL) vs transient (rate
+/// limit, network, server down).
+pub(crate) fn feed_error_tag(error: &str) -> (&'static str, bool) {
+    if error.starts_with("HTTP 401") {
+        ("unauthorized", true)
+    } else if error.starts_with("HTTP 403")
+        || error.contains("challenge")
+        || error.contains("bot protection")
+    {
+        ("blocked", true)
+    } else if error.starts_with("HTTP 404") {
+        ("not found", true)
+    } else if error.starts_with("HTTP 429") {
+        ("rate limit", false)
+    } else if error.starts_with("HTTP 503") {
+        ("down", false)
+    } else if error.starts_with("Network error") || error.starts_with("Semaphore error") {
+        ("unreachable", false)
+    } else if error.contains("not a valid") || error.starts_with("Failed to parse") {
+        ("invalid", true)
+    } else {
+        ("error", false)
+    }
 }
 
 /// Semaphore that limits concurrent feed fetches to avoid overwhelming servers.

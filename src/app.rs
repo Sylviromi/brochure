@@ -752,6 +752,17 @@ impl App {
                         }
                     }
                     Some(FeedTreeItem::Feed { feeds_idx, .. }) => {
+                        let feed = &self.feeds[*feeds_idx];
+                        if feed.articles.is_empty() && feed.fetch_error.is_some() {
+                            self.selected_feed = *feeds_idx;
+                            let title = &feed.title;
+                            self.set_status(format!(
+                                "{}: {}",
+                                title,
+                                feed.fetch_error.as_deref().unwrap_or("fetch error")
+                            ));
+                            return;
+                        }
                         self.selected_feed = *feeds_idx;
                         self.state = AppState::ArticleList;
                         self.selected_article = 0;
