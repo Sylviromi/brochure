@@ -69,6 +69,10 @@ pub struct Article {
     /// Archived articles are shown in a separate section in the article list.
     #[serde(default)]
     pub is_archived: bool,
+    /// Error message from the last failed full-content fetch.
+    /// Rendered with centered/muted/italic styling. Never persisted to disk.
+    #[serde(default, skip_serializing)]
+    pub error: Option<String>,
 }
 
 /// Default serde function that returns `true`.

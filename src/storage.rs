@@ -154,6 +154,7 @@ pub fn save_articles(feeds: &[Feed], save_content: bool) -> anyhow::Result<()> {
                     .iter()
                     .map(|a| Article {
                         content: String::new(),
+                        error: None,
                         ..a.clone()
                     })
                     .collect()
@@ -515,6 +516,7 @@ mod tests {
             source_feed: String::new(),
             published_secs: None,
             is_archived: false,
+            error: None,
         }
     }
 

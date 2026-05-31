@@ -1169,6 +1169,7 @@ mod tests {
             source_feed: String::new(),
             published_secs: None,
             is_archived: false,
+            error: None,
         }
     }
 

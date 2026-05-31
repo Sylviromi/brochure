@@ -578,7 +578,7 @@ pub(super) fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEv
         else {
             return;
         };
-        if article.content.len() >= CONTENT_STUB_MAX_LEN {
+        if article.content.len() >= CONTENT_STUB_MAX_LEN || article.error.is_some() {
             return;
         }
         (FeedSource::Feed(feed_idx), art_idx, article.link.clone())
@@ -586,7 +586,7 @@ pub(super) fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEv
         let Some(article) = app.saved_view_articles.get(app.selected_article) else {
             return;
         };
-        if article.content.len() >= CONTENT_STUB_MAX_LEN {
+        if article.content.len() >= CONTENT_STUB_MAX_LEN || article.error.is_some() {
             return;
         }
         (
@@ -602,7 +602,7 @@ pub(super) fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEv
         else {
             return;
         };
-        if article.content.len() >= CONTENT_STUB_MAX_LEN {
+        if article.content.len() >= CONTENT_STUB_MAX_LEN || article.error.is_some() {
             return;
         }
         (

@@ -207,6 +207,7 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
                             if let Some(article) = app.saved_view_articles.get_mut(art_idx) {
                                 let msg = match result {
                                     Ok(html) => {
+                                        article.error = None;
                                         article.content = html_to_markdown_rs::convert(&html, None)
                                             .ok()
                                             .and_then(|r| r.content)
@@ -214,7 +215,8 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
                                         "Article loaded.".to_string()
                                     }
                                     Err(e) => {
-                                        article.content = format!("Failed to load article: {e}");
+                                        article.error = Some(e.to_string());
+                                        article.content = String::new();
                                         format!("Extraction failed: {e}")
                                     }
                                 };
@@ -236,6 +238,7 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
                         {
                             match result {
                                 Ok(html) => {
+                                    article.error = None;
                                     article.content = html_to_markdown_rs::convert(&html, None)
                                         .ok()
                                         .and_then(|r| r.content)
@@ -248,9 +251,10 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
                                     ("Article loaded.".to_string(), lc)
                                 }
                                 Err(e) => {
-                                    article.content = format!("Failed to load article: {e}");
+                                    article.error = Some(e.to_string());
+                                    article.content = String::new();
                                     let lc = if art_idx == app.selected_article {
-                                        article.content.lines().count().max(1)
+                                        1
                                     } else {
                                         app.content_line_count
                                     };

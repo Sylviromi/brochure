@@ -353,7 +353,7 @@ pub(super) fn draw_article_detail(
         None => article.images.clone(),
     };
 
-    let preview_hint_mode = is_preview && article.content.is_empty();
+    let preview_hint_mode = is_preview && article.content.is_empty() && article.error.is_none();
     let fetching_stub = app.article_fetching && article.content.len() < CONTENT_STUB_MAX_LEN;
 
     // Build separate header and body markdown.
@@ -362,12 +362,14 @@ pub(super) fn draw_article_detail(
         String::from("*Full article not fetched. Press Enter to focus and read.*\n")
     } else if fetching_stub {
         String::new() // skeleton widget renders in place of body text
+    } else if let Some(err) = &article.error {
+        format!("*{err}*\n")
     } else {
         build_body_markdown(&article, header_image_url.as_deref(), &body_images)
     };
 
     // Simple-body messages (hint/spinner) get centered styling and layout.
-    let simple_body = preview_hint_mode || fetching_stub;
+    let simple_body = preview_hint_mode || fetching_stub || article.error.is_some();
 
     // Render with independent alignment styles.
     let h_style = header_style(&app.theme);
