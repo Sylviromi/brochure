@@ -292,53 +292,53 @@ fn toggle_read(app: &mut App) {
     let _ = save_user_data(&app.user_data);
 }
 
-/// Proactively fetches full article content when the cursor lands on a stub-length article.
-pub(super) fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>) {
-    let (source, art_idx, link) = if app.in_category_context {
-        let Some(&(feed_idx, art_idx)) = app.category_view_articles.get(app.selected_article)
-        else {
-            return;
-        };
-        let Some(article) = app
-            .feeds
-            .get(feed_idx)
-            .and_then(|f| f.articles.get(art_idx))
-        else {
-            return;
-        };
-        if article.content.len() >= CONTENT_STUB_MAX_LEN || article.error.is_some() {
-            return;
-        }
-        (FeedSource::Feed(feed_idx), art_idx, article.link.clone())
+/// Resolve the feed source, article index, and link for the currently selected article
+/// across the three view contexts (category, saved, feed).
+fn resolve_article_source(app: &App) -> Option<(FeedSource, usize, String)> {
+    if app.in_category_context {
+        let &(feed_idx, art_idx) = app.category_view_articles.get(app.selected_article)?;
+        let article = app.feeds.get(feed_idx)?.articles.get(art_idx)?;
+        Some((FeedSource::Feed(feed_idx), art_idx, article.link.clone()))
     } else if app.in_saved_context {
-        let Some(article) = app.saved_view_articles.get(app.selected_article) else {
-            return;
-        };
-        if article.content.len() >= CONTENT_STUB_MAX_LEN || article.error.is_some() {
-            return;
-        }
-        (
+        let article = app.saved_view_articles.get(app.selected_article)?;
+        Some((
             FeedSource::Saved,
             app.selected_article,
             article.link.clone(),
-        )
+        ))
     } else {
-        let Some(article) = app
+        let article = app
             .feeds
-            .get(app.selected_feed)
-            .and_then(|f| f.articles.get(app.selected_article))
-        else {
-            return;
-        };
-        if article.content.len() >= CONTENT_STUB_MAX_LEN || article.error.is_some() {
-            return;
-        }
-        (
+            .get(app.selected_feed)?
+            .articles
+            .get(app.selected_article)?;
+        Some((
             FeedSource::Feed(app.selected_feed),
             app.selected_article,
             article.link.clone(),
-        )
+        ))
+    }
+}
+
+/// Proactively fetches full article content when the cursor lands on a stub-length article.
+pub(super) fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>) {
+    let Some((source, art_idx, link)) = resolve_article_source(app) else {
+        return;
     };
+    let is_stub = match source {
+        FeedSource::Feed(fi) => app
+            .feeds
+            .get(fi)
+            .and_then(|f| f.articles.get(art_idx))
+            .is_some_and(|a| a.content.len() < CONTENT_STUB_MAX_LEN && a.error.is_none()),
+        FeedSource::Saved => app
+            .saved_view_articles
+            .get(art_idx)
+            .is_some_and(|a| a.content.len() < CONTENT_STUB_MAX_LEN && a.error.is_none()),
+    };
+    if !is_stub {
+        return;
+    }
     app.article_fetching = true;
     let tx2 = tx.clone();
     tokio::spawn(async move {
@@ -359,32 +359,15 @@ fn fetch_full_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>, art
     app.set_status("Fetching full article...".to_string());
     update_article_content(app, "⏳ Fetching full article, please wait...".to_string());
 
-    let tx2 = tx.clone();
+    let Some((source, art_idx, _link)) = resolve_article_source(app) else {
+        return;
+    };
     let url = article.link.clone();
-    let source = if app.in_category_context {
-        let (fi, _ai) = app
-            .category_view_articles
-            .get(app.selected_article)
-            .copied()
-            .unwrap_or((app.selected_feed, app.selected_article));
-        FeedSource::Feed(fi)
-    } else if app.in_saved_context {
-        FeedSource::Saved
-    } else {
-        FeedSource::Feed(app.selected_feed)
-    };
-    let art_idx = if app.in_category_context {
-        app.category_view_articles
-            .get(app.selected_article)
-            .map(|&(_, ai)| ai)
-            .unwrap_or(app.selected_article)
-    } else {
-        app.selected_article
-    };
+    let tx = tx.clone();
     app.article_fetching = true;
     tokio::spawn(async move {
         let result = fetch_readable_content(&url).await;
-        let _ = tx2.send(AppEvent::FullArticleFetched(source, art_idx, result));
+        let _ = tx.send(AppEvent::FullArticleFetched(source, art_idx, result));
     });
 }
 
