@@ -59,8 +59,33 @@ async fn http_get_bytes(url: &str) -> Result<Vec<u8>, String> {
     Ok(body)
 }
 
-/// Fetch bytes with an RSS-specific Accept header and challenge-page detection.
+/// Fetch bytes with an RSS-specific Accept header and challenge-page detection,
+/// retrying transient failures with exponential backoff.
 async fn http_get_feed_bytes(url: &str) -> Result<Vec<u8>, String> {
+    const MAX_RETRIES: u32 = 2;
+    const INITIAL_BACKOFF_MS: u64 = 1000;
+    const MAX_BACKOFF_MS: u64 = 5000;
+
+    let mut backoff_ms = INITIAL_BACKOFF_MS;
+
+    for attempt in 0..=MAX_RETRIES {
+        let result = fetch_feed_bytes_once(url).await;
+        match result {
+            Ok(bytes) => return Ok(bytes),
+            Err(e) => {
+                if attempt == MAX_RETRIES || !is_retryable_error(&e) {
+                    return Err(e);
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
+                backoff_ms = (backoff_ms * 2).min(MAX_BACKOFF_MS);
+            }
+        }
+    }
+    unreachable!()
+}
+
+/// Single attempt to fetch and validate feed bytes.
+async fn fetch_feed_bytes_once(url: &str) -> Result<Vec<u8>, String> {
     let resp = http_client()
         .get(url)
         .header(
@@ -68,9 +93,6 @@ async fn http_get_feed_bytes(url: &str) -> Result<Vec<u8>, String> {
             "application/rss+xml, application/xml, text/xml, */*",
         )
         .header("Accept-Language", "en-US,en;q=0.9")
-        .header("Sec-Fetch-Dest", "document")
-        .header("Sec-Fetch-Mode", "navigate")
-        .header("Sec-Fetch-Site", "none")
         .send()
         .await
         .map_err(|e| format!("Network error: {e}"))?;
@@ -97,12 +119,20 @@ async fn http_get_feed_bytes(url: &str) -> Result<Vec<u8>, String> {
     Ok(body)
 }
 
+/// Returns true for errors that may resolve on retry (rate-limit, server-down, network).
+fn is_retryable_error(error: &str) -> bool {
+    error.starts_with("HTTP 429")
+        || error.starts_with("HTTP 503")
+        || error.starts_with("Network error")
+        || error.starts_with("Semaphore error")
+}
+
 /// Returns the shared, lazily-initialised HTTP client used for all outgoing requests.
 pub(crate) fn http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
-            .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            .user_agent(concat!("brochure/", env!("CARGO_PKG_VERSION")))
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("failed to build HTTP client")
