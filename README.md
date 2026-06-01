@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-89dceb?style=flat-square)](LICENSE)
 [![Rust: 1.95+](https://img.shields.io/badge/rust-1.95+-fab387?style=flat-square)](https://www.rust-lang.org)
 
-Built with [Ratatui](https://ratatui.rs) · 5 built-in themes · Full RSS/Atom support
+Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 light) · Full RSS/Atom support
 
 </div>
 
@@ -18,14 +18,18 @@ Built with [Ratatui](https://ratatui.rs) · 5 built-in themes · Full RSS/Atom s
 ## Features
 
 - **RSS & Atom** — both feed formats supported out of the box
-- **Categories** — organise feeds into collapsible groups
+- **24 themes** — 17 dark and 7 light built-in colour themes, plus custom TOML themes with live preview
+- **Zen mode** — distraction-free full-screen reading view that hides all chrome, configurable content width
+- **Inline images** — PNG, JPEG, and SVG images rendered directly in article content
+- **Categories** — organise feeds into collapsible groups (state remembered across restarts)
 - **Saved articles** — star any article and group saves by source
 - **OPML import/export** — bring your existing subscriptions in, or take them out
 - **Readability fetch** — pulls full article body when the feed only provides a summary
 - **Fetch policy** — choose when brochure refreshes: on start, every hour, every day, or never
 - **Feed editor** — rename, move, and delete feeds and categories without leaving the TUI
-- **Themes** — five built-in colour themes (Catppuccin Mocha, Gruvbox Dark, Dracula, Nord, GNOME) plus custom TOML
-  themes
+- **Clipboard copy** — copy article or feed URLs with a single keypress
+- **Changelog viewer** — browse release notes from within the app
+- **Skeleton animation** — noise-pattern placeholder while articles and feeds load
 
 ## Installation
 
@@ -39,7 +43,7 @@ Then launch with:
 brochure
 ```
 
-**Requirements:** Rust 1.85 or later. Install via [rustup](https://rustup.rs) if needed.
+**Requirements:** Rust 1.95 or later. Install via [rustup](https://rustup.rs) if needed.
 
 ## Data & configuration
 
@@ -57,25 +61,12 @@ OPML exports go to your **Downloads** folder by default.
 
 ## Themes
 
-brochure ships five built-in themes: **Catppuccin Mocha**, **Gruvbox Dark**, **Dracula**, **Nord**, and **GNOME**.
+brochure ships 24 built-in themes (17 dark + 7 light), open from **Settings → Theme**. Themes include Catppuccin,
+Rose Pine, Dracula, Tokyo Night, Nord, Gruvbox, Everforest, Solarized, Monokai, and more.
 
-Open the theme editor from **Settings → Theme**.
-
-### Theme editor
-
-| Key     | Action                                           |
-|---------|--------------------------------------------------|
-| `↑/↓`   | Navigate theme list                              |
-| `Enter` | Activate selected theme                          |
-| `n`     | New custom theme (clone from any existing theme) |
-| `e`     | Edit colors (custom themes only)                 |
-| `r`     | Rename (custom themes only)                      |
-| `d`     | Delete (custom themes only)                      |
-| `x`     | Export theme to a `.toml` file                   |
-| `i`     | Import a `.toml` file as a new custom theme      |
-
-When editing colors, navigate with `↑/↓`, press `Enter` on a slot to type a new `#rrggbb` hex value. A live color swatch
-previews your input. Press `s` or `Esc` to return.
+Scroll through the list to live-preview each theme before committing. You can also create custom themes by cloning
+any built-in or existing custom theme and editing its colours. Custom themes are stored inline in `user_data.json`.
+Import and export are supported via `.toml` files.
 
 ### Custom theme TOML format
 
@@ -104,7 +95,7 @@ You can have any number of custom themes.
 
 ## Contributing
 
-Bug reports and feature requests are welcome — [open an issue](https://github.com/TcePrepK/brochure/issues/new).
+Bug reports and feature requests are welcome — [open an issue](https://github.com/Sylviromi/brochure/issues/new).
 
 Pull requests are also welcome. Please run `cargo fmt && cargo clippy` before submitting.
 
