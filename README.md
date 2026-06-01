@@ -74,23 +74,25 @@ Import and export are supported via `.toml` files.
 name = "My Theme"
 
 [colors]
-accent = "#cba6f7"   # focused borders, selected items, active highlights
-link = "#89b4fa"   # links and inline highlights
-success = "#a6e3a1"   # read articles, positive indicators
-notice = "#fab387"   # section headers, feed names, mild warnings
-bg = "#1e1e2e"   # main panel background
-bg_dark = "#181825"   # tab bar, footer, sidebar chrome
-text = "#cdd6f4"   # article titles and body text
-muted_text = "#a6adc8"   # timestamps, secondary info, feed names in lists
-border = "#313244"   # panel dividers, unfocused panel borders
-unread = "#f9e2af"   # unread count badges, star icons
-teal = "#94e2d5"   # category accent 1 (sidebar color rotation)
-sky = "#89dceb"   # category accent 2 (sidebar color rotation)
-pink = "#f5c2e7"   # category accent 3 (sidebar color rotation)
-error = "#f38ba8"   # error messages, delete confirmations
+accent    = "#cba6f7"   # focused borders, selected items, active highlights
+link      = "#89b4fa"   # links and inline highlights
+success   = "#a6e3a1"   # read articles, positive indicators
+header    = "#fab387"   # section headers, popup titles
+bg        = "#1e1e2e"   # main panel background
+bg_dark   = "#181825"   # tab bar, footer, sidebar chrome
+text      = "#cdd6f4"   # article titles and body text
+muted     = "#a6adc8"   # timestamps, secondary info
+border    = "#313244"   # panel dividers, unfocused panel borders
+warning   = "#f9e2af"   # unread count badges, star icons
+code      = "#94e2d5"   # code block foreground
+sky       = "#89dceb"   # article metadata, dates
+pink      = "#f5c2e7"   # category accent (sidebar color rotation)
+error     = "#f38ba8"   # error messages, delete confirmations
+selection = "#313244"   # list item selection background
+code_bg   = "#181825"   # inline code / code block background
 ```
 
-All 14 keys are required. Custom themes are stored inline in `user_data.json` — no external file needed after import.
+All 16 keys are required. Custom themes are stored inline in `user_data.json` — no external file needed after import.
 You can have any number of custom themes.
 
 ## Contributing
