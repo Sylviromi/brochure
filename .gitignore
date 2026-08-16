@@ -9,6 +9,5 @@ changelog/
 vault
 .worktrees/
 .superpowers/
-vhs/*.gif
 vhs/screenshots/
 __pycache__/
