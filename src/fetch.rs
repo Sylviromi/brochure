@@ -124,7 +124,6 @@ fn is_retryable_error(error: &str) -> bool {
     error.starts_with("HTTP 429")
         || error.starts_with("HTTP 503")
         || error.starts_with("Network error")
-        || error.starts_with("Semaphore error")
 }
 
 /// Returns the shared, lazily-initialised HTTP client used for all outgoing requests.
