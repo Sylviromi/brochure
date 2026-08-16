@@ -25,17 +25,19 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
         (" Feeds ", Tab::Feeds),
         (" Saved ", Tab::Saved),
         (" Settings ", Tab::Settings),
-        (" Changelog ", Tab::Changelog),
+        (" Changelog", Tab::Changelog),
     ];
 
     let mut tab_spans: Vec<Span> = vec![
-        " Brochure "
+        "Brochure "
             .fg(app.theme.contrast_color(app.theme.accent))
             .bg(app.theme.accent)
             .bold(),
-        Span::raw("  "),
     ];
+    // Single-space separators and no trailing hint keep the bar within ~47
+    // columns so the last tab (Changelog) is never clipped on narrow terminals.
     for (label, tab) in &tabs {
+        tab_spans.push(Span::raw(" "));
         if app.selected_tab == *tab {
             tab_spans.push(
                 (*label)
@@ -46,9 +48,7 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
         } else {
             tab_spans.push((*label).fg(app.theme.muted));
         }
-        tab_spans.push(Span::raw("  "));
     }
-    tab_spans.push("  [Tab] switch tab".fg(app.theme.border));
 
     let feed_count = app.feeds.iter().filter(|f| f.url != FAVORITES_URL).count();
     let total_articles: usize = app.feeds.iter().map(|f| f.articles.len()).sum();
