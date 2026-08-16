@@ -9,4 +9,4 @@ changelog/
 vault
 .worktrees/
 .superpowers/
-scripts/
+vhs/*.gif
