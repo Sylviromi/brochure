@@ -11,7 +11,7 @@
 
 Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 light) · Full RSS/Atom support
 
-![brochure demo](https://vhs.charm.sh/vhs-10XFObYaN32kx6pVhvyFgm.gif)
+![brochure](https://files.catbox.moe/0uuojx.png)
 
 </div>
 
@@ -98,6 +98,15 @@ Rose Pine, Dracula, Tokyo Night, Nord, Gruvbox, Everforest, Solarized, Monokai, 
 Scroll through the list to live-preview each theme before committing. You can also create custom themes by cloning
 any built-in or existing custom theme and editing its colours. Custom themes are stored inline in `user_data.json`.
 Import and export are supported via `.toml` files.
+
+<p align="center">
+  <img src="https://files.catbox.moe/kfa7my.png" alt="Tokyo Night" width="49%"/>
+  <img src="https://files.catbox.moe/bo2ryn.png" alt="Dracula" width="49%"/>
+  <img src="https://files.catbox.moe/8ch7hi.png" alt="Nord" width="49%"/>
+  <img src="https://files.catbox.moe/lsozol.png" alt="Rose Pine" width="49%"/>
+  <img src="https://files.catbox.moe/ynhj9f.png" alt="Solarized Light" width="49%"/>
+  <img src="https://files.catbox.moe/gcsy8n.png" alt="Catppuccin Latte" width="49%"/>
+</p>
 
 ### Custom theme TOML format
 
