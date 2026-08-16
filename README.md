@@ -11,7 +11,7 @@
 
 Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 light) · Full RSS/Atom support
 
-![brochure](https://files.catbox.moe/0uuojx.png)
+![brochure](https://files.catbox.moe/29re8s.png)
 
 </div>
 
@@ -90,6 +90,15 @@ Files: `feeds.json`, `articles.json`, `categories.json`, `user_data.json`.
 
 OPML exports go to your **Downloads** folder by default.
 
+## Screens
+
+<p align="center">
+  <img src="https://files.catbox.moe/9u27sy.png" alt="Zen mode — distraction-free reading" width="49%"/>
+  <img src="https://files.catbox.moe/xgngqe.png" alt="Saved articles" width="49%"/>
+  <img src="https://files.catbox.moe/duorat.png" alt="Settings" width="49%"/>
+  <img src="https://files.catbox.moe/jwwk0y.png" alt="Changelog" width="49%"/>
+</p>
+
 ## Themes
 
 brochure ships 24 built-in themes (17 dark + 7 light), open from **Settings → Theme**. Themes include Catppuccin,
@@ -100,12 +109,8 @@ any built-in or existing custom theme and editing its colours. Custom themes are
 Import and export are supported via `.toml` files.
 
 <p align="center">
-  <img src="https://files.catbox.moe/kfa7my.png" alt="Tokyo Night" width="49%"/>
-  <img src="https://files.catbox.moe/bo2ryn.png" alt="Dracula" width="49%"/>
-  <img src="https://files.catbox.moe/8ch7hi.png" alt="Nord" width="49%"/>
-  <img src="https://files.catbox.moe/lsozol.png" alt="Rose Pine" width="49%"/>
-  <img src="https://files.catbox.moe/ynhj9f.png" alt="Solarized Light" width="49%"/>
-  <img src="https://files.catbox.moe/gcsy8n.png" alt="Catppuccin Latte" width="49%"/>
+  <img src="https://files.catbox.moe/cqqpdj.png" alt="Tokyo Night" width="49%"/>
+  <img src="https://files.catbox.moe/20rjem.png" alt="Solarized Light" width="49%"/>
 </p>
 
 ### Custom theme TOML format
