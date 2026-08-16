@@ -11,3 +11,4 @@ vault
 .superpowers/
 vhs/*.gif
 vhs/screenshots/
+__pycache__/
