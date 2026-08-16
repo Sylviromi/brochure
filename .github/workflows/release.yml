@@ -1,0 +1,71 @@
+name: Release
+
+# Builds release binaries for every tag push (vX.Y.Z) and attaches them to the
+# GitHub release created by `scripts/release.py`. Users who don't want a
+# multi-minute `cargo install` compile can download a prebuilt binary instead.
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: brochure-linux-x86_64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            name: brochure-linux-aarch64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            name: brochure-macos-x86_64
+          - os: macos-14
+            target: aarch64-apple-darwin
+            name: brochure-macos-aarch64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: brochure-windows-x86_64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.95"
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: target/${{ matrix.target }}/release/brochure${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+
+  publish:
+    name: publish binaries
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Attach to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
