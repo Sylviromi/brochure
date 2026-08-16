@@ -42,8 +42,9 @@ tui-skeleton = "0.3"
 [profile.dev]
 debug = 1
 
+# Ratatui release-app recipe: https://ratatui.rs/recipes/apps/release-your-app/
 [profile.release]
-codegen-units = 1
-lto = true
-opt-level = "s"
-strip = true
+codegen-units = 1 # Allows compiler to perform better optimization.
+lto = true # Enables Link-time Optimization.
+opt-level = "s" # Prioritizes small binary size.
+strip = true # Ensures debug symbols are removed.
