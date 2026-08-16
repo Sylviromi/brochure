@@ -11,6 +11,8 @@
 
 Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 light) · Full RSS/Atom support
 
+![brochure demo](https://vhs.charm.sh/vhs-10XFObYaN32kx6pVhvyFgm.gif)
+
 </div>
 
 ---
@@ -31,10 +33,39 @@ Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 ligh
 - **Changelog viewer** — browse release notes from within the app
 - **Skeleton animation** — noise-pattern placeholder while articles and feeds load
 
+## Keybindings
+
+| Key | Action |
+|-----|--------|
+| `q` | Quit |
+| `j` / `k`, `↓` / `↑` | Move selection |
+| `Enter` | Open feed, category, or article |
+| `Esc` | Back / close popup |
+| `Tab` / `Shift+Tab` | Switch between Feeds · Saved · Settings · Changelog |
+| `r` / `R` | Refresh selected feed / all feeds |
+| `g` | Jump to top of feed list |
+| `C` | Collapse / expand all categories |
+| `Space` | Collapse / expand category |
+| `e` | Feed editor (rename, move, delete, add) |
+| `y` | Copy feed URL |
+
+**In the article list / reader:**
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Open article |
+| `m` | Toggle read / unread |
+| `s` | Save article (pick a category) |
+| `z` | Zen mode — full-screen, distraction-free reading |
+| `O` | Open article in browser |
+| `C` | Copy article link |
+| `n` / `p` | Next / previous article (zen mode) |
+| `PgDn` / `PgUp`, `Home` / `End` | Scroll the article |
+
 ## Installation
 
 ```bash
-cargo install brochure
+cargo install brochure --locked
 ```
 
 Then launch with:
