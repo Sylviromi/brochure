@@ -11,7 +11,7 @@
 
 Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 light) · Full RSS/Atom support
 
-![brochure](https://files.catbox.moe/29re8s.png)
+![brochure](https://files.catbox.moe/pjmv5c.png)
 
 </div>
 
@@ -93,10 +93,10 @@ OPML exports go to your **Downloads** folder by default.
 ## Screens
 
 <p align="center">
-  <img src="https://files.catbox.moe/9u27sy.png" alt="Zen mode — distraction-free reading" width="49%"/>
-  <img src="https://files.catbox.moe/xgngqe.png" alt="Saved articles" width="49%"/>
-  <img src="https://files.catbox.moe/duorat.png" alt="Settings" width="49%"/>
-  <img src="https://files.catbox.moe/jwwk0y.png" alt="Changelog" width="49%"/>
+  <img src="https://files.catbox.moe/dn0um6.png" alt="Zen mode — distraction-free reading" width="49%"/>
+  <img src="https://files.catbox.moe/rps6hh.png" alt="Saved articles" width="49%"/>
+  <img src="https://files.catbox.moe/grxolr.png" alt="Settings" width="49%"/>
+  <img src="https://files.catbox.moe/5d6gni.png" alt="Changelog" width="49%"/>
 </p>
 
 ## Themes
@@ -109,8 +109,8 @@ any built-in or existing custom theme and editing its colours. Custom themes are
 Import and export are supported via `.toml` files.
 
 <p align="center">
-  <img src="https://files.catbox.moe/cqqpdj.png" alt="Tokyo Night" width="49%"/>
-  <img src="https://files.catbox.moe/20rjem.png" alt="Solarized Light" width="49%"/>
+  <img src="https://files.catbox.moe/184fva.png" alt="Tokyo Night" width="49%"/>
+  <img src="https://files.catbox.moe/c96y8x.png" alt="Solarized Light" width="49%"/>
 </p>
 
 ### Custom theme TOML format
