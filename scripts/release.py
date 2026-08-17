@@ -358,6 +358,63 @@ def build_fallback_summary(changelog_content: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Cargo.lock hygiene
+# ---------------------------------------------------------------------------
+
+def fetch_crate_checksum(name: str, version: str) -> str | None:
+    """Look up a crate's checksum in the crates.io sparse index."""
+    import json as _json
+    import urllib.request as _req
+    path = f"{name[:2]}/{name[2:4]}/{name}" if len(name) > 3 else f"{name[0]}/{name[1:]}/{name}"
+    url = f"https://index.crates.io/{path}"
+    try:
+        with _req.urlopen(url, timeout=15) as resp:
+            for line in resp:
+                d = _json.loads(line)
+                if d["vers"] == version:
+                    return d["cksum"]
+    except Exception as e:
+        print(f"[warning] failed to fetch {name}@{version} checksum: {e}", file=sys.stderr)
+    return None
+
+
+def ensure_clean_lock(project_root: str) -> None:
+    """Make sure Cargo.lock's limner entry carries its registry source/checksum.
+
+    The local `.cargo/config.toml` patches limner to a path checkout
+    (`[patch.crates-io] limner = { path = "../limner" }`), which makes cargo
+    write the lock entry without `source`/`checksum`. CI builds use `--locked`
+    and fail on such an entry, so restore the registry metadata before release.
+    """
+    lock_path = os.path.join(project_root, "Cargo.lock")
+    with open(lock_path) as f:
+        lock = f.read()
+    m = re.search(r'\[\[package\]\]\nname = "limner"\nversion = "([^"]+)"\n', lock)
+    if not m:
+        return
+    # Already clean iff the registry source directly follows limner's version line
+    # (must not scan past the entry — later packages also carry `source =` lines).
+    if re.search(
+        r'\[\[package\]\]\nname = "limner"\nversion = "[^"]+"\nsource = "registry\+',
+        lock,
+    ):
+        return
+    cksum = fetch_crate_checksum("limner", m.group(1))
+    if not cksum:
+        print("[warning] could not fetch limner checksum — Cargo.lock left as-is", file=sys.stderr)
+        return
+    lock = re.sub(
+        r'(\[\[package\]\]\nname = "limner"\nversion = "([^"]+)"\n)',
+        rf'\1source = "registry+https://github.com/rust-lang/crates.io-index"\nchecksum = "{cksum}"\n',
+        lock,
+        count=1,
+    )
+    with open(lock_path, "w") as f:
+        f.write(lock)
+    print("[info] restored registry source/checksum for limner in Cargo.lock")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -486,6 +543,9 @@ def main() -> None:
     except Exception as e:
         print(json.dumps({"error": f"cannot update Cargo.toml: {e}"}))
         sys.exit(1)
+
+    # 5b. Ensure the lock is CI-clean (registry metadata for patched crates).
+    ensure_clean_lock(project_root)
 
     # 6. Rotate changelog files
     try:

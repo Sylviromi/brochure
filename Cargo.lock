@@ -1497,6 +1497,8 @@ dependencies = [
 [[package]]
 name = "limner"
 version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bc19b6246b247d5ca4dcf80e9d808c3b8358730eeb2924daf3e7df70ecec221"
 dependencies = [
  "image",
  "pulldown-cmark",
