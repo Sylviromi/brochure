@@ -141,5 +141,15 @@
       "Off-screen inline images now clip instead of disappearing.",
       "Error indicators use descriptive text in sidebar and preview."
     ]
+  },
+  {
+    "version": "0.10.0",
+    "date": "2026-08-17",
+    "summary": "Maintenance release with various improvements.",
+    "highlights": [
+      "1 features change",
+      "2 ui changes",
+      "1 fixes change"
+    ]
   }
 ]
