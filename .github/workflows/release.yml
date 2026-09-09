@@ -52,7 +52,7 @@ jobs:
       - run: cargo build --release --locked --target ${{ matrix.target }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.name }}
           path: target/${{ matrix.target }}/release/brochure${{ matrix.os == 'windows-latest' && '.exe' || '' }}
@@ -64,12 +64,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: true
 
       - name: Attach to GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*
