@@ -68,6 +68,12 @@ Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 ligh
 cargo install brochure --locked
 ```
 
+Or via [pkgsrc](https://www.pkgsrc.org/) (NetBSD and other platforms):
+
+```bash
+pkgin install brochure
+```
+
 Then launch with:
 
 ```bash
