@@ -15,7 +15,6 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use fetch::fetch_feed;
 use models::{AddFeedStep, AppEvent, AppState, FeedSource, FetchPolicy};
 use ratatui::{Terminal, backend::CrosstermBackend};
 use std::{io, time::Duration};
@@ -152,8 +151,8 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
             .collect();
 
         let fetch_count = fetch_indices.len();
-        app.feeds_total = fetch_count;
-        app.feeds_pending = fetch_count;
+        app.feeds_total = 0;
+        app.feeds_pending = 0;
         if fetch_count > 0 {
             app.set_status("Fetching feeds...");
         }
@@ -167,12 +166,7 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
         }
 
         for idx in fetch_indices {
-            let tx2 = tx.clone();
-            let url = app.feeds[idx].url.clone();
-            tokio::spawn(async move {
-                let result = fetch_feed(&url).await;
-                let _ = tx2.send(AppEvent::FeedFetched(idx, result));
-            });
+            app.refresh_feed_at(idx, &tx);
         }
     } else {
         for feed in &mut app.feeds {
@@ -205,6 +199,20 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
 
             AppEvent::FeedFetched(idx, result) => {
                 on_feed_fetched(&mut app, idx, result, &tx);
+            }
+
+            AppEvent::FreshRssFeedPulled(idx, result) => {
+                on_freshrss_feed_pulled(&mut app, idx, result);
+            }
+
+            AppEvent::FreshRssSynced(result) => {
+                on_freshrss_synced(&mut app, result);
+            }
+
+            AppEvent::FreshRssPushDone(result) => {
+                if let Err(e) = result {
+                    app.set_status(format!("⚠ FreshRSS push failed: {e}"));
+                }
             }
 
             AppEvent::FeedTitleFetched(result) => {
@@ -455,6 +463,12 @@ fn on_feed_fetched(
         }
     }
 
+    // Shared tail: progress counter, view repopulation, persistence.
+    finish_fetch(app);
+}
+
+/// Shared post-fetch bookkeeping used by both local and FreshRSS pulls.
+fn finish_fetch(app: &mut app::App) {
     // Update fetch progress counter
     app.feeds_pending = app.feeds_pending.saturating_sub(1);
 
@@ -474,6 +488,188 @@ fn on_feed_fetched(
 
     // Persist article cache
     let _ = storage::save_articles(&app.feeds, app.user_data.cache_full_articles);
+}
+
+/// Merge server read/star state with local overlays (local reads and saves win).
+fn apply_freshrss_flags(app: &mut app::App, feed_title: &str, articles: &mut [models::Article]) {
+    let mut user_data_changed = false;
+    for art in articles.iter_mut() {
+        art.source_feed = feed_title.to_string();
+        if !art.link.is_empty() && app.user_data.read_links.contains(&art.link) {
+            art.is_read = true;
+        }
+        if !art.link.is_empty()
+            && app
+                .user_data
+                .saved_articles
+                .iter()
+                .any(|s| s.article.link == art.link)
+        {
+            art.is_saved = true;
+        }
+        // Fold server-side reads into the local read set so badges, archive
+        // policy, and cache-clear flows stay consistent.
+        if art.is_read && !art.link.is_empty() && !app.user_data.read_links.contains(&art.link) {
+            app.user_data.read_links.insert(art.link.clone());
+            user_data_changed = true;
+        }
+    }
+    if user_data_changed {
+        let _ = storage::save_user_data(&app.user_data);
+    }
+}
+
+/// Handle a FreshRSS article pull for one feed: merge, recount, save.
+fn on_freshrss_feed_pulled(
+    app: &mut app::App,
+    idx: usize,
+    result: Result<Vec<crate::sync::freshrss::ImportedArticle>, String>,
+) {
+    let ts = now_secs();
+    match result {
+        Ok(pulled) => {
+            // Merge server articles (server read/star wins), then overlay local flags.
+            let title = match app.feeds.get_mut(idx) {
+                Some(feed) => {
+                    crate::sync::freshrss::merge_articles(&mut feed.articles, pulled);
+                    feed.fetch_error = None;
+                    feed.fetched = true;
+                    feed.last_fetched_secs = Some(ts);
+                    feed.title.clone()
+                }
+                None => return,
+            };
+            // Take articles out so the flags helper can borrow `app` mutably.
+            let mut articles = std::mem::take(&mut app.feeds[idx].articles);
+            apply_freshrss_flags(app, &title, &mut articles);
+            let feed = &mut app.feeds[idx];
+            feed.articles = articles;
+            feed.unread_count = feed.articles.iter().filter(|a| !a.is_read).count();
+            let new_len = feed.articles.len();
+            if app.selected_feed == idx && app.selected_article >= new_len {
+                app.selected_article = new_len.saturating_sub(1);
+            }
+        }
+        Err(e) => {
+            let feed_title = app
+                .feeds
+                .get(idx)
+                .map(|f| f.title.clone())
+                .unwrap_or_default();
+            app.set_status(format!("⚠ {feed_title}: {e}"));
+            if let Some(feed) = app.feeds.get_mut(idx) {
+                feed.fetch_error = Some(e);
+                feed.fetched = true;
+            }
+        }
+    }
+
+    finish_fetch(app);
+}
+
+/// Find a category by name or create it at root level. Returns its id.
+fn sync_category_id(app: &mut app::App, label: &str) -> Option<models::CategoryId> {
+    if let Some(id) = app
+        .categories
+        .iter()
+        .find(|c| c.name == label)
+        .map(|c| c.id)
+    {
+        return Some(id);
+    }
+    let next_id = app.categories.iter().map(|c| c.id).max().unwrap_or(0) + 1;
+    let next_order = app.categories.iter().map(|c| c.order).max().unwrap_or(0) + 1;
+    app.categories.push(models::Category {
+        id: next_id,
+        name: label.to_string(),
+        parent_id: None,
+        order: next_order,
+    });
+    Some(next_id)
+}
+
+/// Handle a full FreshRSS sync: upsert subscriptions, merge articles, persist.
+fn on_freshrss_synced(app: &mut app::App, result: Result<crate::sync::client::SyncBundle, String>) {
+    let mut bundle = match result {
+        Ok(b) => b,
+        Err(e) => {
+            app.set_status(format!("⚠ FreshRSS sync failed: {e}"));
+            app.feeds_pending = app.feeds_pending.saturating_sub(1);
+            return;
+        }
+    };
+    app.freshrss_auth = Some(bundle.auth.clone());
+
+    // Ensure one category per distinct server label.
+    let mut labels: Vec<String> = bundle
+        .subs
+        .iter()
+        .filter_map(|s| s.category_label.clone())
+        .collect();
+    labels.sort();
+    labels.dedup();
+    for label in labels {
+        sync_category_id(app, &label);
+    }
+    let _ = storage::save_categories(&app.categories);
+
+    let mut next_order = app.feeds.iter().map(|f| f.order).max().unwrap_or(0) + 1;
+    let (added_feeds, _) = {
+        let categories = &app.categories;
+        crate::sync::freshrss::upsert_subscriptions(
+            &mut app.feeds,
+            bundle.subs,
+            &mut |label| label.and_then(|l| categories.iter().find(|c| c.name == l).map(|c| c.id)),
+            &mut || {
+                let o = next_order;
+                next_order += 1;
+                o
+            },
+        )
+    };
+
+    // Fan out pulled articles to their feeds.
+    let mut new_articles = 0;
+    let feed_indices: Vec<usize> = (0..app.feeds.len()).collect();
+    for idx in feed_indices {
+        let remote_id = app.feeds[idx].remote_id.clone();
+        let Some(remote_id) = remote_id else {
+            continue;
+        };
+        let Some(pulled) = bundle.articles.remove(&remote_id) else {
+            continue;
+        };
+        if pulled.is_empty() {
+            continue;
+        }
+        let title = app.feeds[idx].title.clone();
+        let mut articles = std::mem::take(&mut app.feeds[idx].articles);
+        let added = crate::sync::freshrss::merge_articles(&mut articles, pulled);
+        new_articles += added;
+        apply_freshrss_flags(app, &title, &mut articles);
+        let feed = &mut app.feeds[idx];
+        feed.articles = articles;
+        feed.unread_count = feed.articles.iter().filter(|a| !a.is_read).count();
+        feed.fetched = true;
+        feed.fetch_error = None;
+        feed.last_fetched_secs = Some(now_secs());
+    }
+
+    if let Some(cfg) = app.user_data.freshrss.as_mut() {
+        cfg.last_sync_secs = Some(now_secs());
+    }
+    let _ = storage::save_user_data(&app.user_data);
+    let _ = storage::save_feeds(&app.feeds);
+    let _ = storage::save_articles(&app.feeds, app.user_data.cache_full_articles);
+    app.set_status(format!(
+        "FreshRSS sync complete: {added_feeds} new feeds, {new_articles} new articles."
+    ));
+    app.feeds_pending = app.feeds_pending.saturating_sub(1);
+    if app.in_all_feeds_context {
+        app.populate_all_feeds_view();
+    } else if let Some(cat_id) = app.selected_sidebar_category {
+        app.populate_category_view(cat_id);
+    }
 }
 
 /// Spawn background downloads for article images not yet cached or pending.

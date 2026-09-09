@@ -12,7 +12,7 @@ use std::{collections::HashMap, fs, path::PathBuf};
 ///
 /// Falls back to the current working directory if the platform dir cannot be
 /// determined (e.g. inside a container with no home directory).
-fn data_dir() -> PathBuf {
+pub(crate) fn data_dir() -> PathBuf {
     let dir = dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("brochure");

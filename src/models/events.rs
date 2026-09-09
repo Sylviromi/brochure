@@ -1,6 +1,8 @@
 //! Events flowing over the MPSC channel into the main event loop.
 
 use super::{Article, FeedSource, UpdateInfo};
+use crate::sync::client::SyncBundle;
+use crate::sync::freshrss::ImportedArticle;
 
 /// Events flowing over the MPSC channel into the main event loop.
 #[derive(Debug)]
@@ -11,6 +13,12 @@ pub enum AppEvent {
     Tick,
     /// Result of a background feed fetch: (feed_idx, Result<(articles, xml_updated_secs), error>).
     FeedFetched(usize, Result<(Vec<Article>, Option<i64>), String>),
+    /// Result of a background FreshRSS article pull for one feed.
+    FreshRssFeedPulled(usize, Result<Vec<ImportedArticle>, String>),
+    /// Result of a full FreshRSS sync (subscriptions + articles).
+    FreshRssSynced(Result<SyncBundle, String>),
+    /// Result of pushing one read/star change (Some(error) on failure, silent on success).
+    FreshRssPushDone(Result<(), String>),
     /// Result of background feed-title fetch during the AddFeed flow.
     FeedTitleFetched(Result<String, String>),
     /// Result of fetching the full article content: (source, article_idx, Result<content, error>).

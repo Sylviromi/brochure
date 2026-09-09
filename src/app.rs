@@ -188,6 +188,10 @@ pub struct App {
     pub theme: ColorTheme,
     /// State for the theme editor (cursors and editing context).
     pub theme_editor: ThemeEditorState,
+
+    // ── FreshRSS sync ────────────────────────────────────────────────────
+    /// Cached GReader `Auth` token (runtime only, never persisted).
+    pub freshrss_auth: Option<String>,
 }
 
 /// Sorts `(feed_idx, article_idx, published_secs)` triples newest-first.
@@ -348,6 +352,7 @@ impl App {
             article_title_start_tick: 0,
             theme,
             theme_editor: ThemeEditorState::default(),
+            freshrss_auth: None,
         };
 
         app.populate_all_feeds_view();
@@ -358,6 +363,90 @@ impl App {
     pub fn set_status(&mut self, msg: impl Into<String>) {
         self.status_msg = msg.into();
         self.status_msg_start_tick = self.tick;
+    }
+
+    /// FreshRSS credentials `(base_url, username, password)` when a server is
+    /// configured and a secret is available (env → keyring → file).
+    pub fn freshrss_creds(&self) -> Option<(String, String, String)> {
+        let cfg = self.user_data.freshrss.as_ref()?;
+        let (password, _) =
+            crate::sync::secret::get_password(&cfg.username, &crate::storage::data_dir())?;
+        Some((cfg.base_url.clone(), cfg.username.clone(), password))
+    }
+
+    /// Refresh one feed, routing FreshRSS feeds to the sync client and local
+    /// feeds to direct fetch. Updates progress counters and status.
+    pub fn refresh_feed_at(
+        &mut self,
+        idx: usize,
+        tx: &tokio::sync::mpsc::UnboundedSender<crate::models::AppEvent>,
+    ) {
+        let Some(feed) = self.feeds.get_mut(idx) else {
+            return;
+        };
+        if feed.url == crate::models::FAVORITES_URL {
+            return;
+        }
+        feed.fetched = false;
+        feed.fetch_error = None;
+        self.feeds_pending += 1;
+        self.feeds_total += 1;
+        let use_freshrss = feed.is_freshrss() && feed.remote_id.is_some();
+        let remote_id = feed.remote_id.clone();
+        let url = feed.url.clone();
+        if use_freshrss
+            && let Some((base_url, username, password)) = self.freshrss_creds()
+            && let Some(remote_id) = remote_id
+        {
+            let tx2 = tx.clone();
+            tokio::spawn(async move {
+                let result = async {
+                    let auth =
+                        crate::sync::client::client_login(&base_url, &username, &password).await?;
+                    crate::sync::client::pull_feed_articles(&base_url, &auth, &remote_id).await
+                }
+                .await;
+                let _ = tx2.send(crate::models::AppEvent::FreshRssFeedPulled(idx, result));
+            });
+            return;
+        }
+        let tx2 = tx.clone();
+        tokio::spawn(async move {
+            let result = crate::fetch::fetch_feed(&url).await;
+            let _ = tx2.send(crate::models::AppEvent::FeedFetched(idx, result));
+        });
+    }
+
+    /// Push one read/unread change to FreshRSS.
+    /// No-op for local articles or when no server is configured.
+    /// Failures surface via `AppEvent::FreshRssPushDone(Err)`.
+    pub fn push_read_state(
+        &self,
+        remote_id: Option<String>,
+        is_read: bool,
+        tx: &tokio::sync::mpsc::UnboundedSender<crate::models::AppEvent>,
+    ) {
+        let Some(item_id) = remote_id else {
+            return;
+        };
+        let Some((base_url, username, password)) = self.freshrss_creds() else {
+            return;
+        };
+        let cached = self.freshrss_auth.clone();
+        let tx2 = tx.clone();
+        tokio::spawn(async move {
+            let result = async {
+                let auth = match cached {
+                    Some(a) => a,
+                    None => {
+                        crate::sync::client::client_login(&base_url, &username, &password).await?
+                    }
+                };
+                crate::sync::client::set_read(&base_url, &auth, &item_id, is_read).await
+            }
+            .await;
+            let _ = tx2.send(crate::models::AppEvent::FreshRssPushDone(result));
+        });
     }
 
     /// Cycle body alignment to the next variant.

@@ -7,56 +7,37 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     app::{App, feeds_in_category, sidebar_tree_items},
-    fetch::fetch_feed,
     handlers::article::copy_with_status,
     models::{AppEvent, AppState, FAVORITES_URL, FeedEditorMode, FeedTreeItem},
 };
 
 /// Refresh every non-Favorites feed. Used by both `r` (in AllFeeds context) and `R` (always).
 fn refresh_all_feeds(app: &mut App, tx: &UnboundedSender<AppEvent>) {
-    let count = app.feeds.iter().filter(|f| f.url != FAVORITES_URL).count();
-    if count == 0 {
+    let indices: Vec<usize> = app
+        .feeds
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| f.url != FAVORITES_URL)
+        .map(|(idx, _)| idx)
+        .collect();
+    if indices.is_empty() {
         return;
     }
-    app.feeds_total += count;
-    app.feeds_pending += count;
     app.set_status("Fetching all feeds...");
-    for (idx, feed) in app.feeds.iter_mut().enumerate() {
-        if feed.url == FAVORITES_URL {
-            continue;
-        }
-        feed.fetched = false;
-        feed.fetch_error = None;
-        let url = feed.url.clone();
-        let tx2 = tx.clone();
-        tokio::spawn(async move {
-            let result = fetch_feed(&url).await;
-            let _ = tx2.send(AppEvent::FeedFetched(idx, result));
-        });
+    for idx in indices {
+        app.refresh_feed_at(idx, tx);
     }
 }
 
 /// Refresh every feed in a given category.
 fn refresh_category(app: &mut App, cat_id: u64, tx: &UnboundedSender<AppEvent>) {
     let feed_indices = feeds_in_category(cat_id, &app.categories, &app.feeds);
-    let count = feed_indices.len();
-    if count == 0 {
+    if feed_indices.is_empty() {
         return;
     }
-    app.feeds_total += count;
-    app.feeds_pending += count;
     app.set_status("Fetching category feeds...");
-    for &idx in &feed_indices {
-        if let Some(feed) = app.feeds.get_mut(idx) {
-            feed.fetched = false;
-            feed.fetch_error = None;
-            let url = feed.url.clone();
-            let tx2 = tx.clone();
-            tokio::spawn(async move {
-                let result = fetch_feed(&url).await;
-                let _ = tx2.send(AppEvent::FeedFetched(idx, result));
-            });
-        }
+    for idx in feed_indices {
+        app.refresh_feed_at(idx, tx);
     }
 }
 
@@ -73,20 +54,11 @@ pub(super) fn handle_feed_list(
                 refresh_all_feeds(app, tx);
             } else if let Some(cat_id) = app.selected_sidebar_category {
                 refresh_category(app, cat_id, tx);
-            } else if let Some(feed) = app.feeds.get_mut(app.selected_feed) {
+            } else if let Some(feed) = app.feeds.get(app.selected_feed) {
                 let idx = app.selected_feed;
-                let url = feed.url.clone();
                 let title = feed.title.clone();
-                feed.fetched = false;
-                feed.fetch_error = None;
                 app.set_status(format!("Refreshing {title}..."));
-                app.feeds_pending += 1;
-                app.feeds_total += 1;
-                let tx2 = tx.clone();
-                tokio::spawn(async move {
-                    let result = fetch_feed(&url).await;
-                    let _ = tx2.send(AppEvent::FeedFetched(idx, result));
-                });
+                app.refresh_feed_at(idx, tx);
             }
         }
         KeyCode::Char('R') if !app.in_saved_context => {

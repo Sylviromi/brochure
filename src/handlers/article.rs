@@ -62,7 +62,7 @@ pub(crate) fn copy_to_clipboard(text: &str) -> Option<&str> {
 
 use crate::{
     app::App,
-    fetch::{fetch_feed, fetch_readable_content},
+    fetch::fetch_readable_content,
     models::{AppEvent, AppState, Article, CONTENT_STUB_MAX_LEN, FeedSource},
     storage::save_user_data,
 };
@@ -81,19 +81,10 @@ pub(super) async fn handle_article(
         KeyCode::Char('q') => return true,
         KeyCode::Char('r') if !app.in_saved_context && !app.in_category_context => {
             let idx = app.selected_feed;
-            if let Some(feed) = app.feeds.get_mut(idx) {
-                let url = feed.url.clone();
+            if let Some(feed) = app.feeds.get(idx) {
                 let title = feed.title.clone();
-                feed.fetched = false;
-                feed.fetch_error = None;
                 app.set_status(format!("Refreshing {title}..."));
-                app.feeds_pending += 1;
-                app.feeds_total += 1;
-                let tx2 = tx.clone();
-                tokio::spawn(async move {
-                    let result = fetch_feed(&url).await;
-                    let _ = tx2.send(AppEvent::FeedFetched(idx, result));
-                });
+                app.refresh_feed_at(idx, tx);
             }
         }
         KeyCode::Down => {
@@ -123,7 +114,7 @@ pub(super) async fn handle_article(
         KeyCode::Enter if app.state == AppState::ArticleList => {
             open_article(app, tx);
         }
-        KeyCode::Char('m') => toggle_read(app),
+        KeyCode::Char('m') => toggle_read(app, tx),
         KeyCode::Char('s') => open_category_picker(app),
         KeyCode::Char('O') => {
             if let Some(article) = get_selected_article(app) {
@@ -164,7 +155,7 @@ pub(super) async fn handle_article(
 fn open_article(app: &mut App, tx: &UnboundedSender<AppEvent>) {
     let article = get_selected_article(app);
     let Some(article) = article else { return };
-    mark_article_as_read(app, &article);
+    mark_article_as_read(app, tx, &article);
     fetch_full_article_if_stub(app, tx, &article);
     app.select();
 }
@@ -206,13 +197,14 @@ fn mark_feed_by_link(app: &mut App, link: &str) {
 }
 
 /// Marks an article as read and persists the updated read-links set.
-fn mark_article_as_read(app: &mut App, article: &Article) {
+fn mark_article_as_read(app: &mut App, tx: &UnboundedSender<AppEvent>, article: &Article) {
     if article.is_read {
         return;
     }
     app.user_data.read_links.insert(article.link.clone());
     let _ = save_user_data(&app.user_data);
     mark_feed_by_link(app, &article.link);
+    app.push_read_state(article.remote_id.clone(), true, tx);
 
     // In saved context, also update the in-memory saved-view list.
     if app.in_saved_context
@@ -223,7 +215,7 @@ fn mark_article_as_read(app: &mut App, article: &Article) {
 }
 
 /// Toggles the read/unread state of the currently selected article and persists the change.
-fn toggle_read(app: &mut App) {
+fn toggle_read(app: &mut App, tx: &UnboundedSender<AppEvent>) {
     let (link, is_read) = if app.in_category_context {
         let &(fi, ai) = match app.category_view_articles.get(app.selected_article) {
             Some(v) => v,
@@ -285,11 +277,18 @@ fn toggle_read(app: &mut App) {
         s.article.is_read = is_read;
     }
     if is_read {
-        app.user_data.read_links.insert(link);
+        app.user_data.read_links.insert(link.clone());
     } else {
         app.user_data.read_links.remove(&link);
     }
     let _ = save_user_data(&app.user_data);
+    let remote_id = app
+        .feeds
+        .iter()
+        .flat_map(|f| f.articles.iter())
+        .find(|a| a.link == link)
+        .and_then(|a| a.remote_id.clone());
+    app.push_read_state(remote_id, is_read, tx);
 }
 
 /// Resolve the feed source, article index, and link for the currently selected article
