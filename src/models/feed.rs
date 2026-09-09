@@ -1,6 +1,6 @@
 //! Display helpers for Feed and Article types (rendering symbols and formatting).
 
-use super::{Article, Feed};
+use super::{Article, CategoryId, Feed, FeedKind};
 use ratatui::prelude::Style;
 use ratatui::style::Color;
 
@@ -12,6 +12,58 @@ impl Feed {
         } else {
             String::new()
         }
+    }
+
+    /// Build a plain local RSS/Atom feed.
+    pub fn new_local(
+        title: String,
+        url: String,
+        category_id: Option<CategoryId>,
+        order: usize,
+    ) -> Self {
+        Self {
+            title,
+            url,
+            category_id,
+            order,
+            kind: FeedKind::Local,
+            remote_id: None,
+            unread_count: 0,
+            articles: vec![],
+            fetched: false,
+            fetch_error: None,
+            feed_updated_secs: None,
+            last_fetched_secs: None,
+        }
+    }
+
+    /// Build a feed subscribed via FreshRSS (`remote_id` is the `feed/N` stream id).
+    pub fn new_freshrss(
+        title: String,
+        url: String,
+        remote_id: String,
+        category_id: Option<CategoryId>,
+        order: usize,
+    ) -> Self {
+        Self {
+            title,
+            url,
+            category_id,
+            order,
+            kind: FeedKind::FreshRss,
+            remote_id: Some(remote_id),
+            unread_count: 0,
+            articles: vec![],
+            fetched: false,
+            fetch_error: None,
+            feed_updated_secs: None,
+            last_fetched_secs: None,
+        }
+    }
+
+    /// Whether this feed syncs via FreshRSS rather than direct fetch.
+    pub fn is_freshrss(&self) -> bool {
+        self.kind == FeedKind::FreshRss
     }
 }
 

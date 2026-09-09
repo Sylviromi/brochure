@@ -280,18 +280,12 @@ pub(super) fn handle_add_feed(app: &mut App, key: KeyEvent, tx: &UnboundedSender
                 } else {
                     app.feeds.iter().map(|f| f.order).max().unwrap_or(0) + 1
                 };
-                app.feeds.push(Feed {
-                    title: title.clone(),
-                    url: url.clone(),
-                    category_id: target_category,
-                    order: next_order,
-                    unread_count: 0,
-                    articles: vec![],
-                    fetched: false,
-                    fetch_error: None,
-                    feed_updated_secs: None,
-                    last_fetched_secs: None,
-                });
+                app.feeds.push(Feed::new_local(
+                    title.clone(),
+                    url.clone(),
+                    target_category,
+                    next_order,
+                ));
                 let _ = save_feeds(&app.feeds);
                 app.set_status(format!("Feed '{title}' added!"));
                 let tx2 = tx.clone();

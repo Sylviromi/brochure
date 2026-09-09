@@ -6,6 +6,7 @@ mod handlers;
 mod models;
 mod state;
 mod storage;
+mod sync;
 mod ui;
 
 use anyhow::Result;

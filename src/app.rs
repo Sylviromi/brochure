@@ -1503,30 +1503,13 @@ mod tests {
     fn test_visible_tree_items_excludes_favorites() {
         let cats = vec![];
         let feeds = vec![
-            Feed {
-                title: "⭐ Favorites".into(),
-                url: FAVORITES_URL.into(),
-                category_id: None,
-                order: 0,
-                unread_count: 0,
-                articles: vec![],
-                fetched: false,
-                fetch_error: None,
-                feed_updated_secs: None,
-                last_fetched_secs: None,
-            },
-            Feed {
-                title: "News".into(),
-                url: "https://news.example.com/feed".into(),
-                category_id: None,
-                order: 0,
-                unread_count: 0,
-                articles: vec![],
-                fetched: false,
-                fetch_error: None,
-                feed_updated_secs: None,
-                last_fetched_secs: None,
-            },
+            Feed::new_local("⭐ Favorites".into(), FAVORITES_URL.into(), None, 0),
+            Feed::new_local(
+                "News".into(),
+                "https://news.example.com/feed".into(),
+                None,
+                0,
+            ),
         ];
         let collapsed = HashSet::new();
         let items = visible_tree_items(&cats, &feeds, &collapsed);
@@ -1544,30 +1527,13 @@ mod tests {
             order: 0,
         }];
         let feeds = vec![
-            Feed {
-                title: "⭐ Favorites".into(),
-                url: FAVORITES_URL.into(),
-                category_id: None,
-                order: 0,
-                unread_count: 0,
-                articles: vec![],
-                fetched: false,
-                fetch_error: None,
-                feed_updated_secs: None,
-                last_fetched_secs: None,
-            },
-            Feed {
-                title: "HN".into(),
-                url: "https://news.ycombinator.com/rss".into(),
-                category_id: Some(1),
-                order: 0,
-                unread_count: 0,
-                articles: vec![],
-                fetched: false,
-                fetch_error: None,
-                feed_updated_secs: None,
-                last_fetched_secs: None,
-            },
+            Feed::new_local("⭐ Favorites".into(), FAVORITES_URL.into(), None, 0),
+            Feed::new_local(
+                "HN".into(),
+                "https://news.ycombinator.com/rss".into(),
+                Some(1),
+                0,
+            ),
         ];
         let mut collapsed = HashSet::new();
         collapsed.insert(1u64);

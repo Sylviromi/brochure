@@ -430,18 +430,7 @@ fn push_feed(
         *next_order += 1;
         o
     };
-    new_feeds.push(Feed {
-        title,
-        url,
-        category_id: current_parent,
-        order,
-        unread_count: 0,
-        articles: vec![],
-        fetched: false,
-        fetch_error: None,
-        feed_updated_secs: None,
-        last_fetched_secs: None,
-    });
+    new_feeds.push(Feed::new_local(title, url, current_parent, order));
 }
 
 /// Find existing or create a new category, returning its id.
@@ -514,6 +503,7 @@ mod tests {
             content: String::new(),
             images: Vec::new(),
             source_feed: String::new(),
+            remote_id: None,
             published_secs: None,
             is_archived: false,
             error: None,

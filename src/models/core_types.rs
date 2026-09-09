@@ -5,6 +5,30 @@ use crate::models::theme::custom_theme::CustomTheme;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+/// Where a feed's articles come from.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub enum FeedKind {
+    /// Plain RSS/Atom URL fetched directly (existing behaviour).
+    #[default]
+    Local,
+    /// Subscribed via a FreshRSS server (GReader API), synced side-by-side.
+    FreshRss,
+}
+
+/// Connection settings for a single FreshRSS server.
+///
+/// The API password / auth token is never stored here — see `sync::secret`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FreshRssConfig {
+    /// Normalised API base, e.g. `https://rss.example.com/api/greader.php`.
+    pub base_url: String,
+    /// FreshRSS username.
+    pub username: String,
+    /// Unix seconds of the last successful sync, if any.
+    #[serde(default)]
+    pub last_sync_secs: Option<i64>,
+}
+
 /// A single RSS/Atom feed source.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Feed {
@@ -18,6 +42,12 @@ pub struct Feed {
     /// Display order among siblings (lower = first).
     #[serde(default)]
     pub order: usize,
+    /// Where this feed syncs from. Defaults to `Local` for old JSON.
+    #[serde(default)]
+    pub kind: FeedKind,
+    /// FreshRSS server feed id (e.g. `feed/12`). Only set for `FreshRss` feeds.
+    #[serde(default)]
+    pub remote_id: Option<String>,
     /// Count of unread articles in this feed (runtime, not persisted).
     #[serde(skip, default)]
     pub unread_count: usize,
@@ -62,6 +92,9 @@ pub struct Article {
     /// Name of the feed this article was fetched from (set at fetch time).
     #[serde(default)]
     pub source_feed: String,
+    /// FreshRSS item id (e.g. `tag:google.com,2005:reader/item/...`). Only set for synced articles.
+    #[serde(default)]
+    pub remote_id: Option<String>,
     /// Unix timestamp (seconds) of when the article was published.
     #[serde(default)]
     pub published_secs: Option<i64>,
@@ -294,4 +327,7 @@ pub struct UserData {
     /// Legacy: path to a custom `.toml` theme file. Migrated on load; never re-written.
     #[serde(default, skip_serializing)]
     pub custom_theme_path: Option<String>,
+    /// FreshRSS server connection (no secrets — see `sync::secret`). None = local-only mode.
+    #[serde(default)]
+    pub freshrss: Option<FreshRssConfig>,
 }
