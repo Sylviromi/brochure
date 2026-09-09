@@ -52,8 +52,6 @@ struct Subscription {
     title: String,
     #[serde(default)]
     url: String,
-    #[serde(default, rename = "htmlUrl")]
-    html_url: String,
     #[serde(default)]
     categories: Vec<SubscriptionCategory>,
 }
@@ -161,6 +159,9 @@ struct StreamOrigin {
 pub struct ImportedArticle {
     pub article: Article,
     /// Server feed id (`feed/12`) for fan-out, if the origin was present.
+    /// Unread in the per-feed pull path (keyed by subscription id instead);
+    /// kept for future `reading-list` fan-out.
+    #[allow(dead_code)]
     pub origin_stream_id: Option<String>,
 }
 
@@ -279,10 +280,10 @@ pub fn match_existing(existing: &[Article], imported: &Article) -> Option<usize>
     {
         return Some(idx);
     }
-    if !imported.link.is_empty() {
-        if let Some(idx) = existing.iter().position(|a| a.link == imported.link) {
-            return Some(idx);
-        }
+    if !imported.link.is_empty()
+        && let Some(idx) = existing.iter().position(|a| a.link == imported.link)
+    {
+        return Some(idx);
     }
     None
 }

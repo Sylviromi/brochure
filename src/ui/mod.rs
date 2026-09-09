@@ -242,6 +242,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if app.state == AppState::AddFeed {
         popups::draw_add_feed_popup(f, app);
     }
+    if app.state == AppState::FreshRssSetup {
+        popups::draw_freshrss_setup_popup(f, app);
+    }
     if matches!(
         app.state,
         AppState::OPMLExportPath | AppState::OPMLImportPath

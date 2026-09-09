@@ -49,7 +49,11 @@ enum SettingDir {
 ///
 /// Refreshes the article cache size on every keypress, toggles boolean settings in-place, and
 /// transitions to sub-states for destructive actions. Returns `true` to quit.
-pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
+pub(super) fn handle_settings(
+    app: &mut App,
+    key: KeyEvent,
+    tx: &UnboundedSender<AppEvent>,
+) -> bool {
     app.article_cache_size = article_cache_size();
     let dir = match key.code {
         KeyCode::Char('q') => return true,
@@ -78,12 +82,12 @@ pub(super) fn handle_settings(app: &mut App, key: KeyEvent) -> bool {
         KeyCode::Right | KeyCode::Char('l') => SettingDir::Right,
         _ => return false,
     };
-    apply_settings_action(app, dir);
+    apply_settings_action(app, dir, tx);
     false
 }
 
 /// Single dispatch for all settings actions, keyed by (setting, direction).
-fn apply_settings_action(app: &mut App, dir: SettingDir) {
+fn apply_settings_action(app: &mut App, dir: SettingDir, tx: &UnboundedSender<AppEvent>) {
     match (app.settings_selected, dir) {
         // ── Modal transitions (Enter only) ─────────────────────────────────
         (SettingsItem::ImportOpml, SettingDir::Enter) => {
@@ -100,6 +104,18 @@ fn apply_settings_action(app: &mut App, dir: SettingDir) {
         }
         (SettingsItem::ClearArticleCache, SettingDir::Enter) => {
             app.state = AppState::ClearArticleCache;
+        }
+        (SettingsItem::FreshRss, SettingDir::Enter)
+        | (SettingsItem::FreshRss, SettingDir::Right) => {
+            if app.user_data.freshrss.is_some() {
+                app.spawn_freshrss_sync(tx);
+            } else {
+                app.freshrss_setup.open(None, None);
+                app.state = AppState::FreshRssSetup;
+            }
+        }
+        (SettingsItem::FreshRss, SettingDir::Left) if app.user_data.freshrss.is_some() => {
+            app.disconnect_freshrss();
         }
         (SettingsItem::Theme, SettingDir::Enter) => {
             let builtin_names = ColorTheme::builtin_names();

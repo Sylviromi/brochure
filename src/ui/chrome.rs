@@ -125,9 +125,10 @@ pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
         AppState::SettingsList => {
             " [↑/↓] Navigate   [Enter] Select   [Tab/Shift+Tab] Switch Tab   [Esc] Back   [q] Quit "
         }
-        AppState::AddFeed | AppState::OPMLExportPath | AppState::OPMLImportPath => {
-            " [Enter] Confirm   [Esc] Cancel "
-        }
+        AppState::AddFeed
+        | AppState::OPMLExportPath
+        | AppState::OPMLImportPath
+        | AppState::FreshRssSetup => " [Enter] Confirm   [Esc] Cancel ",
         AppState::ClearData | AppState::ClearArticleCache => " [Enter] Confirm   [Esc] Cancel ",
         AppState::SavedCategoryList => {
             " [↑/↓] Navigate   [Enter] Open   [Tab/Shift+Tab] Switch Tab   [q] Quit "

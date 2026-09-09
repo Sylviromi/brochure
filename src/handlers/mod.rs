@@ -7,6 +7,7 @@ mod category_picker;
 mod changelog;
 mod feed_editor;
 mod feed_list;
+mod freshrss;
 mod saved_category_editor;
 mod settings;
 mod theme_editor;
@@ -125,7 +126,8 @@ pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEv
     }
     match app.state {
         AppState::AddFeed => settings::handle_add_feed(app, key, tx),
-        AppState::SettingsList => return settings::handle_settings(app, key),
+        AppState::SettingsList => return settings::handle_settings(app, key, tx),
+        AppState::FreshRssSetup => freshrss::handle_freshrss_setup(app, key, tx),
         AppState::OPMLExportPath | AppState::OPMLImportPath => {
             settings::handle_opml_path(app, key, tx)
         }

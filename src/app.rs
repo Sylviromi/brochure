@@ -6,9 +6,12 @@
 use crate::models::ThemeEditorState;
 use crate::models::{
     AddFeedStep, AppState, Article, Category, CategoryId, EditorPanel, FAVORITES_URL, Feed,
-    FeedEditorMode, FeedTreeItem, ListScroll, SettingsItem, Tab, TextScroll, UpdateInfo, UserData,
+    FeedEditorMode, FeedKind, FeedTreeItem, ListScroll, SettingsItem, Tab, TextScroll, UpdateInfo,
+    UserData,
 };
-use crate::state::{AddFeedState, CategoryPickerState, FeedEditorState, OpmlState};
+use crate::state::{
+    AddFeedState, CategoryPickerState, FeedEditorState, FreshRssSetupState, OpmlState,
+};
 use crate::storage::{
     article_cache_size, load_categories, load_feeds, load_user_data, save_categories, save_feeds,
     save_user_data,
@@ -192,6 +195,28 @@ pub struct App {
     // ── FreshRSS sync ────────────────────────────────────────────────────
     /// Cached GReader `Auth` token (runtime only, never persisted).
     pub freshrss_auth: Option<String>,
+    /// State for the FreshRSS server setup wizard.
+    pub freshrss_setup: FreshRssSetupState,
+}
+
+/// A read/star mutation queued for push to FreshRSS.
+#[derive(Debug, Clone, Copy)]
+enum PushKind {
+    Read(bool),
+    Starred(bool),
+}
+
+/// Human-readable age (`just now`, `5m ago`, `3h ago`, `2d ago`) for sync timestamps.
+fn format_age(secs: i64) -> String {
+    if secs < 60 {
+        "just now".to_string()
+    } else if secs < 3600 {
+        format!("{}m ago", secs / 60)
+    } else if secs < 86400 {
+        format!("{}h ago", secs / 3600)
+    } else {
+        format!("{}d ago", secs / 86400)
+    }
 }
 
 /// Sorts `(feed_idx, article_idx, published_secs)` triples newest-first.
@@ -353,6 +378,7 @@ impl App {
             theme,
             theme_editor: ThemeEditorState::default(),
             freshrss_auth: None,
+            freshrss_setup: FreshRssSetupState::default(),
         };
 
         app.populate_all_feeds_view();
@@ -426,6 +452,79 @@ impl App {
         is_read: bool,
         tx: &tokio::sync::mpsc::UnboundedSender<crate::models::AppEvent>,
     ) {
+        self.spawn_freshrss_push(remote_id, PushKind::Read(is_read), tx);
+    }
+
+    /// Push one star/unstar change to FreshRSS (local saves map to server stars).
+    /// No-op for local articles or when no server is configured.
+    pub fn push_star_state(
+        &self,
+        remote_id: Option<String>,
+        starred: bool,
+        tx: &tokio::sync::mpsc::UnboundedSender<crate::models::AppEvent>,
+    ) {
+        self.spawn_freshrss_push(remote_id, PushKind::Starred(starred), tx);
+    }
+
+    /// Kick off a full FreshRSS sync (subscriptions + articles).
+    /// Returns false when no server is configured. Results arrive as `FreshRssSynced`.
+    pub fn spawn_freshrss_sync(
+        &mut self,
+        tx: &tokio::sync::mpsc::UnboundedSender<crate::models::AppEvent>,
+    ) -> bool {
+        let Some((base_url, username, password)) = self.freshrss_creds() else {
+            return false;
+        };
+        self.feeds_pending += 1;
+        self.feeds_total += 1;
+        self.set_status("Syncing FreshRSS...");
+        let tx2 = tx.clone();
+        tokio::spawn(async move {
+            let result = crate::sync::client::sync_all(&base_url, &username, &password).await;
+            let _ = tx2.send(crate::models::AppEvent::FreshRssSynced(result));
+        });
+        true
+    }
+
+    /// Disconnect the FreshRSS server: clear config + secret, keep feeds as local.
+    /// Synced feeds retain their (real) URLs so direct fetching keeps working.
+    pub fn disconnect_freshrss(&mut self) {
+        if let Some(cfg) = self.user_data.freshrss.take() {
+            crate::sync::secret::delete_password(&cfg.username, &crate::storage::data_dir());
+        }
+        for feed in self.feeds.iter_mut() {
+            if feed.is_freshrss() {
+                feed.kind = FeedKind::Local;
+                feed.remote_id = None;
+            }
+        }
+        self.freshrss_auth = None;
+        let _ = save_user_data(&self.user_data);
+        let _ = save_feeds(&self.feeds);
+        self.set_status("FreshRSS disconnected — feeds kept as local.");
+    }
+
+    /// One-line FreshRSS status for the settings row.
+    pub fn freshrss_status(&self) -> String {
+        match &self.user_data.freshrss {
+            None => "Not connected".to_string(),
+            Some(cfg) => match cfg.last_sync_secs {
+                None => format!("{} — never synced", cfg.username),
+                Some(ts) => {
+                    let age = crate::ui::content::utils::now_secs().saturating_sub(ts);
+                    format!("{} — synced {}", cfg.username, format_age(age))
+                }
+            },
+        }
+    }
+
+    /// Shared push-task spawner for read/star mutations.
+    fn spawn_freshrss_push(
+        &self,
+        remote_id: Option<String>,
+        kind: PushKind,
+        tx: &tokio::sync::mpsc::UnboundedSender<crate::models::AppEvent>,
+    ) {
         let Some(item_id) = remote_id else {
             return;
         };
@@ -442,7 +541,14 @@ impl App {
                         crate::sync::client::client_login(&base_url, &username, &password).await?
                     }
                 };
-                crate::sync::client::set_read(&base_url, &auth, &item_id, is_read).await
+                match kind {
+                    PushKind::Read(read) => {
+                        crate::sync::client::set_read(&base_url, &auth, &item_id, read).await
+                    }
+                    PushKind::Starred(starred) => {
+                        crate::sync::client::set_starred(&base_url, &auth, &item_id, starred).await
+                    }
+                }
             }
             .await;
             let _ = tx2.send(crate::models::AppEvent::FreshRssPushDone(result));

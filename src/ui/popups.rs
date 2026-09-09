@@ -6,7 +6,7 @@
 
 use crate::{
     app::App,
-    models::{AddFeedStep, AppState, CategoryId},
+    models::{AddFeedStep, AppState, CategoryId, FreshRssStep},
     ui::content::utils::split_cursor,
 };
 use ratatui::layout::Constraint::{Fill, Length, Min};
@@ -188,6 +188,93 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
             Line::from(String::new())
         };
     f.render_widget(Paragraph::new(title_content).block(title_block), title_area);
+}
+
+/// Renders the FreshRSS setup wizard: server, username, and masked API password fields.
+pub(super) fn draw_freshrss_setup_popup(f: &mut Frame, app: &App) {
+    let area = f.area();
+    let vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(32),
+            Constraint::Length(3),
+            Constraint::Length(1),
+            Constraint::Length(3),
+            Constraint::Length(1),
+            Constraint::Length(3),
+            Constraint::Percentage(32),
+        ])
+        .split(area);
+    let center = |row: Rect| {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(20),
+                Constraint::Percentage(60),
+                Constraint::Percentage(20),
+            ])
+            .split(row)[1]
+    };
+    let fields = [
+        (
+            center(vertical[1]),
+            " Server (https://rss.example.com) ",
+            &app.freshrss_setup.server_input.text,
+            app.freshrss_setup.server_input.cursor,
+            FreshRssStep::Server,
+            false,
+        ),
+        (
+            center(vertical[3]),
+            " Username ",
+            &app.freshrss_setup.username_input.text,
+            app.freshrss_setup.username_input.cursor,
+            FreshRssStep::Username,
+            false,
+        ),
+        (
+            center(vertical[5]),
+            " API password (Enter to save + sync, Esc to go back) ",
+            &app.freshrss_setup.password_input.text,
+            app.freshrss_setup.password_input.cursor,
+            FreshRssStep::Password,
+            true,
+        ),
+    ];
+    for (field_area, title, text, cursor, step, masked) in fields {
+        f.render_widget(Clear, field_area);
+        let active = app.freshrss_setup.step == step;
+        let display: String = if masked {
+            "•".repeat(text.chars().count())
+        } else {
+            text.clone()
+        };
+        // Re-split the masked display on the same cursor so the caret tracks typing.
+        let content = if active {
+            let (before, cursor_ch, after) = split_cursor(&display, cursor);
+            Line::from(vec![
+                before.fg(app.theme.text),
+                cursor_ch.fg(app.theme.bg).bg(app.theme.success),
+                after.fg(app.theme.text),
+            ])
+        } else {
+            Line::from(Span::styled(display, Style::default().fg(app.theme.text)))
+        };
+        let block = Block::default()
+            .border_set(border_set(app.user_data.border_rounded))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(if active {
+                app.theme.accent
+            } else {
+                app.theme.muted
+            }))
+            .bg(app.theme.bg)
+            .title(Span::styled(
+                title,
+                Style::default().fg(app.theme.link).bold(),
+            ));
+        f.render_widget(Paragraph::new(content).block(block), field_area);
+    }
 }
 
 /// Renders a centered confirmation dialog with a red bordered block.

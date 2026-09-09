@@ -55,6 +55,8 @@ pub enum AppState {
     ThemeEditorExport,
     /// Text input for the import file path.
     ThemeEditorImport,
+    /// Multi-step FreshRSS server setup (server → username → API password).
+    FreshRssSetup,
 }
 
 /// Which tab is active in the tab bar.
@@ -116,6 +118,8 @@ pub enum SettingsItem {
     ZenWidth,
     /// Open the theme picker popup.
     Theme,
+    /// Connect a FreshRSS server (Enter: sync now / open setup; Left: disconnect).
+    FreshRss,
 }
 
 impl SettingsItem {
@@ -138,6 +142,7 @@ impl SettingsItem {
             }
             Self::ZenWidth => "Width of the zen reading mode as a percentage of the terminal",
             Self::Theme => "Browse built-in themes and create custom ones",
+            Self::FreshRss => "Connect a FreshRSS server to sync subscriptions and read state",
         }
     }
 
@@ -150,7 +155,8 @@ impl SettingsItem {
             Self::CacheFullArticles => Self::ClearArticleCache,
             Self::ClearArticleCache => Self::AutoFetchOnStart,
             Self::AutoFetchOnStart => Self::ArchivePolicy,
-            Self::ArchivePolicy => Self::ScrollLoop,
+            Self::ArchivePolicy => Self::FreshRss,
+            Self::FreshRss => Self::ScrollLoop,
             Self::ScrollLoop => Self::BorderStyle,
             Self::BorderStyle => Self::BodyAlignment,
             Self::BodyAlignment => Self::ZenWidth,
@@ -172,7 +178,8 @@ impl SettingsItem {
             Self::ClearArticleCache => Self::CacheFullArticles,
             Self::AutoFetchOnStart => Self::ClearArticleCache,
             Self::ArchivePolicy => Self::AutoFetchOnStart,
-            Self::ScrollLoop => Self::ArchivePolicy,
+            Self::FreshRss => Self::ArchivePolicy,
+            Self::ScrollLoop => Self::FreshRss,
             Self::BorderStyle => Self::ScrollLoop,
         }
     }
@@ -194,6 +201,17 @@ pub enum EditorPanel {
     Categories,
     /// Right panel: combined feed+category tree (move feeds/categories).
     Feeds,
+}
+
+/// Which step the FreshRSS setup wizard is on.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FreshRssStep {
+    /// User is typing the server address.
+    Server,
+    /// User is typing the FreshRSS username.
+    Username,
+    /// User is typing the API password (masked).
+    Password,
 }
 
 /// Which step the multi-step AddFeed flow is on.

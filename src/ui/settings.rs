@@ -22,7 +22,8 @@ pub(super) fn draw_settings_tab(f: &mut Frame, app: &App, area: Rect) {
         | AppState::OPMLExportPath
         | AppState::OPMLImportPath
         | AppState::ClearData
-        | AppState::ClearArticleCache => draw_settings(f, app, area),
+        | AppState::ClearArticleCache
+        | AppState::FreshRssSetup => draw_settings(f, app, area),
         _ => {}
     }
 }
@@ -126,6 +127,17 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
             label: "[ Archive Policy ]",
             in_last: false,
             value: app.user_data.archive_policy.label().to_string(),
+        },
+        Row::Spacer,
+        Row::SectionHeader {
+            label: " Sync",
+            is_last: false,
+        },
+        Row::Cycle {
+            item: SettingsItem::FreshRss,
+            label: "[ FreshRSS Sync ]",
+            in_last: false,
+            value: app.freshrss_status(),
         },
         Row::Spacer,
         Row::SectionHeader {

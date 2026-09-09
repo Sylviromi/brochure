@@ -17,11 +17,7 @@ use crate::{
 ///
 /// Manages both the list-navigation mode and the inline text-input mode for creating a new
 /// category.  Saves or unsaves the currently selected article when the user confirms a choice.
-pub(super) fn handle_category_picker(
-    app: &mut App,
-    key: KeyEvent,
-    _tx: &UnboundedSender<AppEvent>,
-) {
+pub(super) fn handle_category_picker(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEvent>) {
     let cats_len = app.user_data.saved_categories.len();
     let article_is_saved = get_selected_article(app).is_some_and(|art| {
         app.user_data
@@ -61,7 +57,7 @@ pub(super) fn handle_category_picker(
                             });
                             new_id
                         });
-                    save_to_category(app, target_id);
+                    save_to_category(app, tx, target_id);
                     app.set_status(format!("Saved to '{name}'!"));
                 }
                 app.category_picker.new_mode = false;
@@ -94,14 +90,14 @@ pub(super) fn handle_category_picker(
                 let cat_name = app.user_data.saved_categories[app.category_picker.cursor]
                     .name
                     .clone();
-                save_to_category(app, cat_id);
+                save_to_category(app, tx, cat_id);
                 app.set_status(format!("Saved to '{cat_name}'!"));
                 app.state = app.category_picker.return_state.clone();
             } else if app.category_picker.cursor == cats_len {
                 app.category_picker.new_mode = true;
                 app.category_picker.input.clear();
             } else if article_is_saved {
-                unsave_article(app);
+                unsave_article(app, tx);
                 if app.state == AppState::CategoryPicker {
                     app.state = app.category_picker.return_state.clone();
                 }
@@ -145,11 +141,12 @@ pub(super) fn open_category_picker(app: &mut App) {
 /// Saves the currently selected article to the given category, or moves it if already saved.
 ///
 /// Persists `user_data` to disk and syncs the saved-view preview when in saved context.
-fn save_to_category(app: &mut App, category_id: u32) {
+fn save_to_category(app: &mut App, tx: &UnboundedSender<AppEvent>, category_id: u32) {
     let article = match get_selected_article(app) {
         Some(a) => a,
         None => return,
     };
+    let remote_id = article.remote_id.clone();
 
     if let Some(s) = app
         .user_data
@@ -167,6 +164,7 @@ fn save_to_category(app: &mut App, category_id: u32) {
 
     update_is_saved_flag(app, true);
     let _ = save_user_data(&app.user_data);
+    app.push_star_state(remote_id, true, tx);
     if app.in_saved_context {
         app.sync_saved_preview();
         if !app.in_saved_context {
@@ -183,11 +181,12 @@ fn save_to_category(app: &mut App, category_id: u32) {
 /// Removes the currently selected article from saved articles and adjusts the saved view.
 ///
 /// Also clamps `selected_article` to a valid index when the saved-view list shrinks.
-fn unsave_article(app: &mut App) {
+fn unsave_article(app: &mut App, tx: &UnboundedSender<AppEvent>) {
     let article = match get_selected_article(app) {
         Some(a) => a,
         None => return,
     };
+    let remote_id = article.remote_id.clone();
 
     app.user_data
         .saved_articles
@@ -212,6 +211,7 @@ fn unsave_article(app: &mut App) {
 
     app.set_status("Article unsaved.");
     let _ = save_user_data(&app.user_data);
+    app.push_star_state(remote_id, false, tx);
 }
 
 /// Updates the `is_saved` flag on the in-memory article that is currently selected.

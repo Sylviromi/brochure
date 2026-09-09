@@ -11,6 +11,7 @@
 
 use std::path::PathBuf;
 
+#[cfg(feature = "os-keyring")]
 const SERVICE: &str = "brochure-freshrss";
 const ENV_VAR: &str = "BROCHURE_FRESHRSS_PASSWORD";
 
@@ -18,6 +19,8 @@ const ENV_VAR: &str = "BROCHURE_FRESHRSS_PASSWORD";
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SecretSource {
     Env,
+    /// OS keyring backend (only constructed with the `os-keyring` feature).
+    #[allow(dead_code)]
     Keyring,
     File,
 }
@@ -47,12 +50,18 @@ pub fn get_password(username: &str, data_dir: &std::path::Path) -> Option<(Strin
 }
 
 /// Persist the API password, preferring the OS keyring; falls back to a `0600` file.
-/// Returns where it was stored.
+/// When the env override is set it wins at read time, so nothing is written.
+/// Returns where the secret effectively lives.
 pub fn set_password(
     username: &str,
     password: &str,
     data_dir: &std::path::Path,
 ) -> anyhow::Result<SecretSource> {
+    if let Ok(env) = std::env::var(ENV_VAR)
+        && !env.trim().is_empty()
+    {
+        return Ok(SecretSource::Env);
+    }
     #[cfg(feature = "os-keyring")]
     if let Ok(entry) = keyring::Entry::new(SERVICE, username)
         && entry.set_password(password).is_ok()
@@ -76,7 +85,7 @@ pub fn set_password(
 pub fn delete_password(username: &str, data_dir: &std::path::Path) {
     #[cfg(feature = "os-keyring")]
     if let Ok(entry) = keyring::Entry::new(SERVICE, username) {
-        let _ = entry.delete_password();
+        let _ = entry.delete_credential();
     }
     let _ = std::fs::remove_file(secret_path(username, data_dir));
 }
