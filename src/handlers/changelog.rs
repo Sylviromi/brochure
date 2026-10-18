@@ -2,17 +2,8 @@
 
 use crate::app::App;
 use crate::storage::save_user_data;
+use crate::ui::changelog_entry_count;
 use crossterm::event::{KeyCode, KeyEvent};
-
-const CHANGELOG_JSON: &str = include_str!("../../changelog.json");
-
-/// Number of entries in the embedded changelog.
-fn changelog_entry_count() -> usize {
-    match serde_json::from_str::<Vec<serde_json::Value>>(CHANGELOG_JSON) {
-        Ok(v) => v.len(),
-        Err(_) => 0,
-    }
-}
 
 /// Handle key input while viewing the changelog and about screen.
 pub(super) fn handle_changelog(app: &mut App, key: KeyEvent) -> bool {

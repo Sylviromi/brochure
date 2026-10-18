@@ -13,6 +13,8 @@ mod settings;
 pub(crate) mod theme;
 mod theme_editor;
 
+pub(crate) use changelog::changelog_entry_count;
+
 use crate::{
     app::App,
     models::{AppState, FeedTreeItem, Tab},
@@ -187,6 +189,7 @@ pub(crate) fn render_scrollbar(
 /// Dispatches to per-tab renderers (Feeds, Saved, Settings) and overlays state-specific popups
 /// (add-feed wizard, OPML paths, confirm dialogs, category picker, saved category editor).
 pub fn draw(f: &mut Frame, app: &mut App) {
+    app.hit.clear();
     if app.zen_mode {
         draw_zen_mode(f, app);
         return;

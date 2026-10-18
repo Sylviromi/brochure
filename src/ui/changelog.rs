@@ -17,6 +17,18 @@ use super::{content_block, render_scrollbar};
 
 const CHANGELOG_JSON: &str = include_str!("../../changelog.json");
 
+/// Changelog entries embedded at build time, parsed once on first use.
+fn changelog_entries() -> &'static Result<Vec<ChangelogEntry>, String> {
+    static ENTRIES: std::sync::OnceLock<Result<Vec<ChangelogEntry>, String>> =
+        std::sync::OnceLock::new();
+    ENTRIES.get_or_init(|| serde_json::from_str(CHANGELOG_JSON).map_err(|e| e.to_string()))
+}
+
+/// Number of entries in the embedded changelog.
+pub(crate) fn changelog_entry_count() -> usize {
+    changelog_entries().as_ref().map_or(0, Vec::len)
+}
+
 #[derive(serde::Deserialize)]
 struct ChangelogEntry {
     version: String,
@@ -98,7 +110,8 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let entries: Vec<ChangelogEntry> = match serde_json::from_str(CHANGELOG_JSON) {
+    app.hit.changelog = inner;
+    let entries = match changelog_entries() {
         Ok(v) => v,
         Err(e) => {
             f.render_widget(
