@@ -3,18 +3,24 @@
 //! - Wheel: scrolls whatever panel is under the pointer (moving focus to it).
 //! - Left click: selects tabs and rows; clicking the already-selected row of a
 //!   focused list activates it (opens a feed/article, toggles a category).
+//!   Links in the article text open in the browser.
+//! - Drag (feed editor): press on a feed or category and drag to move it; release
+//!   inside the panel drops it, outside cancels. Dragging a category sideways
+//!   changes its nesting depth.
 //!
 //! Actions are routed through the keyboard handlers where possible so both input
 //! paths behave identically. Hit regions come from the last drawn frame
 //! (see [`crate::models::HitAreas`]).
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use ratatui::layout::Rect;
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::article::prefetch_article_if_stub;
 use crate::{
     app::{App, visible_cat_only_items},
     models::{AppEvent, AppState, EditorPanel, FeedEditorMode, FeedTreeItem, hits, list_row},
+    state::EditorDrag,
     ui::content::helpers::split_articles,
 };
 
@@ -29,6 +35,8 @@ pub async fn handle_mouse(app: &mut App, ev: MouseEvent, tx: &UnboundedSender<Ap
         MouseEventKind::ScrollDown => scroll(app, col, row, KeyCode::Down, tx).await,
         MouseEventKind::ScrollUp => scroll(app, col, row, KeyCode::Up, tx).await,
         MouseEventKind::Down(MouseButton::Left) => click(app, col, row, tx).await,
+        MouseEventKind::Drag(MouseButton::Left) => drag(app, col, row, tx).await,
+        MouseEventKind::Up(MouseButton::Left) => release(app, col, row, tx).await,
         _ => false,
     }
 }
@@ -111,6 +119,10 @@ async fn scroll(
 }
 
 async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>) -> bool {
+    if let Some(url) = link_at(app, col, row) {
+        open_link(app, &url);
+        return false;
+    }
     if app.zen_mode {
         return false;
     }
@@ -171,6 +183,7 @@ async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>
         if matches!(app.editor_items().get(i), Some(FeedTreeItem::Feed { .. })) {
             focus_editor_panel(app, EditorPanel::Feeds);
             app.feed_editor.cursor = i;
+            arm_drag(app, EditorPanel::Feeds, col, row, false);
         }
         return false;
     }
@@ -186,13 +199,176 @@ async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>
                 app.feed_editor.panel == EditorPanel::Categories && app.feed_editor.cat_cursor == i;
             focus_editor_panel(app, EditorPanel::Categories);
             app.feed_editor.cat_cursor = i;
-            if reclick {
-                // Enter toggles the category's collapse state.
-                return press(app, KeyCode::Enter, tx).await;
-            }
+            // A re-click toggles collapse on release, unless it turns into a drag.
+            arm_drag(app, EditorPanel::Categories, col, row, reclick);
         }
     }
     false
+}
+
+// ── Feed editor drag-and-drop ────────────────────────────────────────────────
+
+/// Remember a press on an editor row so a following drag can move it.
+fn arm_drag(app: &mut App, panel: EditorPanel, col: u16, row: u16, reclick: bool) {
+    app.feed_editor.drag = Some(EditorDrag {
+        panel,
+        start_col: col,
+        start_row: row,
+        active: false,
+        reclick,
+    });
+}
+
+/// Pointer moved with the button held: enter move mode on the first motion, then
+/// keep the drop target under the pointer.
+async fn drag(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>) -> bool {
+    let Some(mut d) = app.feed_editor.drag else {
+        return false;
+    };
+    if app.state != AppState::FeedEditor {
+        app.feed_editor.drag = None;
+        return false;
+    }
+    if !d.active {
+        if (col, row) == (d.start_col, d.start_row) {
+            return false;
+        }
+        // Space starts a move of the selected row, exactly like the keyboard.
+        if press(app, KeyCode::Char(' '), tx).await {
+            return true;
+        }
+        if !matches!(app.feed_editor.mode, FeedEditorMode::Moving { .. }) {
+            app.feed_editor.drag = None;
+            return false;
+        }
+        d.active = true;
+        app.feed_editor.drag = Some(d);
+    }
+    drag_target_to(app, d, col, row);
+    false
+}
+
+/// Button released: drop (inside the panel) or cancel (outside); a plain re-click
+/// on a category toggles it.
+async fn release(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>) -> bool {
+    let Some(d) = app.feed_editor.drag.take() else {
+        return false;
+    };
+    if app.state != AppState::FeedEditor {
+        return false;
+    }
+    if d.active {
+        let area = match d.panel {
+            EditorPanel::Feeds => app.hit.editor_feeds,
+            EditorPanel::Categories => app.hit.editor_cats,
+        };
+        let code = if hits(area, col, row) {
+            KeyCode::Char(' ')
+        } else {
+            KeyCode::Esc
+        };
+        return press(app, code, tx).await;
+    }
+    if d.reclick {
+        // Enter toggles the category's collapse state.
+        return press(app, KeyCode::Enter, tx).await;
+    }
+    false
+}
+
+/// Model index for display row `r` while a move preview row sits at `preview_at`
+/// (the preview row itself maps to `cursor`, rows after it shift up by one).
+fn unpreview(r: usize, cursor: usize, preview_at: Option<usize>) -> usize {
+    match preview_at {
+        Some(p) if r == p => cursor,
+        Some(p) if r > p => r - 1,
+        _ => r,
+    }
+}
+
+/// Display row under the pointer in `area` (ignoring the column so a drag may
+/// wander sideways); rows above/below clamp to the edges.
+fn drag_row(area: Rect, offset: usize, row: u16) -> Option<usize> {
+    if area.height == 0 {
+        return None;
+    }
+    let row = row.clamp(area.top(), area.bottom() - 1);
+    Some(offset + usize::from(row - area.y))
+}
+
+/// Point the move target at the row under the pointer.
+fn drag_target_to(app: &mut App, d: EditorDrag, col: u16, row: u16) {
+    let FeedEditorMode::Moving {
+        origin_render_idx,
+        original_cursor,
+        ..
+    } = app.feed_editor.mode
+    else {
+        return;
+    };
+    match d.panel {
+        EditorPanel::Feeds => {
+            let Some(r) = drag_row(
+                app.hit.editor_feeds,
+                app.editor_feeds_list_state.offset(),
+                row,
+            ) else {
+                return;
+            };
+            let cursor = app.feed_editor.cursor;
+            let preview_at = (cursor != origin_render_idx).then_some(cursor + 1);
+            let len = app.editor_items().len();
+            app.feed_editor.cursor = unpreview(r, cursor, preview_at).min(len.saturating_sub(1));
+        }
+        EditorPanel::Categories => {
+            let Some(r) = drag_row(
+                app.hit.editor_cats,
+                app.editor_cats_list_state.offset(),
+                row,
+            ) else {
+                return;
+            };
+            let cats =
+                visible_cat_only_items(&app.categories, &app.feeds, &app.feed_editor.collapsed)
+                    .len();
+            let cursor = app.feed_editor.cat_cursor;
+            let preview_at = (cursor < cats).then_some(cursor + 1);
+            // One slot past the last category drops at the root level.
+            app.feed_editor.cat_cursor = unpreview(r, cursor, preview_at).min(cats);
+            let dx = i32::from(col) - i32::from(d.start_col);
+            let depth_delta = match dx {
+                3.. => 1,
+                ..=-3 => -1,
+                _ => 0,
+            };
+            app.feed_editor.mode = FeedEditorMode::Moving {
+                origin_render_idx,
+                original_cursor,
+                depth_delta,
+            };
+        }
+    }
+}
+
+/// URL of the article link under `(col, row)`, if any (reader and zen mode only).
+fn link_at(app: &App, col: u16, row: u16) -> Option<String> {
+    let reading = app.zen_mode || app.state == AppState::ArticleDetail;
+    if !reading || app.update_available.is_some() {
+        return None;
+    }
+    app.hit
+        .article_links
+        .iter()
+        .find(|(r, _)| hits(*r, col, row))
+        .map(|(_, url)| url.clone())
+}
+
+/// Open `url` in the default browser and report it in the status bar.
+fn open_link(app: &mut App, url: &str) {
+    match open::that(url) {
+        Ok(()) => app.set_status(format!("Opened: {url}")),
+        Err(e) => app.set_status(format!("⚠ Could not open link: {e}")),
+    }
 }
 
 /// Click on sidebar row `i`: select it, or activate it when it is already selected
@@ -452,5 +628,126 @@ mod tests {
         .await;
         assert_eq!(app.state, AppState::FeedList);
         assert_eq!(app.sidebar_cursor, 1);
+    }
+
+    #[tokio::test]
+    async fn article_render_is_cached_and_links_are_clickable() {
+        let mut app = App::new();
+        app.update_available = None;
+        with_test_feeds(&mut app);
+        app.feeds[0].articles[0].content = format!(
+            "Read [the docs](https://docs.test) now.\n\n{}",
+            "x".repeat(crate::models::CONTENT_STUB_MAX_LEN)
+        );
+        app.selected_feed = 0;
+        app.selected_article = 0;
+        app.clear_category_view();
+        app.state = AppState::ArticleDetail;
+
+        draw(&mut app);
+        let key = app.article_render.as_ref().unwrap().key();
+        draw(&mut app);
+        assert_eq!(
+            app.article_render.as_ref().unwrap().key(),
+            key,
+            "re-rendered"
+        );
+        app.cycle_alignment_next();
+        draw(&mut app);
+        assert_ne!(
+            app.article_render.as_ref().unwrap().key(),
+            key,
+            "stale cache"
+        );
+
+        let (rect, url) = app.hit.article_links.first().cloned().expect("link region");
+        assert_eq!(url, "https://docs.test");
+        assert_eq!(
+            link_at(&app, rect.x, rect.y).as_deref(),
+            Some("https://docs.test")
+        );
+        assert_eq!(link_at(&app, rect.x, rect.y.saturating_sub(1)), None);
+    }
+
+    #[test]
+    fn unpreview_skips_the_preview_row() {
+        // Cursor on row 2 with the preview inserted at row 3.
+        assert_eq!(unpreview(1, 2, Some(3)), 1);
+        assert_eq!(unpreview(3, 2, Some(3)), 2);
+        assert_eq!(unpreview(5, 2, Some(3)), 4);
+        assert_eq!(unpreview(5, 2, None), 5);
+    }
+
+    /// Drag a feed onto another row, then release outside the panel: move mode
+    /// follows the pointer and the release cancels (nothing is saved).
+    #[tokio::test]
+    async fn dragging_a_feed_moves_the_target_and_cancels_outside() {
+        let mut app = App::new();
+        app.update_available = None;
+        with_test_feeds(&mut app);
+        app.state = AppState::FeedEditor;
+        app.feed_editor.panel = EditorPanel::Feeds;
+        app.feed_editor.cursor = 0;
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        draw(&mut app);
+        let area = app.hit.editor_feeds;
+
+        handle_mouse(&mut app, left_click(area.x + 4, area.y), &tx).await;
+        assert!(app.feed_editor.drag.is_some());
+        let drag_to = |row| mouse(MouseEventKind::Drag(MouseButton::Left), area.x + 4, row);
+        handle_mouse(&mut app, drag_to(area.y + 1), &tx).await;
+        assert!(matches!(
+            app.feed_editor.mode,
+            FeedEditorMode::Moving {
+                origin_render_idx: 0,
+                ..
+            }
+        ));
+        assert_eq!(app.feed_editor.cursor, 1);
+
+        draw(&mut app);
+        let outside = mouse(
+            MouseEventKind::Up(MouseButton::Left),
+            area.right() + 2,
+            area.y,
+        );
+        handle_mouse(&mut app, outside, &tx).await;
+        assert_eq!(app.feed_editor.mode, FeedEditorMode::Normal);
+        assert_eq!(app.feed_editor.cursor, 0, "cancel restores the cursor");
+        assert!(app.feed_editor.drag.is_none());
+        assert_eq!(app.feeds[0].title, "Feed 0");
+    }
+
+    /// Images are converted to terminal protocols on the first frame (which empties
+    /// `image_cache`); later frames must keep placing them.
+    #[tokio::test]
+    async fn inline_images_survive_after_first_frame() {
+        let mut app = App::new();
+        app.update_available = None;
+        with_test_feeds(&mut app);
+        app.picker = Some(limner::render_image::halfblock_picker());
+        let url = "https://img.test/a.png".to_string();
+        app.feeds[0].articles[0].content = format!(
+            "![pic]({url})\n\n{}",
+            "x".repeat(crate::models::CONTENT_STUB_MAX_LEN)
+        );
+        app.image_cache.insert(
+            url.clone(),
+            limner::render_image::img_crate::DynamicImage::new_rgb8(40, 40),
+        );
+        app.selected_feed = 0;
+        app.selected_article = 0;
+        app.clear_category_view();
+        app.state = AppState::ArticleDetail;
+
+        draw(&mut app);
+        assert!(app.protocol_cache.contains_key(&url));
+        assert!(app.image_cache.is_empty(), "decoded image consumed");
+        let rows_with_image = app.content_line_count;
+        for _ in 0..3 {
+            draw(&mut app);
+        }
+        assert_eq!(app.content_line_count, rows_with_image, "image rows kept");
+        assert!(rows_with_image > 3);
     }
 }

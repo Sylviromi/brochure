@@ -19,6 +19,23 @@ pub struct FeedEditorState {
     pub cat_cursor: usize,
     /// Pending category delete: (id, total_feeds_to_delete). Set on [d], cleared on Esc or after confirm.
     pub delete_cat: Option<(CategoryId, usize)>,
+    /// Mouse drag in progress (pressed on a row; becomes a move once the pointer moves).
+    pub drag: Option<EditorDrag>,
+}
+
+/// A left-button press in the feed editor that may turn into drag-and-drop.
+#[derive(Debug, Clone, Copy)]
+pub struct EditorDrag {
+    /// Panel the press started in.
+    pub panel: EditorPanel,
+    /// Column of the initial press (horizontal drag sets category nesting depth).
+    pub start_col: u16,
+    /// Row of the initial press.
+    pub start_row: u16,
+    /// True once the pointer moved and move mode was entered.
+    pub active: bool,
+    /// The press landed on the already-selected category (toggle on release if no drag).
+    pub reclick: bool,
 }
 
 impl Default for FeedEditorState {
@@ -31,6 +48,7 @@ impl Default for FeedEditorState {
             panel: EditorPanel::Feeds,
             cat_cursor: 0,
             delete_cat: None,
+            drag: None,
         }
     }
 }

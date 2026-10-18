@@ -9,6 +9,6 @@ pub mod opml;
 
 pub use add_feed::AddFeedState;
 pub use category_picker::CategoryPickerState;
-pub use feed_editor::FeedEditorState;
+pub use feed_editor::{EditorDrag, FeedEditorState};
 pub use freshrss::FreshRssSetupState;
 pub use opml::OpmlState;
