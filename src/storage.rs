@@ -1,8 +1,12 @@
 //! Disk I/O for brochure: reading and writing feeds, articles, user data, and categories, plus
 //! OPML import/export and path utilities for the platform-specific data directory.
 
-use crate::models::{Article, Category, CategoryId, FAVORITES_URL, Feed, FetchPolicy, UserData};
-use std::{collections::HashMap, fs, path::PathBuf};
+use crate::models::{
+    Article, Category, CategoryId, FAVORITES_URL, Feed, FetchPolicy, SavedArticle, SavedCategory,
+    UserData,
+};
+use serde::{Serialize, de::DeserializeOwned};
+use std::{borrow::Cow, collections::HashMap, fs, path::Path, path::PathBuf};
 // ── Data directory ────────────────────────────────────────────────────────────
 
 /// Returns (and creates if needed) the platform-appropriate data directory:
@@ -39,50 +43,70 @@ fn categories_path() -> PathBuf {
     data_dir().join("categories.json")
 }
 
+// ── JSON helpers ──────────────────────────────────────────────────────────────
+
+/// Read and parse a JSON file, falling back to `T::default()` if absent or corrupt.
+fn read_json<T: DeserializeOwned + Default>(path: &Path) -> T {
+    fs::read(path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
+/// Serialize `value` and replace `path` atomically: write a sibling temp file, then
+/// rename it over the target. A crash or full disk mid-write can then never leave a
+/// truncated file — which would load as empty and silently lose the user's data.
+fn write_json(path: &Path, value: &impl Serialize, pretty: bool) -> anyhow::Result<()> {
+    let content = if pretty {
+        serde_json::to_vec_pretty(value)?
+    } else {
+        serde_json::to_vec(value)?
+    };
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, content)?;
+    fs::rename(&tmp, path)?;
+    Ok(())
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /// Load feeds from disk, returning an empty list if the file is absent or corrupt.
 pub fn load_feeds() -> Vec<Feed> {
-    if let Ok(content) = fs::read_to_string(feeds_path())
-        && let Ok(feeds) = serde_json::from_str(&content)
-    {
-        return feeds;
-    }
-    vec![]
+    read_json(&feeds_path())
 }
 
 /// Persist feeds to disk.
 pub fn save_feeds(feeds: &[Feed]) -> anyhow::Result<()> {
-    let content = serde_json::to_string_pretty(feeds)?;
-    fs::write(feeds_path(), content)?;
-    Ok(())
+    write_json(&feeds_path(), &feeds, true)
+}
+
+/// Move legacy `starred_articles` into a "Starred" saved category.
+/// Returns true when anything was migrated.
+fn migrate_legacy_starred(data: &mut UserData) -> bool {
+    if data.starred_articles.is_empty() || !data.saved_articles.is_empty() {
+        return false;
+    }
+    let cat_id: u32 = 1;
+    data.saved_categories.push(SavedCategory {
+        id: cat_id,
+        name: "Starred".to_string(),
+    });
+    data.saved_articles = std::mem::take(&mut data.starred_articles)
+        .into_iter()
+        .map(|article| SavedArticle {
+            article,
+            category_id: cat_id,
+        })
+        .collect();
+    true
 }
 
 /// Load user data from disk, migrating legacy starred_articles on first load.
 pub fn load_user_data() -> UserData {
-    let mut data: UserData = if let Ok(content) = fs::read_to_string(user_data_path())
-        && let Ok(parsed) = serde_json::from_str(&content)
-    {
-        parsed
-    } else {
-        UserData::default()
-    };
+    let mut data: UserData = read_json(&user_data_path());
 
     // Migrate legacy starred_articles → "Starred" save category.
-    if !data.starred_articles.is_empty() && data.saved_articles.is_empty() {
-        let cat_id: u32 = 1;
-        data.saved_categories.push(crate::models::SavedCategory {
-            id: cat_id,
-            name: "Starred".to_string(),
-        });
-        let old = std::mem::take(&mut data.starred_articles);
-        for art in old {
-            data.saved_articles.push(crate::models::SavedArticle {
-                article: art,
-                category_id: cat_id,
-            });
-        }
-        // Persist the migrated data immediately.
+    if migrate_legacy_starred(&mut data) {
         let _ = save_user_data(&data);
     }
 
@@ -126,62 +150,49 @@ pub fn load_user_data() -> UserData {
 
 /// Persist user data to disk.
 pub fn save_user_data(data: &UserData) -> anyhow::Result<()> {
-    let content = serde_json::to_string_pretty(data)?;
-    fs::write(user_data_path(), content)?;
-    Ok(())
+    write_json(&user_data_path(), data, true)
 }
 
 /// Load cached articles from disk (feed URL → article list).
 pub fn load_articles() -> HashMap<String, Vec<Article>> {
-    if let Ok(content) = fs::read_to_string(articles_path())
-        && let Ok(map) = serde_json::from_str(&content)
-    {
-        return map;
-    }
-    HashMap::new()
+    read_json(&articles_path())
 }
 
-/// Persist articles to disk. When `save_content` is false, content and images are stripped.
+/// Persist articles to disk. When `save_content` is false, article bodies are stripped.
+///
+/// Written as compact JSON: this is the largest file and is never hand-edited.
 pub fn save_articles(feeds: &[Feed], save_content: bool) -> anyhow::Result<()> {
-    let map: HashMap<String, Vec<Article>> = feeds
+    let map: HashMap<&str, Cow<[Article]>> = feeds
         .iter()
         .filter(|f| !f.articles.is_empty() && f.url != FAVORITES_URL)
         .map(|f| {
             let articles = if save_content {
-                f.articles.clone()
+                Cow::Borrowed(f.articles.as_slice())
             } else {
-                f.articles
-                    .iter()
-                    .map(|a| Article {
-                        content: String::new(),
-                        error: None,
-                        ..a.clone()
-                    })
-                    .collect()
+                Cow::Owned(
+                    f.articles
+                        .iter()
+                        .map(|a| Article {
+                            content: String::new(),
+                            ..a.clone()
+                        })
+                        .collect(),
+                )
             };
-            (f.url.clone(), articles)
+            (f.url.as_str(), articles)
         })
         .collect();
-    let content = serde_json::to_string_pretty(&map)?;
-    fs::write(articles_path(), content)?;
-    Ok(())
+    write_json(&articles_path(), &map, false)
 }
 
 /// Load categories from disk, returning empty list if absent or corrupt.
 pub fn load_categories() -> Vec<Category> {
-    if let Ok(content) = fs::read_to_string(categories_path())
-        && let Ok(cats) = serde_json::from_str(&content)
-    {
-        return cats;
-    }
-    vec![]
+    read_json(&categories_path())
 }
 
 /// Persist categories to disk.
 pub fn save_categories(categories: &[Category]) -> anyhow::Result<()> {
-    let content = serde_json::to_string_pretty(categories)?;
-    fs::write(categories_path(), content)?;
-    Ok(())
+    write_json(&categories_path(), &categories, true)
 }
 
 /// Returns the byte size of the article cache file (0 if absent).
@@ -491,7 +502,8 @@ pub fn default_export_path() -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::models::{Article, UserData};
+    use super::migrate_legacy_starred;
+    use crate::models::{Article, SavedArticle, UserData};
 
     fn stub_article(link: &str) -> Article {
         Article {
@@ -516,22 +528,7 @@ mod tests {
         data.starred_articles.push(stub_article("https://a.com/1"));
         data.starred_articles.push(stub_article("https://a.com/2"));
 
-        // Simulate what load_user_data does after deserialization.
-        if !data.starred_articles.is_empty() && data.saved_articles.is_empty() {
-            let cat_id: u32 = 1;
-            data.saved_categories.push(crate::models::SavedCategory {
-                id: cat_id,
-                name: "Starred".to_string(),
-            });
-            let old = std::mem::take(&mut data.starred_articles);
-            for art in old {
-                data.saved_articles.push(crate::models::SavedArticle {
-                    article: art,
-                    category_id: cat_id,
-                });
-            }
-        }
-
+        assert!(migrate_legacy_starred(&mut data));
         assert_eq!(data.saved_categories.len(), 1);
         assert_eq!(data.saved_categories[0].name, "Starred");
         assert_eq!(data.saved_articles.len(), 2);
@@ -543,16 +540,25 @@ mod tests {
     fn test_migration_skipped_when_saved_already_populated() {
         let mut data = UserData::default();
         data.starred_articles.push(stub_article("https://a.com/1"));
-        data.saved_articles.push(crate::models::SavedArticle {
+        data.saved_articles.push(SavedArticle {
             article: stub_article("https://b.com/1"),
             category_id: 99,
         });
 
-        // Migration should NOT run when saved_articles is non-empty.
-        if !data.starred_articles.is_empty() && data.saved_articles.is_empty() {
-            panic!("migration ran unexpectedly");
-        }
-
+        assert!(!migrate_legacy_starred(&mut data));
         assert_eq!(data.saved_articles.len(), 1); // unchanged
+    }
+
+    #[test]
+    fn write_json_replaces_file_atomically() {
+        let dir = std::env::temp_dir().join(format!("brochure-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("data.json");
+        super::write_json(&path, &vec![1, 2, 3], false).unwrap();
+        super::write_json(&path, &vec![4], true).unwrap();
+        let back: Vec<i32> = super::read_json(&path);
+        assert_eq!(back, vec![4]);
+        assert!(!path.with_extension("json.tmp").exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
