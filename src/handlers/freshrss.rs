@@ -58,10 +58,13 @@ fn advance(app: &mut App, tx: &UnboundedSender<AppEvent>) {
                 crate::sync::freshrss::normalise_base_url(&app.freshrss_setup.server_input.text);
             let username = app.freshrss_setup.username_input.text.trim().to_string();
             app.freshrss_setup.clear_secret();
+            // Keep the existing sync category when re-running setup.
+            let category_id = app.user_data.freshrss.as_ref().and_then(|c| c.category_id);
             app.user_data.freshrss = Some(FreshRssConfig {
                 base_url,
                 username: username.clone(),
                 last_sync_secs: None,
+                category_id,
             });
             let _ = save_user_data(&app.user_data);
             match crate::sync::secret::set_password(&username, &password, &data_dir()) {

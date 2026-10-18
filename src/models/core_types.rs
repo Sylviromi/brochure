@@ -27,6 +27,10 @@ pub struct FreshRssConfig {
     /// Unix seconds of the last successful sync, if any.
     #[serde(default)]
     pub last_sync_secs: Option<i64>,
+    /// Sidebar category that holds everything synced from this server.
+    /// `None` until the first sync creates (or adopts) it.
+    #[serde(default)]
+    pub category_id: Option<CategoryId>,
 }
 
 /// A single RSS/Atom feed source.
@@ -264,9 +268,13 @@ pub struct UpdateInfo {
 }
 
 /// User-specific persistent data (read/starred state).
-#[derive(Serialize, Deserialize, Default)]
+///
+/// Every field has a serde default, and [`Default`] is derived from those, so a
+/// fresh install and a missing field in an old file always agree.
+#[derive(Serialize, Deserialize)]
 pub struct UserData {
     /// Set of article links marked as read by the user.
+    #[serde(default)]
     pub read_links: HashSet<String>,
     /// Articles saved by the user into named categories.
     #[serde(default)]
@@ -330,4 +338,28 @@ pub struct UserData {
     /// FreshRSS server connection (no secrets — see `sync::secret`). None = local-only mode.
     #[serde(default)]
     pub freshrss: Option<FreshRssConfig>,
+}
+
+impl Default for UserData {
+    fn default() -> Self {
+        serde_json::from_str("{}").expect("every UserData field has a serde default")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_data_default_matches_serde_defaults() {
+        let data = UserData::default();
+        assert_eq!(data.fetch_policy, FetchPolicy::OnStart);
+        assert!(
+            data.legacy_auto_fetch_on_start,
+            "must not trigger the Never migration"
+        );
+        assert!(data.scroll_loop);
+        assert_eq!(data.zen_width, 66);
+        assert_eq!(data.selected_theme, "catppuccin-mocha");
+    }
 }

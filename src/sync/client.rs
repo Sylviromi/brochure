@@ -6,18 +6,23 @@
 
 use crate::fetch::http_client;
 use crate::sync::freshrss::{
-    ImportedArticle, ImportedSubscription, parse_stream_contents, parse_subscriptions,
+    ImportedArticle, ImportedSubscription, LABEL_READ, LABEL_STARRED, parse_client_login,
+    parse_stream_contents, parse_subscriptions,
 };
 use std::collections::HashMap;
+use std::sync::Arc;
 
 const PAGE_SIZE: u32 = 100;
 const MAX_PAGES_PER_FEED: u32 = 5;
+/// Feeds pulled in parallel during a full sync.
+const SYNC_CONCURRENCY: usize = 4;
 
 /// Everything pulled by [`sync_all`]: subscriptions plus articles per server feed id.
 #[derive(Debug, Clone)]
 pub struct SyncBundle {
     pub subs: Vec<ImportedSubscription>,
-    pub articles: HashMap<String, Vec<ImportedArticle>>,
+    /// Per-feed pull result; one failing feed does not abort the sync.
+    pub articles: HashMap<String, Result<Vec<ImportedArticle>, String>>,
     /// The `Auth` token used for the pull (runtime only — never persisted).
     pub auth: String,
 }
@@ -86,8 +91,7 @@ pub async fn client_login(
         .text()
         .await
         .map_err(|e| format!("FreshRSS read error: {e}"))?;
-    crate::sync::freshrss::parse_client_login(&text)
-        .ok_or_else(|| "FreshRSS login rejected the credentials".to_string())
+    parse_client_login(&text).ok_or_else(|| "FreshRSS login rejected the credentials".to_string())
 }
 
 /// Fetch and parse the subscription list.
@@ -142,14 +146,7 @@ pub async fn fetch_token(base_url: &str, auth: &str) -> Result<String, String> {
 
 /// Add (`read == true`) or remove the read label on one item.
 pub async fn set_read(base_url: &str, auth: &str, item_id: &str, read: bool) -> Result<(), String> {
-    edit_tag(
-        base_url,
-        auth,
-        item_id,
-        crate::sync::freshrss::LABEL_READ,
-        read,
-    )
-    .await
+    edit_tag(base_url, auth, item_id, LABEL_READ, read).await
 }
 
 /// Star (`starred == true`) or unstar one item.
@@ -159,14 +156,7 @@ pub async fn set_starred(
     item_id: &str,
     starred: bool,
 ) -> Result<(), String> {
-    edit_tag(
-        base_url,
-        auth,
-        item_id,
-        crate::sync::freshrss::LABEL_STARRED,
-        starred,
-    )
-    .await
+    edit_tag(base_url, auth, item_id, LABEL_STARRED, starred).await
 }
 
 async fn edit_tag(
@@ -201,7 +191,8 @@ async fn edit_tag(
     }
 }
 
-/// Full pull: login, subscriptions, then articles for every subscribed feed.
+/// Full pull: login, subscriptions, then articles for every subscribed feed
+/// (up to [`SYNC_CONCURRENCY`] feeds at a time).
 pub async fn sync_all(
     base_url: &str,
     username: &str,
@@ -209,17 +200,22 @@ pub async fn sync_all(
 ) -> Result<SyncBundle, String> {
     let auth = client_login(base_url, username, password).await?;
     let subs = fetch_subscriptions(base_url, &auth).await?;
-    let mut articles = HashMap::new();
+    let permits = Arc::new(tokio::sync::Semaphore::new(SYNC_CONCURRENCY));
+    let mut tasks = tokio::task::JoinSet::new();
     for sub in &subs {
-        match pull_feed_articles(base_url, &auth, &sub.remote_id).await {
-            Ok(items) => {
-                articles.insert(sub.remote_id.clone(), items);
-            }
-            Err(e) => {
-                // One failing feed must not abort the whole sync.
-                articles.insert(sub.remote_id.clone(), Vec::new());
-                let _ = e;
-            }
+        let (base_url, auth, remote_id) =
+            (base_url.to_string(), auth.clone(), sub.remote_id.clone());
+        let permits = Arc::clone(&permits);
+        tasks.spawn(async move {
+            let _permit = permits.acquire_owned().await;
+            let result = pull_feed_articles(&base_url, &auth, &remote_id).await;
+            (remote_id, result)
+        });
+    }
+    let mut articles = HashMap::with_capacity(subs.len());
+    while let Some(joined) = tasks.join_next().await {
+        if let Ok((remote_id, result)) = joined {
+            articles.insert(remote_id, result);
         }
     }
     Ok(SyncBundle {
