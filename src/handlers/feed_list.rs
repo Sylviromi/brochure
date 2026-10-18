@@ -6,28 +6,10 @@ use crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    app::{App, feeds_in_category, sidebar_tree_items},
+    app::{App, feeds_in_category},
     handlers::article::copy_with_status,
-    models::{AppEvent, AppState, FAVORITES_URL, FeedEditorMode, FeedTreeItem},
+    models::{AppEvent, AppState, FeedEditorMode, FeedTreeItem},
 };
-
-/// Refresh every non-Favorites feed. Used by both `r` (in AllFeeds context) and `R` (always).
-fn refresh_all_feeds(app: &mut App, tx: &UnboundedSender<AppEvent>) {
-    let indices: Vec<usize> = app
-        .feeds
-        .iter()
-        .enumerate()
-        .filter(|(_, f)| f.url != FAVORITES_URL)
-        .map(|(idx, _)| idx)
-        .collect();
-    if indices.is_empty() {
-        return;
-    }
-    app.set_status("Fetching all feeds...");
-    for idx in indices {
-        app.refresh_feed_at(idx, tx);
-    }
-}
 
 /// Refresh every feed in a given category.
 fn refresh_category(app: &mut App, cat_id: u64, tx: &UnboundedSender<AppEvent>) {
@@ -36,8 +18,13 @@ fn refresh_category(app: &mut App, cat_id: u64, tx: &UnboundedSender<AppEvent>) 
         return;
     }
     app.set_status("Fetching category feeds...");
-    for idx in feed_indices {
-        app.refresh_feed_at(idx, tx);
+    app.refresh_feeds(&feed_indices, tx);
+}
+
+/// Refresh everything (local feeds + a FreshRSS sync when configured).
+fn refresh_all_feeds(app: &mut App, tx: &UnboundedSender<AppEvent>) {
+    if app.refresh_all(tx) {
+        app.set_status("Fetching all feeds...");
     }
 }
 
@@ -75,22 +62,8 @@ pub(super) fn handle_feed_list(
             app.feed_editor.mode = FeedEditorMode::Normal;
             app.state = AppState::FeedEditor;
         }
-        KeyCode::Char('g') => {
-            // Jump to top of feed list
-            app.sidebar_cursor = 0;
-            app.sidebar_title_start_tick = app.tick;
-
-            let items = sidebar_tree_items(&app.categories, &app.feeds, &app.sidebar_collapsed);
-            match items.first() {
-                Some(FeedTreeItem::Feed { feeds_idx, .. }) => {
-                    app.selected_feed = *feeds_idx;
-                }
-                Some(FeedTreeItem::AllFeeds) => {
-                    app.populate_all_feeds_view();
-                }
-                _ => {}
-            }
-        }
+        // Jump to top of feed list
+        KeyCode::Char('g') => app.set_sidebar_cursor(0),
         KeyCode::Char('C') => {
             // Toggle collapse/expand all categories
             let all_collapsed = app
@@ -105,22 +78,11 @@ pub(super) fn handle_feed_list(
                 }
             }
             app.persist_sidebar_collapsed();
-            app.sidebar_cursor = 0;
-            app.sidebar_title_start_tick = app.tick;
-            let items = sidebar_tree_items(&app.categories, &app.feeds, &app.sidebar_collapsed);
-            match items.first() {
-                Some(FeedTreeItem::Feed { feeds_idx, .. }) => {
-                    app.selected_feed = *feeds_idx;
-                }
-                Some(FeedTreeItem::AllFeeds) => {
-                    app.populate_all_feeds_view();
-                }
-                _ => {}
-            }
+            app.set_sidebar_cursor(0);
         }
         KeyCode::Char('y') if !app.in_saved_context => {
-            let items = sidebar_tree_items(&app.categories, &app.feeds, &app.sidebar_collapsed);
-            if let Some(FeedTreeItem::Feed { feeds_idx, .. }) = items.get(app.sidebar_cursor)
+            if let Some(FeedTreeItem::Feed { feeds_idx, .. }) =
+                app.sidebar_items().get(app.sidebar_cursor)
                 && let Some(feed) = app.feeds.get(*feeds_idx)
             {
                 let url = feed.url.clone();
@@ -128,8 +90,9 @@ pub(super) fn handle_feed_list(
             }
         }
         KeyCode::Char(' ') => {
-            let items = sidebar_tree_items(&app.categories, &app.feeds, &app.sidebar_collapsed);
-            if let Some(FeedTreeItem::Category { id, .. }) = items.get(app.sidebar_cursor) {
+            if let Some(FeedTreeItem::Category { id, .. }) =
+                app.sidebar_items().get(app.sidebar_cursor)
+            {
                 app.toggle_category_collapse(*id);
             }
         }

@@ -10,10 +10,10 @@ use tokio::sync::mpsc::UnboundedSender;
 pub(crate) fn copy_with_status(app: &mut App, text: &str, label: &str) {
     match copy_to_clipboard(text) {
         None => {
-            let display = if text.len() > 50 {
-                format!("{}...", &text[..50])
-            } else {
-                text.to_string()
+            // Truncate on a char boundary: byte slicing panics on multi-byte text.
+            let display = match text.char_indices().nth(50) {
+                Some((cut, _)) => format!("{}...", &text[..cut]),
+                None => text.to_string(),
             };
             app.set_status(format!("{label}: {display}"));
         }
@@ -89,13 +89,7 @@ pub(super) async fn handle_article(
         }
         KeyCode::Down => {
             if app.state == AppState::ArticleDetail {
-                let max = app
-                    .content_line_count
-                    .saturating_sub(app.content_area_height as usize)
-                    as u16;
-                if let Some(article) = get_selected_article(app) {
-                    app.article_scroll.scroll_down(&article.link, max);
-                }
+                app.scroll_article(1);
             } else {
                 app.next();
                 prefetch_article_if_stub(app, tx);
@@ -103,28 +97,34 @@ pub(super) async fn handle_article(
         }
         KeyCode::Up => {
             if app.state == AppState::ArticleDetail {
-                if let Some(article) = get_selected_article(app) {
-                    app.article_scroll.scroll_up(&article.link);
-                }
+                app.scroll_article(-1);
             } else {
                 app.previous();
                 prefetch_article_if_stub(app, tx);
             }
         }
+        KeyCode::PageDown if app.state == AppState::ArticleDetail => {
+            app.scroll_article(app.article_page());
+        }
+        KeyCode::PageUp if app.state == AppState::ArticleDetail => {
+            app.scroll_article(-app.article_page());
+        }
+        KeyCode::Home if app.state == AppState::ArticleDetail => app.scroll_article(i32::MIN / 2),
+        KeyCode::End if app.state == AppState::ArticleDetail => app.scroll_article(i32::MAX / 2),
         KeyCode::Enter if app.state == AppState::ArticleList => {
             open_article(app, tx);
         }
         KeyCode::Char('m') => toggle_read(app, tx),
         KeyCode::Char('s') => open_category_picker(app),
         KeyCode::Char('O') => {
-            if let Some(article) = get_selected_article(app) {
+            if let Some(article) = app.selected_article() {
                 let _ = open::that(&article.link);
             }
         }
         KeyCode::Char('C') => {
             if app.state == AppState::ArticleDetail || app.in_saved_context {
-                if let Some(article) = get_selected_article(app) {
-                    copy_with_status(app, &article.link.clone(), "Copied");
+                if let Some(link) = app.selected_article().map(|a| a.link.clone()) {
+                    copy_with_status(app, &link, "Copied");
                 }
             } else {
                 let url = if app.in_category_context {
@@ -164,18 +164,9 @@ fn open_article(app: &mut App, tx: &UnboundedSender<AppEvent>) {
 ///
 /// Returns `None` when no feed is selected, the article list is empty, or indices are out of
 /// bounds.
+/// Prefer [`App::selected_article`] when a borrow suffices.
 pub fn get_selected_article(app: &App) -> Option<Article> {
-    if app.in_category_context {
-        let &(fi, ai) = app.category_view_articles.get(app.selected_article)?;
-        app.feeds.get(fi)?.articles.get(ai).cloned()
-    } else if app.in_saved_context {
-        app.saved_view_articles.get(app.selected_article).cloned()
-    } else {
-        app.feeds
-            .get(app.selected_feed)
-            .and_then(|f| f.articles.get(app.selected_article))
-            .cloned()
-    }
+    app.selected_article().cloned()
 }
 
 /// Mark an article as read in every feed that contains it, and sync saved-article state.
@@ -320,7 +311,7 @@ fn resolve_article_source(app: &App) -> Option<(FeedSource, usize, String)> {
 }
 
 /// Proactively fetches full article content when the cursor lands on a stub-length article.
-pub(super) fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>) {
+pub(crate) fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>) {
     let Some((source, art_idx, link)) = resolve_article_source(app) else {
         return;
     };
@@ -335,14 +326,25 @@ pub(super) fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEv
             .get(art_idx)
             .is_some_and(|a| a.content.len() < CONTENT_STUB_MAX_LEN && a.error.is_none()),
     };
-    if !is_stub {
-        return;
+    if is_stub {
+        spawn_full_article_fetch(app, source, art_idx, link, tx);
     }
+}
+
+/// Fetch readable content for one article in the background; the result arrives as
+/// `AppEvent::FullArticleFetched` (already converted to markdown).
+fn spawn_full_article_fetch(
+    app: &mut App,
+    source: FeedSource,
+    art_idx: usize,
+    link: String,
+    tx: &UnboundedSender<AppEvent>,
+) {
     app.article_fetching = true;
-    let tx2 = tx.clone();
+    let tx = tx.clone();
     tokio::spawn(async move {
         let result = fetch_readable_content(&link).await;
-        let _ = tx2.send(AppEvent::FullArticleFetched(source, art_idx, result));
+        let _ = tx.send(AppEvent::FullArticleFetched(source, art_idx, result));
     });
 }
 
@@ -361,13 +363,7 @@ fn fetch_full_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>, art
     let Some((source, art_idx, _link)) = resolve_article_source(app) else {
         return;
     };
-    let url = article.link.clone();
-    let tx = tx.clone();
-    app.article_fetching = true;
-    tokio::spawn(async move {
-        let result = fetch_readable_content(&url).await;
-        let _ = tx.send(AppEvent::FullArticleFetched(source, art_idx, result));
-    });
+    spawn_full_article_fetch(app, source, art_idx, article.link.clone(), tx);
 }
 
 /// Replaces the in-memory content field of the currently selected article.

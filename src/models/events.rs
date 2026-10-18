@@ -9,6 +9,8 @@ use crate::sync::freshrss::ImportedArticle;
 pub enum AppEvent {
     /// A key input from the user.
     Input(crossterm::event::KeyEvent),
+    /// A mouse click or wheel event from the user.
+    Mouse(crossterm::event::MouseEvent),
     /// Periodic tick for UI updates and animations.
     Tick,
     /// Result of a background feed fetch: (feed_idx, Result<(articles, xml_updated_secs), error>).
@@ -25,6 +27,9 @@ pub enum AppEvent {
     FullArticleFetched(FeedSource, usize, Result<String, String>),
     /// A newer version of brochure is available on crates.io.
     UpdateAvailable(UpdateInfo),
-    /// An image has been downloaded for display in the article detail.
-    ImageDownloaded(String, Result<Vec<u8>, String>),
+    /// An article image was downloaded and decoded off the UI thread (`None` = unusable).
+    ImageDecoded(
+        String,
+        Option<limner::render_image::img_crate::DynamicImage>,
+    ),
 }

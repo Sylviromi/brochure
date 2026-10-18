@@ -281,11 +281,7 @@ pub async fn fetch_feed(url: &str) -> Result<(Vec<Article>, Option<i64>), String
                     }
                 }
             }
-            // Convert HTML to Markdown.
-            let content = html_to_markdown_rs::convert(&html_content, None)
-                .ok()
-                .and_then(|r| r.content)
-                .unwrap_or_default();
+            let content = html_to_markdown(&html_content);
             // Extract image URLs directly from the markdown output to guarantee
             // they match the ![...](url) references that limner will scan for.
             let mut markdown_img_urls: Vec<String> = Vec::new();
@@ -364,15 +360,28 @@ pub async fn fetch_feed_title(url: &str) -> Result<String, String> {
     Ok(parsed.title.map(|t| t.content).unwrap_or_default())
 }
 
+/// Convert an HTML fragment to Markdown (empty string when conversion fails).
+pub(crate) fn html_to_markdown(html: &str) -> String {
+    html_to_markdown_rs::convert(html, None)
+        .ok()
+        .and_then(|r| r.content)
+        .unwrap_or_default()
+}
+
 /// Fetch the full article HTML from the article's URL using Readability, then convert to markdown.
+///
+/// Extraction and conversion are CPU-bound, so they run on the blocking pool.
 pub async fn fetch_readable_content(url: &str) -> Result<String, String> {
     let bytes = http_get_bytes(url).await?;
-
     let parsed_url = reqwest::Url::parse(url).map_err(|_| "Invalid URL".to_string())?;
-    let mut cursor = std::io::Cursor::new(bytes);
-    readability::extractor::extract(&mut cursor, &parsed_url)
-        .map(|product| product.content)
-        .map_err(|e| format!("Readability error: {e}"))
+    tokio::task::spawn_blocking(move || {
+        let mut cursor = std::io::Cursor::new(bytes);
+        readability::extractor::extract(&mut cursor, &parsed_url)
+            .map(|product| html_to_markdown(&product.content))
+            .map_err(|e| format!("Readability error: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Readability error: {e}"))?
 }
 
 /// Fetch the latest published versions of brochure from crates.io and GitHub releases.
