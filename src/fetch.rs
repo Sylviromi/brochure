@@ -368,16 +368,18 @@ pub(crate) fn html_to_markdown(html: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Fetch the full article HTML from the article's URL using Readability, then convert to markdown.
+/// Fetch the article page and extract its main content (Mozilla Readability
+/// algorithm via `dom_smoothie`), converted to markdown.
 ///
 /// Extraction and conversion are CPU-bound, so they run on the blocking pool.
 pub async fn fetch_readable_content(url: &str) -> Result<String, String> {
     let bytes = http_get_bytes(url).await?;
-    let parsed_url = reqwest::Url::parse(url).map_err(|_| "Invalid URL".to_string())?;
+    let url = url.to_string();
     tokio::task::spawn_blocking(move || {
-        let mut cursor = std::io::Cursor::new(bytes);
-        readability::extractor::extract(&mut cursor, &parsed_url)
-            .map(|product| html_to_markdown(&product.content))
+        let html = String::from_utf8_lossy(&bytes);
+        dom_smoothie::Readability::new(html.as_ref(), Some(&url), None)
+            .and_then(|mut r| r.parse())
+            .map(|article| html_to_markdown(&article.content))
             .map_err(|e| format!("Readability error: {e}"))
     })
     .await

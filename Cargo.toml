@@ -22,7 +22,6 @@ dirs = "6.0.0"
 crossterm = "0.29.0"
 feed-rs = "2.3.1"
 html-to-markdown-rs = "3.4.0"
-readability = { version = "0.3.0", default-features = false }
 open = "5.3.3"
 ratatui = { version = "0.30.0", features = ["unstable-rendered-line-info"] }
 # Same minor version feed-rs uses, so only one copy is compiled.
@@ -41,6 +40,7 @@ arboard = { version = "3", default-features = false }
 tui-scrollbar = "0.2.4"
 tui-skeleton = "0.3"
 keyring = { version = "3", optional = true, features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+dom_smoothie = "0.18.2"
 
 [features]
 default = []
