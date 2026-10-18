@@ -20,7 +20,7 @@ use ratatui::{
 use super::content_block;
 
 /// Renders the top tab bar showing the currently selected tab, feed/article counts, and help text.
-pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
+pub(super) fn draw_tab_bar(f: &mut Frame, app: &mut App, area: Rect) {
     let tabs = [
         (" Feeds ", Tab::Feeds),
         (" Saved ", Tab::Saved),
@@ -73,6 +73,16 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &App, area: Rect) {
         .constraints([Constraint::Min(0), Constraint::Length(stats_width)])
         .split(inner);
 
+    // Record each tab label's cells for mouse clicks (spans are laid out left to right).
+    let mut x = cols[0].x;
+    for span in &tab_spans {
+        let width = span.width() as u16;
+        if let Some(&(_, tab)) = tabs.iter().find(|(label, _)| *label == span.content) {
+            let rect = Rect::new(x, cols[0].y, width, 1).intersection(cols[0]);
+            app.hit.tabs.push((rect, tab));
+        }
+        x = x.saturating_add(width);
+    }
     f.render_widget(
         Paragraph::new(Line::from(tab_spans)).bg(app.theme.bg),
         cols[0],

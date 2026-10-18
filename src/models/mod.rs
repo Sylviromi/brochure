@@ -3,6 +3,7 @@
 mod core_types;
 mod events;
 pub mod feed;
+mod hit;
 mod navigation;
 pub mod scroll;
 pub(crate) mod text_input;
@@ -11,6 +12,7 @@ mod tree;
 
 pub use core_types::*;
 pub use events::*;
+pub use hit::{HitAreas, hits, list_row};
 pub use navigation::*;
 pub use scroll::{ListScroll, TextScroll};
 pub(crate) use text_input::TextInput;

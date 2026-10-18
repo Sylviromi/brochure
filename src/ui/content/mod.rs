@@ -15,7 +15,7 @@ mod article_detail;
 mod article_list;
 mod category_view;
 mod footer;
-mod helpers;
+pub(crate) mod helpers;
 mod layouts;
 mod saved_sidebar;
 mod sidebar;

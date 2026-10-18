@@ -275,6 +275,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
         list_area,
         &mut app.editor_feeds_list_state,
     );
+    app.hit.editor_feeds = list_area;
 
     // URL footer: show the selected feed's URL when on a Feed item.
     let url_text = if is_active {
@@ -553,4 +554,5 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
         inner,
         &mut app.editor_cats_list_state,
     );
+    app.hit.editor_cats = inner;
 }

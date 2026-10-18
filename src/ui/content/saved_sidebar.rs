@@ -73,8 +73,14 @@ pub(super) fn draw_saved_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
         app.user_data.border_rounded,
         &app.theme,
     );
+    app.hit.saved_sidebar = block.inner(area);
     let list = List::new(items).block(block);
-    app.saved_sidebar_list_state
-        .select(Some(app.saved_sidebar_cursor));
+    // Visual rows are: "All Saved", separator, then categories — offset the
+    // cursor past the separator so scrolling follows the highlighted row.
+    let visual = match app.saved_sidebar_cursor {
+        0 => 0,
+        n => n + 1,
+    };
+    app.saved_sidebar_list_state.select(Some(visual));
     f.render_stateful_widget(list, area, &mut app.saved_sidebar_list_state);
 }

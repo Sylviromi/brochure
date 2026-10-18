@@ -4,7 +4,7 @@ use crate::models::Article;
 
 /// Splits articles into current and archived groups, returning indices.
 /// Returns (current_indices, archived_indices, has_archived).
-pub(super) fn split_articles(articles: &[Article]) -> (Vec<usize>, Vec<usize>, bool) {
+pub(crate) fn split_articles(articles: &[Article]) -> (Vec<usize>, Vec<usize>, bool) {
     let mut current = Vec::new();
     let mut archived = Vec::new();
     for (i, article) in articles.iter().enumerate() {

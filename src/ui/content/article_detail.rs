@@ -336,6 +336,7 @@ pub(super) fn draw_article_detail(
         (inner_area, Rect::default())
     };
 
+    app.hit.article_detail = content_area;
     render_article_content(
         f,
         app,

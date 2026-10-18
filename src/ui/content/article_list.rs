@@ -127,6 +127,7 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
         );
         let inner = block.inner(area);
         f.render_widget(block, area);
+        app.hit.article_list = inner;
 
         if app.category_view_articles.is_empty() {
             f.render_widget(
@@ -230,10 +231,9 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
         &app.theme,
     );
 
-    let inner = block.inner(area);
+    let list_area = block.inner(area);
     f.render_widget(block, area);
-
-    let list_area = inner;
+    app.hit.article_list = list_area;
 
     if articles.is_empty() {
         if !app.in_saved_context

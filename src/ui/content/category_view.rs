@@ -42,6 +42,7 @@ pub(super) fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rec
     );
     let inner = block.inner(content_area);
     f.render_widget(block, content_area);
+    app.hit.article_list = inner;
 
     if app.category_view_articles.is_empty() {
         f.render_widget(

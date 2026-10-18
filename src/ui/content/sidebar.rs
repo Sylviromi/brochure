@@ -171,6 +171,7 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
 
     app.sidebar_list_state.select(Some(cursor));
     render_scrollable_list(f, items, list_area, &mut app.sidebar_list_state, &app.theme);
+    app.hit.sidebar = list_area;
 
     if let Some(pb) = maybe_progress {
         super::super::chrome::draw_progress_bar(f, app, pb);
