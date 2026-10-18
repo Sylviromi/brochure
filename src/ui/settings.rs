@@ -16,7 +16,7 @@ use ratatui::{
 use super::border_set;
 
 /// Dispatches to the settings list renderer when in a settings-related state.
-pub(super) fn draw_settings_tab(f: &mut Frame, app: &App, area: Rect) {
+pub(super) fn draw_settings_tab(f: &mut Frame, app: &mut App, area: Rect) {
     match app.state {
         AppState::SettingsList
         | AppState::OPMLExportPath
@@ -42,7 +42,7 @@ fn format_cache_size(bytes: u64) -> String {
 }
 
 /// Renders the settings menu with grouped sections, toggles, and action buttons.
-fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
+fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
     enum Row {
         SectionHeader {
             label: &'static str,
@@ -176,135 +176,99 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
         },
     ];
 
+    let theme = &app.theme;
+    let highlight = Style::default().fg(theme.bg_dark).bg(theme.accent).bold();
+    let tree_prefix = |in_last: bool| if in_last { "     " } else { " │   " };
+    // One selectable row: tree prefix, label, and an optional badge whose style is
+    // replaced by the highlight when the row is selected.
+    let item_row =
+        |item: SettingsItem, in_last: bool, label: String, badge: Option<Span<'static>>| {
+            let selected = app.settings_selected == item;
+            let label_style = if selected {
+                highlight
+            } else {
+                Style::default().fg(theme.text)
+            };
+            let mut spans = vec![
+                tree_prefix(in_last).fg(theme.border),
+                Span::styled(label, label_style),
+            ];
+            if let Some(badge) = badge {
+                spans.push(if selected {
+                    badge.style(highlight)
+                } else {
+                    badge
+                });
+            }
+            ListItem::new(Line::from(spans))
+        };
+
+    let mut targets: Vec<Option<SettingsItem>> = Vec::with_capacity(rows.len());
     let list_items: Vec<ListItem> = rows
         .iter()
-        .map(|row| match row {
-            Row::SectionHeader { label, is_last } => {
-                let connector = if *is_last {
-                    if app.user_data.border_rounded {
-                        " ╰─"
+        .map(|row| {
+            let (target, item) = match row {
+                Row::SectionHeader { label, is_last } => {
+                    let connector = match (*is_last, app.user_data.border_rounded) {
+                        (false, _) => " ├─",
+                        (true, true) => " ╰─",
+                        (true, false) => " └─",
+                    };
+                    let line = Line::from(vec![
+                        connector.fg(theme.border),
+                        label.fg(theme.header).bold(),
+                    ]);
+                    (None, ListItem::new(line))
+                }
+                Row::Item {
+                    item,
+                    label,
+                    in_last,
+                } => (
+                    Some(*item),
+                    item_row(*item, *in_last, label.to_string(), None),
+                ),
+                Row::Toggle {
+                    item,
+                    label,
+                    in_last,
+                    on,
+                } => {
+                    let badge = if *on {
+                        "  ON ".fg(theme.success).bold()
                     } else {
-                        " └─"
-                    }
-                } else {
-                    " ├─"
-                };
-                ListItem::new(Line::from(vec![
-                    connector.fg(app.theme.border),
-                    label.fg(app.theme.header).bold(),
-                ]))
-            }
-            Row::Item {
-                item,
-                label,
-                in_last,
-            } => {
-                let prefix = if *in_last { "     " } else { " │   " };
-                let selected = app.settings_selected == *item;
-                let style = if selected {
-                    Style::default()
-                        .fg(app.theme.bg_dark)
-                        .bg(app.theme.accent)
-                        .bold()
-                } else {
-                    Style::default().fg(app.theme.text)
-                };
-                ListItem::new(Line::from(vec![
-                    prefix.fg(app.theme.border),
-                    Span::styled(*label, style),
-                ]))
-            }
-            Row::Toggle {
-                item,
-                label,
-                in_last,
-                on,
-            } => {
-                let prefix = if *in_last { "     " } else { " │   " };
-                let selected = app.settings_selected == *item;
-                let base_style = if selected {
-                    Style::default()
-                        .fg(app.theme.bg_dark)
-                        .bg(app.theme.accent)
-                        .bold()
-                } else {
-                    Style::default().fg(app.theme.text)
-                };
-                let badge_style = if selected {
-                    Style::default()
-                        .fg(app.theme.bg_dark)
-                        .bg(app.theme.accent)
-                        .bold()
-                } else if *on {
-                    Style::default().fg(app.theme.success).bold()
-                } else {
-                    Style::default().fg(app.theme.muted)
-                };
-                ListItem::new(Line::from(vec![
-                    prefix.fg(app.theme.border),
-                    Span::styled(*label, base_style),
-                    Span::styled(if *on { "  ON " } else { "  OFF " }, badge_style),
-                ]))
-            }
-            Row::Cycle {
-                item,
-                label,
-                in_last,
-                value,
-            } => {
-                let prefix = if *in_last { "     " } else { " │   " };
-                let selected = app.settings_selected == *item;
-                let base_style = if selected {
-                    Style::default()
-                        .fg(app.theme.bg_dark)
-                        .bg(app.theme.accent)
-                        .bold()
-                } else {
-                    Style::default().fg(app.theme.text)
-                };
-                let badge_style = if selected {
-                    Style::default()
-                        .fg(app.theme.bg_dark)
-                        .bg(app.theme.accent)
-                        .bold()
-                } else {
-                    Style::default().fg(app.theme.warning).bold()
-                };
-                ListItem::new(Line::from(vec![
-                    prefix.fg(app.theme.border),
-                    Span::styled(*label, base_style),
-                    Span::styled(format!("  {}", value), badge_style),
-                ]))
-            }
-            Row::CacheItem {
-                in_last,
-                size_label,
-            } => {
-                let prefix = if *in_last { "     " } else { " │   " };
-                let selected = app.settings_selected == SettingsItem::ClearArticleCache;
-                let base_style = if selected {
-                    Style::default()
-                        .fg(app.theme.bg_dark)
-                        .bg(app.theme.accent)
-                        .bold()
-                } else {
-                    Style::default().fg(app.theme.text)
-                };
-                let badge_style = if selected {
-                    Style::default()
-                        .fg(app.theme.bg_dark)
-                        .bg(app.theme.accent)
-                        .bold()
-                } else {
-                    Style::default().fg(app.theme.error)
-                };
-                ListItem::new(Line::from(vec![
-                    prefix.fg(app.theme.border),
-                    Span::styled("[ Clear Article Cache ]", base_style),
-                    Span::styled(format!("  {} ", size_label), badge_style),
-                ]))
-            }
-            Row::Spacer => ListItem::new(Line::from(" │".fg(app.theme.border))),
+                        "  OFF ".fg(theme.muted)
+                    };
+                    (
+                        Some(*item),
+                        item_row(*item, *in_last, label.to_string(), Some(badge)),
+                    )
+                }
+                Row::Cycle {
+                    item,
+                    label,
+                    in_last,
+                    value,
+                } => {
+                    let badge = format!("  {value}").fg(theme.warning).bold();
+                    (
+                        Some(*item),
+                        item_row(*item, *in_last, label.to_string(), Some(badge)),
+                    )
+                }
+                Row::CacheItem {
+                    in_last,
+                    size_label,
+                } => {
+                    let item = SettingsItem::ClearArticleCache;
+                    let badge = format!("  {size_label} ").fg(theme.error);
+                    let label = "[ Clear Article Cache ]".to_string();
+                    (Some(item), item_row(item, *in_last, label, Some(badge)))
+                }
+                Row::Spacer => (None, ListItem::new(Line::from(" │".fg(theme.border)))),
+            };
+            targets.push(target);
+            item
         })
         .collect();
 
@@ -320,5 +284,17 @@ fn draw_settings(f: &mut Frame, app: &App, area: Rect) {
         .title(" Settings ".fg(app.theme.header).bold())
         .title_bottom(format!(" {} ", app.settings_selected.description()).fg(app.theme.muted));
 
+    let inner = block.inner(area);
     f.render_widget(List::new(list_items).block(block), area);
+
+    for (i, target) in targets.into_iter().enumerate() {
+        let y = inner.y + i as u16;
+        if let Some(item) = target
+            && y < inner.bottom()
+        {
+            app.hit
+                .settings
+                .push((Rect::new(inner.x, y, inner.width, 1), item));
+        }
+    }
 }

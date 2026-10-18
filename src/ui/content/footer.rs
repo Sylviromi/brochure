@@ -1,6 +1,10 @@
 //! Unified one-row footer rendered below the article list or article detail panel.
 
-use crate::{app::App, handlers::article::get_selected_article, models::Tab};
+use crate::{
+    app::App,
+    models::{Article, Tab},
+    ui::theme::ColorTheme,
+};
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
@@ -12,6 +16,35 @@ use ratatui::{
 
 use super::utils::{age_color, format_age};
 
+/// Push an age (`3h ago`) with the number tinted by freshness and the suffix muted.
+fn push_age_spans(spans: &mut Vec<Span<'static>>, secs: i64, theme: &ColorTheme) {
+    let age = format_age(secs);
+    let color = age_color(secs, theme);
+    match age.strip_suffix(" ago") {
+        Some(number) => {
+            spans.push(number.to_string().fg(color));
+            spans.push(" ago".fg(theme.muted));
+        }
+        None => spans.push(age.fg(color)),
+    }
+}
+
+/// `" N articles  •  M unread"` with the unread count coloured by whether any remain.
+fn stat_spans(total: usize, unread: usize, theme: &ColorTheme) -> Vec<Span<'static>> {
+    let unread_color = if unread > 0 {
+        theme.warning
+    } else {
+        theme.success
+    };
+    vec![
+        " ".fg(theme.muted),
+        total.to_string().fg(theme.link),
+        " articles  •  ".fg(theme.muted),
+        unread.to_string().fg(unread_color),
+        " unread".fg(theme.muted),
+    ]
+}
+
 /// Unified footer renderer used by both `draw_article_list` and `draw_article_detail`.
 ///
 /// When `is_article_view` is `true`, renders article info (link, publish date, scroll %).
@@ -19,126 +52,86 @@ use super::utils::{age_color, format_age};
 /// `area` must be exactly 1 row tall.
 pub(super) fn draw_article_footer(f: &mut Frame, app: &App, area: Rect, is_article_view: bool) {
     if is_article_view {
-        // ── Article detail footer: link, publish date, scroll % ──
-        let Some(article) = get_selected_article(app) else {
-            return;
-        };
-
-        let mut link_spans = vec![Span::raw(" "), article.link.clone().fg(app.theme.muted)];
-        if let Some(secs) = article.published_secs {
-            let age = format_age(secs);
-            let color = age_color(secs, &app.theme);
-            link_spans.push("  •  ".fg(app.theme.muted));
-            if let Some(number_part) = age.strip_suffix(" ago") {
-                link_spans.push(number_part.to_string().fg(color));
-                link_spans.push(" ago".fg(app.theme.muted));
-            } else {
-                link_spans.push(age.fg(color));
-            }
-        }
-
-        let scroll_offset = app.article_scroll.get(&article.link);
-        let line_count = app.content_line_count.max(1);
-        let content_height = app.content_area_height;
-        let max_scroll = line_count.saturating_sub(content_height as usize);
-        let pct = (scroll_offset as usize * 100)
-            .checked_div(max_scroll)
-            .unwrap_or(100)
-            .min(100);
-        let pct_str = format!(" {pct}% ");
-        let pct_width = pct_str.len() as u16;
-        let bar_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Min(0), Constraint::Length(pct_width)])
-            .split(area);
-        f.render_widget(
-            Paragraph::new(Line::from(link_spans)).bg(app.theme.bg),
-            bar_chunks[0],
-        );
-        f.render_widget(
-            Paragraph::new(pct_str)
-                .style(Style::default().fg(app.theme.warning).bold())
-                .bg(app.theme.bg),
-            bar_chunks[1],
-        );
+        draw_article_info(f, app, area);
     } else {
-        // ── Feed stats footer: article count, unread, fetch age on a single row ──
-        if app.selected_tab == Tab::Saved && !app.in_saved_context {
-            f.render_widget(Paragraph::new("").bg(app.theme.bg), area);
-            return;
-        }
-
-        if (app.in_category_context || app.selected_sidebar_category.is_some())
-            && app.selected_tab != Tab::Saved
-        {
-            let article_count = app.category_view_articles.len();
-            let unread_count = app
-                .category_view_articles
-                .iter()
-                .filter(|&&(fi, ai)| {
-                    app.feeds
-                        .get(fi)
-                        .and_then(|f| f.articles.get(ai))
-                        .is_some_and(|a| !a.is_read)
-                })
-                .count();
-            let unread_color = if unread_count > 0 {
-                app.theme.warning
-            } else {
-                app.theme.success
-            };
-            let stat_spans = vec![
-                " ".fg(app.theme.muted),
-                article_count.to_string().fg(app.theme.link),
-                " articles  •  ".fg(app.theme.muted),
-                unread_count.to_string().fg(unread_color),
-                " unread".fg(app.theme.muted),
-            ];
-            f.render_widget(
-                Paragraph::new(Line::from(stat_spans)).bg(app.theme.bg),
-                area,
-            );
-            return;
-        }
-
-        let (articles, last_fetched_secs): (&[crate::models::Article], Option<i64>) =
-            if app.in_saved_context {
-                (app.saved_view_articles.as_slice(), None)
-            } else {
-                let feed = app.feeds.get(app.selected_feed);
-                let fetched = feed.and_then(|f| f.last_fetched_secs);
-                let arts = feed.map(|f| f.articles.as_slice()).unwrap_or(&[]);
-                (arts, fetched)
-            };
-
-        let article_count = articles.len();
-        let unread_count = articles.iter().filter(|a| !a.is_read).count();
-        let unread_color = if unread_count > 0 {
-            app.theme.warning
-        } else {
-            app.theme.success
-        };
-        let mut stat_spans = vec![
-            " ".fg(app.theme.muted),
-            article_count.to_string().fg(app.theme.link),
-            " articles  •  ".fg(app.theme.muted),
-            unread_count.to_string().fg(unread_color),
-            " unread".fg(app.theme.muted),
-        ];
-        if let Some(secs) = last_fetched_secs {
-            let age = format_age(secs);
-            let color = age_color(secs, &app.theme);
-            stat_spans.push("  •  fetched ".fg(app.theme.muted));
-            if let Some(number_part) = age.strip_suffix(" ago") {
-                stat_spans.push(number_part.to_string().fg(color));
-                stat_spans.push(" ago".fg(app.theme.muted));
-            } else {
-                stat_spans.push(age.fg(color));
-            }
-        }
-        f.render_widget(
-            Paragraph::new(Line::from(stat_spans)).bg(app.theme.bg),
-            area,
-        );
+        draw_list_stats(f, app, area);
     }
+}
+
+/// Article detail footer: link, publish age, and scroll percentage.
+fn draw_article_info(f: &mut Frame, app: &App, area: Rect) {
+    let Some(article) = app.selected_article() else {
+        return;
+    };
+    let theme = &app.theme;
+    let mut link_spans = vec![Span::raw(" "), article.link.clone().fg(theme.muted)];
+    if let Some(secs) = article.published_secs {
+        link_spans.push("  •  ".fg(theme.muted));
+        push_age_spans(&mut link_spans, secs, theme);
+    }
+
+    let scroll_offset = app.article_scroll.get(&article.link) as usize;
+    let max_scroll = app
+        .content_line_count
+        .max(1)
+        .saturating_sub(app.content_area_height as usize);
+    let pct = (scroll_offset * 100)
+        .checked_div(max_scroll)
+        .unwrap_or(100)
+        .min(100);
+    let pct_str = format!(" {pct}% ");
+    let bar_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(0), Constraint::Length(pct_str.len() as u16)])
+        .split(area);
+    f.render_widget(
+        Paragraph::new(Line::from(link_spans)).bg(theme.bg),
+        bar_chunks[0],
+    );
+    f.render_widget(
+        Paragraph::new(pct_str)
+            .style(Style::default().fg(theme.warning).bold())
+            .bg(theme.bg),
+        bar_chunks[1],
+    );
+}
+
+/// List footer: article/unread counts, plus fetch age for a single feed.
+fn draw_list_stats(f: &mut Frame, app: &App, area: Rect) {
+    let theme = &app.theme;
+    let spans = if app.selected_tab == Tab::Saved && !app.in_saved_context {
+        Vec::new()
+    } else if (app.in_category_context || app.selected_sidebar_category.is_some())
+        && app.selected_tab != Tab::Saved
+    {
+        let unread = app
+            .category_view_articles
+            .iter()
+            .filter(|&&(fi, ai)| {
+                app.feeds
+                    .get(fi)
+                    .and_then(|f| f.articles.get(ai))
+                    .is_some_and(|a| !a.is_read)
+            })
+            .count();
+        stat_spans(app.category_view_articles.len(), unread, theme)
+    } else {
+        let (articles, last_fetched_secs): (&[Article], Option<i64>) = if app.in_saved_context {
+            (&app.saved_view_articles, None)
+        } else {
+            let feed = app.feeds.get(app.selected_feed);
+            (
+                feed.map_or(&[][..], |f| &f.articles),
+                feed.and_then(|f| f.last_fetched_secs),
+            )
+        };
+        let unread = articles.iter().filter(|a| !a.is_read).count();
+        let mut spans = stat_spans(articles.len(), unread, theme);
+        if let Some(secs) = last_fetched_secs {
+            spans.push("  •  fetched ".fg(theme.muted));
+            push_age_spans(&mut spans, secs, theme);
+        }
+        spans
+    };
+    f.render_widget(Paragraph::new(Line::from(spans)).bg(theme.bg), area);
 }
