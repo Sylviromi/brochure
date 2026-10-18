@@ -9,7 +9,7 @@
 //!
 //! Secrets are never logged.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[cfg(feature = "os-keyring")]
 const SERVICE: &str = "brochure-freshrss";
@@ -26,7 +26,7 @@ pub enum SecretSource {
 }
 
 /// Read the API password for `username`, checking env → keyring → file.
-pub fn get_password(username: &str, data_dir: &std::path::Path) -> Option<(String, SecretSource)> {
+pub fn get_password(username: &str, data_dir: &Path) -> Option<(String, SecretSource)> {
     if let Ok(pw) = std::env::var(ENV_VAR)
         && !pw.trim().is_empty()
     {
@@ -39,14 +39,7 @@ pub fn get_password(username: &str, data_dir: &std::path::Path) -> Option<(Strin
     {
         return Some((pw, SecretSource::Keyring));
     }
-    let path = secret_path(username, data_dir);
-    if let Ok(pw) = std::fs::read_to_string(&path) {
-        let pw = pw.trim().to_string();
-        if !pw.is_empty() {
-            return Some((pw, SecretSource::File));
-        }
-    }
-    None
+    read_secret_file(&secret_path(username, data_dir)).map(|pw| (pw, SecretSource::File))
 }
 
 /// Persist the API password, preferring the OS keyring; falls back to a `0600` file.
@@ -55,7 +48,7 @@ pub fn get_password(username: &str, data_dir: &std::path::Path) -> Option<(Strin
 pub fn set_password(
     username: &str,
     password: &str,
-    data_dir: &std::path::Path,
+    data_dir: &Path,
 ) -> anyhow::Result<SecretSource> {
     if let Ok(env) = std::env::var(ENV_VAR)
         && !env.trim().is_empty()
@@ -68,21 +61,40 @@ pub fn set_password(
     {
         return Ok(SecretSource::Keyring);
     }
-    let path = secret_path(username, data_dir);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&path, password)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-    }
+    write_secret_file(&secret_path(username, data_dir), password)?;
     Ok(SecretSource::File)
 }
 
+/// Read a fallback secret file (trimmed); `None` when absent or empty.
+fn read_secret_file(path: &Path) -> Option<String> {
+    let pw = std::fs::read_to_string(path).ok()?;
+    let pw = pw.trim();
+    (!pw.is_empty()).then(|| pw.to_string())
+}
+
+/// Write the fallback secret file. On Unix it is created `0600` up front, so the
+/// password is never briefly readable by other users.
+fn write_secret_file(path: &Path, password: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        options.mode(0o600);
+        // `mode` only applies on creation; tighten a pre-existing file too.
+        if path.exists() {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+        }
+    }
+    options.open(path)?.write_all(password.as_bytes())
+}
+
 /// Remove stored credentials for `username` from keyring (if enabled) and file.
-pub fn delete_password(username: &str, data_dir: &std::path::Path) {
+pub fn delete_password(username: &str, data_dir: &Path) {
     #[cfg(feature = "os-keyring")]
     if let Ok(entry) = keyring::Entry::new(SERVICE, username) {
         let _ = entry.delete_credential();
@@ -91,7 +103,7 @@ pub fn delete_password(username: &str, data_dir: &std::path::Path) {
 }
 
 /// Sanitise `username` into a safe filename component.
-fn secret_path(username: &str, data_dir: &std::path::Path) -> PathBuf {
+fn secret_path(username: &str, data_dir: &Path) -> PathBuf {
     let safe: String = username
         .chars()
         .map(|c| {
@@ -116,18 +128,22 @@ mod tests {
         assert_eq!(p, PathBuf::from("/tmp/freshrss_secret_alice_example.com"));
     }
 
+    /// Exercises the file backend directly: going through `set_password` would
+    /// write to the developer's real OS keyring when `os-keyring` is enabled.
     #[test]
     fn file_roundtrip() {
         let dir = std::env::temp_dir().join(format!("brochure-secret-test-{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&dir);
-        let user = "roundtrip-user";
-        set_password(user, "s3cr3t", &dir).unwrap();
-        // Env override is empty in tests; force file path check via direct read.
-        let path = secret_path(user, &dir);
-        let raw = std::fs::read_to_string(&path).unwrap();
-        assert_eq!(raw, "s3cr3t");
-        delete_password(user, &dir);
-        assert!(!path.exists());
-        let _ = std::fs::remove_dir(&dir);
+        let path = secret_path("roundtrip-user", &dir);
+        write_secret_file(&path, "s3cr3t\n").unwrap();
+        assert_eq!(read_secret_file(&path).as_deref(), Some("s3cr3t"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(read_secret_file(&path), None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
