@@ -18,7 +18,7 @@ optional FreshRSS sync. Single binary crate; no workspace.
 | `src/state/` | Per-screen sub-state structs owned by `App` |
 | `src/sync/` | FreshRSS: `freshrss` (pure GReader parsing/mapping/category placement), `client` (HTTP), `apply` (results → `App`), `secret` (credential store) |
 | `src/storage.rs` | JSON persistence in the platform data dir, OPML import/export |
-| `src/fetch.rs` | Shared HTTP client, feed parsing, readability extraction, update check |
+| `src/fetch.rs` | Shared HTTP client, feed parsing, article extraction (`dom_smoothie`), update check |
 
 Key patterns:
 
@@ -29,6 +29,10 @@ Key patterns:
   `handlers/mouse.rs` reads them and, where possible, replays the equivalent key press
   so mouse and keyboard share one code path. New panels/lists should record their
   area and get a branch in `mouse.rs`.
+- **Article rendering is cached** (`ui/content/article_detail.rs`): markdown is only
+  re-rendered when `render_key` changes, and the image layout only when images load or
+  the viewport height changes; each frame draws just the visible lines. Any new input
+  that affects the rendered article must be added to `render_key`, or it will go stale.
 - **Persistence.** All saves go through `storage::write_json` (atomic temp-file +
   rename). The article cache is written once per refresh batch (`events::finish_fetch`)
   and on quit — not per feed.

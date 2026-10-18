@@ -27,7 +27,7 @@ Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 ligh
 - **Saved articles** — star any article and group saves by source
 - **OPML import/export** — bring your existing subscriptions in, or take them out
 - **FreshRSS sync** — sync subscriptions, articles, and read/starred state with a FreshRSS server (grouped under a FreshRSS category)
-- **Mouse support** — click tabs, feeds, articles, and settings; scroll any panel with the wheel
+- **Mouse support** — click tabs, feeds, articles, settings, and links; scroll with the wheel; drag and drop in the feed editor
 - **Readability fetch** — pulls full article body when the feed only provides a summary
 - **Fetch policy** — choose when brochure refreshes: on start, every hour, every day, or never
 - **Feed editor** — rename, move, and delete feeds and categories without leaving the TUI
@@ -66,7 +66,9 @@ Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 ligh
 
 **Mouse:** click a tab, feed, category, article, or setting to select it; click the
 selected one again to open it (categories expand/collapse). The wheel scrolls whichever
-panel is under the pointer.
+panel is under the pointer. Click a link in an article to open it in your browser. In the
+feed editor, drag feeds and categories to move them (drag a category sideways to change
+its nesting); release outside the panel to cancel.
 
 ## Installation
 
