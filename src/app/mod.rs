@@ -177,8 +177,8 @@ pub struct App {
     pub picker: Option<limner::render_image::Picker>,
     /// Image metadata from the latest markdown render.
     pub article_images: Vec<limner::ImageInfo>,
-    /// Link metadata from the latest markdown render.
-    pub article_links: Vec<limner::LinkInfo>,
+    /// Cached markdown render of the article on screen (see `ArticleRender`).
+    pub article_render: Option<crate::ui::content::ArticleRender>,
     /// Content-area rect of the article detail panel.
     pub article_content_area: Rect,
     /// Current scroll offset of the article detail view.
@@ -338,7 +338,7 @@ impl App {
             protocol_cache: HashMap::new(),
             picker: None,
             article_images: Vec::new(),
-            article_links: Vec::new(),
+            article_render: None,
             article_content_area: Rect::default(),
             article_scroll_offset: 0,
             body_alignment: initial_body_alignment,

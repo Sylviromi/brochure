@@ -6,9 +6,7 @@
 use crate::{app::App, handlers::article::get_selected_article, models::CONTENT_STUB_MAX_LEN};
 use limner::{
     Alignment, MarkdownStyle,
-    render_image::{
-        ImageViewport, SlicedImage, compute_image_signed_positions, prepare_inline_images,
-    },
+    render_image::{ImagePlacement, SignedPosition, SlicedImage, prepare_inline_images},
     render_markdown,
 };
 use ratatui::{
@@ -289,6 +287,328 @@ fn build_body_markdown(
     parts.join("\n")
 }
 
+// ── Render cache ──────────────────────────────────────────────────────────────
+
+/// Rendered markdown of the article on screen, reused across frames while its key matches.
+pub(crate) struct ArticleRender {
+    key: u64,
+    /// Header + body lines before inline images are injected.
+    lines: Vec<ratatui::text::Line<'static>>,
+    images: Vec<limner::ImageInfo>,
+    /// Links in document order (used to map on-screen link text back to URLs).
+    links: Vec<limner::LinkInfo>,
+    header_line_count: usize,
+    /// Width the lines were wrapped for (narrower when a scrollbar is reserved).
+    render_width: u16,
+    /// Lines with images injected, plus row positions; rebuilt when images arrive.
+    layout: Option<ArticleLayout>,
+}
+
+/// Final on-screen layout of a cached render: images injected, preview hints
+/// centred, and the first visual row of every line precomputed.
+struct ArticleLayout {
+    key: u64,
+    width: u16,
+    lines: Vec<ratatui::text::Line<'static>>,
+    images: Vec<limner::ImageInfo>,
+    placements: Vec<ImagePlacement>,
+    /// `row_starts[i]` = first visual row of `lines[i]`; one extra entry = total rows.
+    row_starts: Vec<usize>,
+    /// Visual rows taken by the header (title, date, hero image…).
+    header_rows: usize,
+}
+
+impl ArticleLayout {
+    fn line_count(&self) -> usize {
+        self.row_starts.last().copied().unwrap_or(0).max(1)
+    }
+
+    /// Positions (relative to the content area) of images intersecting the viewport.
+    fn image_positions(
+        &self,
+        scroll: usize,
+        width: u16,
+        height: u16,
+    ) -> Vec<(String, SignedPosition)> {
+        use ratatui::layout::Alignment as LineAlign;
+        self.placements
+            .iter()
+            .filter_map(|p| {
+                let row = *self.row_starts.get(p.line_start)? as i64 - scroll as i64;
+                let x = match p.alignment {
+                    Some(LineAlign::Center) => (width as i64 - p.cell_cols as i64) / 2,
+                    Some(LineAlign::Right) => width as i64 - p.cell_cols as i64,
+                    _ => 0,
+                };
+                let visible = row + (p.cell_rows as i64) > 0 && row < height as i64;
+                visible.then(|| {
+                    let position = SignedPosition {
+                        x: x as i16,
+                        y: row.clamp(i16::MIN as i64, i16::MAX as i64) as i16,
+                    };
+                    (p.url.clone(), position)
+                })
+            })
+            .collect()
+    }
+}
+
+/// Rebuild the cached layout when the viewport height changes or images finish loading.
+fn ensure_layout(app: &mut App, center_simple_body: bool, area: Rect) {
+    use std::hash::{Hash, Hasher};
+    let App {
+        article_render,
+        image_cache,
+        protocol_cache,
+        picker,
+        ..
+    } = app;
+    let Some(render) = article_render.as_mut() else {
+        return;
+    };
+    // Decoded images still waiting to become terminal protocols force a rebuild.
+    let pending = render
+        .images
+        .iter()
+        .any(|img| image_cache.contains_key(&img.url));
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (render.key, area.height, center_simple_body).hash(&mut h);
+    for img in &render.images {
+        protocol_cache
+            .get(&img.url)
+            .map(|p| (p.size().width, p.size().height))
+            .hash(&mut h);
+    }
+    let key = h.finish();
+    if !pending && render.layout.as_ref().is_some_and(|l| l.key == key) {
+        return;
+    }
+
+    let width = render.render_width;
+    let header_line_count = render.header_line_count;
+    let mut lines = render.lines.clone();
+    let mut images = render.images.clone();
+    let mut placements = match picker {
+        Some(picker) if !images.is_empty() => prepare_inline_images(
+            &mut lines,
+            &images,
+            image_cache,
+            protocol_cache,
+            picker,
+            &picker.font_size(),
+            width,
+            10,
+        ),
+        _ => Vec::new(),
+    };
+
+    // Header lines grow by the height of any injected header image.
+    let effective_header_lines = header_line_count
+        + images
+            .iter()
+            .take_while(|img| img.line_index < header_line_count)
+            .filter_map(|img| protocol_cache.get(&img.url))
+            .map(|p| (p.size().height as usize).saturating_sub(1))
+            .sum::<usize>();
+
+    let mut row_starts = row_starts(&lines, width);
+    let total = row_starts.last().copied().unwrap_or(0);
+
+    // Vertically centre preview hints below the header (skeleton handles itself).
+    if center_simple_body && total < area.height as usize {
+        let pad = (area.height as usize - total) / 2;
+        let at = effective_header_lines.min(lines.len());
+        lines.splice(
+            at..at,
+            std::iter::repeat_n(ratatui::text::Line::from(""), pad),
+        );
+        for img in &mut images {
+            if img.line_index >= header_line_count {
+                img.line_index += pad;
+            }
+        }
+        for p in &mut placements {
+            if p.line_start >= effective_header_lines {
+                p.line_start += pad;
+            }
+        }
+        row_starts = self::row_starts(&lines, width);
+    }
+
+    let header_rows = row_starts[effective_header_lines.min(lines.len())].max(1);
+    render.layout = Some(ArticleLayout {
+        key,
+        width,
+        lines,
+        images,
+        placements,
+        row_starts,
+        header_rows,
+    });
+}
+
+/// First visual row of every line when wrapped at `width`, plus the total row count.
+fn row_starts(lines: &[ratatui::text::Line<'static>], width: u16) -> Vec<usize> {
+    let mut starts = Vec::with_capacity(lines.len() + 1);
+    let mut row = 0;
+    starts.push(0);
+    for line in lines {
+        row += Paragraph::new(line.clone())
+            .wrap(Wrap { trim: false })
+            .line_count(width);
+        starts.push(row);
+    }
+    starts
+}
+
+#[cfg(test)]
+impl ArticleRender {
+    pub(crate) fn key(&self) -> u64 {
+        self.key
+    }
+}
+
+/// Hash of every input that affects the rendered markdown.
+fn render_key(
+    app: &App,
+    article: &crate::models::Article,
+    area: Rect,
+    hide_scrollbar: bool,
+    preview_hint_mode: bool,
+    loading: bool,
+) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (
+        &article.link,
+        &article.title,
+        &article.description,
+        &article.content,
+        &article.images,
+        article.published_secs,
+        &article.error,
+    )
+        .hash(&mut h);
+    (
+        area.width,
+        area.height,
+        hide_scrollbar,
+        preview_hint_mode,
+        loading,
+    )
+        .hash(&mut h);
+    format!("{:?}{:?}", app.body_alignment, app.theme).hash(&mut h);
+    h.finish()
+}
+
+/// Render header and body markdown, re-wrapping narrower when a scrollbar will be shown.
+fn render_markdown_parts(
+    app: &App,
+    header_md: &str,
+    body_md: &str,
+    simple_body: bool,
+    content_area: Rect,
+    hide_scrollbar: bool,
+    key: u64,
+) -> ArticleRender {
+    let h_style = header_style(&app.theme);
+    let mut b_style = body_style(&app.theme, app.body_alignment);
+    if simple_body {
+        b_style.paragraph = Style::new().fg(app.theme.muted);
+        b_style.italic = Style::new().fg(app.theme.muted).italic();
+        b_style.paragraph_alignment = Alignment::Center;
+    }
+    let render_at = |width: u16| {
+        let hdr = render_markdown(header_md, &h_style, width);
+        let bdy = render_markdown(body_md, &b_style, width);
+        let header_line_count = hdr.lines.len();
+        let mut lines = hdr.lines;
+        lines.extend(bdy.lines);
+        let mut images = hdr.images;
+        images.extend(bdy.images.into_iter().map(|mut img| {
+            img.line_index += header_line_count;
+            img
+        }));
+        let mut links = hdr.links;
+        links.extend(bdy.links);
+        ArticleRender {
+            key,
+            lines,
+            images,
+            links,
+            header_line_count,
+            render_width: width,
+            layout: None,
+        }
+    };
+    let full = render_at(content_area.width);
+    if !hide_scrollbar && count_lines(&full.lines, full.render_width) > content_area.height as usize
+    {
+        render_at(content_area.width.saturating_sub(2))
+    } else {
+        full
+    }
+}
+
+/// Screen regions of the links drawn in `area`, each paired with its URL.
+///
+/// Found by scanning the rendered cells for the link style (link colour + underline),
+/// so wrapping, alignment, scrolling, and injected images are all accounted for.
+/// Each run of link cells is matched to a link by its text, in document order; a run
+/// that continues the previous link's text (wrapped onto the next row) keeps its URL.
+fn link_regions(
+    buf: &ratatui::buffer::Buffer,
+    area: Rect,
+    link_color: ratatui::style::Color,
+    links: &[limner::LinkInfo],
+) -> Vec<(Rect, String)> {
+    let is_link = |x: u16, y: u16| {
+        let cell = &buf[(x, y)];
+        cell.fg == link_color && cell.modifier.contains(Modifier::UNDERLINED)
+    };
+    let mut regions = Vec::new();
+    // (link index, visible text matched so far) of the previous run.
+    let mut last: Option<(usize, String)> = None;
+    for y in area.top()..area.bottom() {
+        let mut x = area.left();
+        while x < area.right() {
+            if !is_link(x, y) {
+                x += 1;
+                continue;
+            }
+            let start = x;
+            let mut text = String::new();
+            while x < area.right() && is_link(x, y) {
+                text.push_str(buf[(x, y)].symbol());
+                x += 1;
+            }
+            let needle = text.trim().trim_start_matches('🔗').trim();
+            if needle.is_empty() {
+                continue;
+            }
+            // Word-wrapped links continue after a space, long URLs mid-word.
+            let continued = last.as_ref().and_then(|(i, acc)| {
+                [format!("{acc} {needle}"), format!("{acc}{needle}")]
+                    .into_iter()
+                    .find(|joined| links[*i].text.contains(joined.as_str()))
+                    .map(|joined| (*i, joined))
+            });
+            let matched = continued.or_else(|| {
+                let from = last.as_ref().map_or(0, |(i, _)| i + 1);
+                (from..links.len())
+                    .chain(0..from)
+                    .find(|&i| links[i].text.contains(needle) || links[i].url.contains(needle))
+                    .map(|i| (i, needle.to_string()))
+            });
+            if let Some((i, acc)) = matched {
+                regions.push((Rect::new(start, y, x - start, 1), links[i].url.clone()));
+                last = Some((i, acc));
+            }
+        }
+    }
+    regions
+}
+
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 /// Renders the article detail view with centered meta header, markdown body, scrolling,
@@ -377,193 +697,103 @@ pub(crate) fn render_article_content(
     let fetching_stub = app.article_fetching && article.content.len() < CONTENT_STUB_MAX_LEN;
     let loading = fetching_stub || feed_refreshing;
 
-    // Build separate header and body markdown.
-    let header_md = build_header_markdown(article, header_image_url.as_deref());
-    let body_md = if preview_hint_mode && !loading {
-        String::from("*Full article not fetched. Press Enter to focus and read.*\n")
-    } else if loading {
-        String::new() // skeleton widget renders in place of body text
-    } else if let Some(err) = &article.error {
-        format!("*{err}*\n")
-    } else {
-        build_body_markdown(article, header_image_url.as_deref(), &body_images)
+    // Build separate header and body markdown (only needed when the cache misses).
+    let build_md = || {
+        let header_md = build_header_markdown(article, header_image_url.as_deref());
+        let body_md = if preview_hint_mode && !loading {
+            String::from("*Full article not fetched. Press Enter to focus and read.*\n")
+        } else if loading {
+            String::new() // skeleton widget renders in place of body text
+        } else if let Some(err) = &article.error {
+            format!("*{err}*\n")
+        } else {
+            build_body_markdown(article, header_image_url.as_deref(), &body_images)
+        };
+        (header_md, body_md)
     };
 
     // Simple-body messages (hint/spinner) get centered styling and layout.
     let simple_body = preview_hint_mode || loading || article.error.is_some();
 
-    // Render with independent alignment styles.
-    let h_style = header_style(&app.theme);
-    let mut b_style = body_style(&app.theme, app.body_alignment);
-    let content_width = content_area.width;
-
-    if simple_body {
-        b_style.paragraph = Style::new().fg(app.theme.muted);
-        b_style.italic = Style::new().fg(app.theme.muted).italic();
-        b_style.paragraph_alignment = Alignment::Center;
+    // Markdown rendering is the expensive part of a frame: reuse it until any input changes.
+    let key = render_key(
+        app,
+        article,
+        content_area,
+        hide_scrollbar,
+        preview_hint_mode,
+        loading,
+    );
+    if app.article_render.as_ref().is_none_or(|r| r.key != key) {
+        let (header_md, body_md) = build_md();
+        let render = render_markdown_parts(
+            app,
+            &header_md,
+            &body_md,
+            simple_body,
+            content_area,
+            hide_scrollbar,
+            key,
+        );
+        app.article_render = Some(render);
     }
-
-    let mut render_width = content_width;
-
-    // Helper: render header + body at a given width and merge the results.
-    let render_and_merge = |w| -> (
-        Vec<ratatui::text::Line<'static>>,
-        Vec<limner::ImageInfo>,
-        Vec<limner::LinkInfo>,
-        usize,
-    ) {
-        let hdr = render_markdown(&header_md, &h_style, w);
-        let bdy = render_markdown(&body_md, &b_style, w);
-        let header_line_count = hdr.lines.len();
-        let mut lines = hdr.lines;
-        lines.extend(bdy.lines);
-        let mut images = hdr.images;
-        for mut img in bdy.images {
-            img.line_index += header_line_count;
-            images.push(img);
-        }
-        let mut links = hdr.links;
-        let link_offset = header_line_count;
-        for mut lnk in bdy.links {
-            lnk.line_index += link_offset;
-            links.push(lnk);
-        }
-        (lines, images, links, header_line_count)
+    ensure_layout(app, simple_body && !loading, content_area);
+    let Some(layout) = app.article_render.as_ref().and_then(|r| r.layout.as_ref()) else {
+        return;
     };
-
-    let (mut result_lines, mut result_images, mut result_links, mut header_line_count) =
-        render_and_merge(render_width);
-
-    if !hide_scrollbar && count_lines(&result_lines, render_width) > content_area.height as usize {
-        render_width = render_width.saturating_sub(2);
-        let (lines, images, links, hlc) = render_and_merge(render_width);
-        result_lines = lines;
-        result_images = images;
-        result_links = links;
-        header_line_count = hlc;
-    }
-
-    // Scroll offset for the entire unified content.
+    let render_width = layout.width;
+    let line_count = layout.line_count();
     let scroll_offset = app.article_scroll.get(&article.link);
+    let scroll = scroll_offset as usize;
 
-    // Inject inline images into the rendered line buffer.
-    let font_size = app.picker.as_ref().map(|p| p.font_size());
-    let mut placements = if let Some(picker) = &app.picker
-        && !app.image_cache.is_empty()
-    {
-        let font_size = font_size.as_ref().expect("picker exists");
-        prepare_inline_images(
-            &mut result_lines,
-            &result_images,
-            &mut app.image_cache,
-            &mut app.protocol_cache,
-            picker,
-            font_size,
-            render_width,
-            10,
-        )
-    } else {
-        Vec::new()
-    };
-
-    // Recompute header line count accounting for injected header images.
-    let effective_header_lines = {
-        let mut h = header_line_count;
-        for img in &result_images {
-            if img.line_index >= header_line_count {
-                break;
-            }
-            if let Some(sliced) = app.protocol_cache.get(&img.url) {
-                let rows = sliced.size().height;
-                if rows > 0 {
-                    h += rows as usize - 1;
-                }
-            }
-        }
-        h
-    };
-
-    // Recompute line count after image injection.
-    let mut line_count = count_lines(&result_lines, render_width);
-
-    // Vertically center preview hints below the header (skeleton handles itself).
-    if simple_body && !loading && line_count < content_area.height as usize {
-        let pad = (content_area.height as usize - line_count) / 2;
-        let blank = ratatui::text::Line::from("");
-        let body_part = result_lines.split_off(effective_header_lines);
-        result_lines.extend(std::iter::repeat_n(blank, pad));
-        result_lines.extend(body_part);
-        for img in &mut result_images {
-            if img.line_index >= header_line_count {
-                img.line_index += pad;
-            }
-        }
-        for lnk in &mut result_links {
-            if lnk.line_index >= header_line_count {
-                lnk.line_index += pad;
-            }
-        }
-        for p in &mut placements {
-            if p.line_start >= effective_header_lines {
-                p.line_start += pad;
-            }
-        }
-        line_count += pad;
-    }
+    // Only the lines intersecting the viewport are handed to ratatui, so frame cost
+    // no longer grows with article length.
+    let starts = &layout.row_starts;
+    let first = starts.partition_point(|&r| r <= scroll).saturating_sub(1);
+    let end = starts[..layout.lines.len()]
+        .partition_point(|&r| r < scroll + content_area.height as usize)
+        .max(first);
+    let skip_rows = (scroll - starts[first].min(scroll)) as u16;
+    let visible = layout.lines[first..end].to_vec();
+    let image_positions = layout.image_positions(scroll, render_width, content_area.height);
+    let header_visual = layout.header_rows;
+    let images = layout.images.clone();
 
     if !is_preview {
         app.content_area_height = content_area.height;
         app.content_line_count = line_count;
-    }
-
-    // Always store images so spawn_article_image_downloads picks them up in both
-    // preview and full-detail mode.
-    app.article_images = result_images;
-    app.article_links = result_links;
-
-    // Store render metadata in the full-detail view only.
-    if !is_preview {
         app.article_content_area = content_area;
         app.article_scroll_offset = scroll_offset;
     }
+    // Always store images so spawn_article_image_downloads picks them up in both
+    // preview and full-detail mode.
+    app.article_images = images;
 
-    // Render inline images — SlicedImage handles cut-off clipping automatically
-    // for partially off-screen images.
-    if !placements.is_empty() {
-        let viewport = ImageViewport {
-            content: Rect {
-                width: render_width,
-                ..content_area
-            },
-            scroll: scroll_offset,
-        };
-        let positions = compute_image_signed_positions(&placements, &result_lines, &viewport);
-        for pos in &positions {
-            if let Some(sliced) = app.protocol_cache.get(&pos.url) {
-                f.render_widget(SlicedImage::new(sliced, pos.position), content_area);
-            }
+    // Inline images — SlicedImage clips partially off-screen images itself.
+    for (url, position) in image_positions {
+        if let Some(sliced) = app.protocol_cache.get(&url) {
+            f.render_widget(SlicedImage::new(sliced, position), content_area);
         }
     }
 
-    // ── Render the unified paragraph ──
-    // Cache the visual header height before result_lines moves into the paragraph.
-    let header_visual = {
-        let end = effective_header_lines.min(result_lines.len());
-        Paragraph::new(result_lines[..end].to_vec())
-            .wrap(Wrap { trim: false })
-            .line_count(render_width)
-            .max(1)
-    };
-    let paragraph = Paragraph::new(result_lines)
+    let paragraph = Paragraph::new(visible)
         .wrap(Wrap { trim: false })
-        .scroll((scroll_offset, 0));
-
+        .scroll((skip_rows, 0));
     let has_scrollbar = line_count > content_area.height as usize;
     let para_render_area = Rect {
         width: render_width,
         ..content_area
     };
     f.render_widget(paragraph, para_render_area);
+    if let Some(cached) = &app.article_render {
+        let regions = link_regions(
+            f.buffer_mut(),
+            para_render_area,
+            app.theme.link,
+            &cached.links,
+        );
+        app.hit.article_links = regions;
+    }
 
     // ── Skeleton placeholder while article body is fetching ──
     if loading {
@@ -605,5 +835,95 @@ pub(crate) fn render_article_content(
             scroll_offset as usize,
             &app.theme,
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::buffer::Buffer;
+
+    fn regions_for(md: &str, width: u16) -> Vec<(Rect, String)> {
+        let theme = crate::ui::theme::ColorTheme::catppuccin_mocha();
+        let rendered = render_markdown(md, &base_md_style(&theme), width);
+        let area = Rect::new(0, 0, width, 20);
+        let mut buf = Buffer::empty(area);
+        use ratatui::widgets::Widget;
+        Paragraph::new(rendered.lines)
+            .wrap(Wrap { trim: false })
+            .render(area, &mut buf);
+        link_regions(&buf, area, theme.link, &rendered.links)
+    }
+
+    #[test]
+    fn links_map_to_urls_including_duplicates_and_wraps() {
+        let md = "See [here](https://a.test) and [here](https://b.test).\n\n\
+                  Then [a much longer link text that wraps](https://c.test) end.";
+        let regions = regions_for(md, 24);
+        let urls: Vec<&str> = regions.iter().map(|(_, u)| u.as_str()).collect();
+        assert!(urls.contains(&"https://a.test"), "{regions:?}");
+        assert!(urls.contains(&"https://b.test"), "{regions:?}");
+        // The long link spans several rows, all pointing at the same URL.
+        let c_rows: Vec<u16> = regions
+            .iter()
+            .filter(|(_, u)| u == "https://c.test")
+            .map(|(r, _)| r.y)
+            .collect();
+        assert!(c_rows.len() >= 2, "{regions:?}");
+        // Duplicate texts resolve in document order.
+        let a = regions
+            .iter()
+            .find(|(_, u)| u == "https://a.test")
+            .unwrap()
+            .0;
+        let b = regions
+            .iter()
+            .find(|(_, u)| u == "https://b.test")
+            .unwrap()
+            .0;
+        assert!((a.y, a.x) < (b.y, b.x));
+    }
+
+    #[test]
+    fn plain_text_has_no_link_regions() {
+        assert!(regions_for("Just some *styled* text.", 30).is_empty());
+    }
+
+    #[test]
+    fn sliced_rendering_matches_full_paragraph() {
+        use ratatui::widgets::Widget;
+        let theme = crate::ui::theme::ColorTheme::catppuccin_mocha();
+        let mut style = base_md_style(&theme);
+        style.paragraph_alignment = Alignment::Center;
+        let md: String = (0..40)
+            .map(|i| format!("Paragraph {i} with enough words to wrap across rows.\n\n"))
+            .collect();
+        let lines = render_markdown(&md, &style, 30).lines;
+        let width = 30;
+        let starts = row_starts(&lines, width);
+        assert_eq!(
+            *starts.last().unwrap(),
+            Paragraph::new(lines.clone())
+                .wrap(Wrap { trim: false })
+                .line_count(width)
+        );
+        let area = Rect::new(0, 0, width, 10);
+        for scroll in [0usize, 1, 7, 33, 90] {
+            let mut full = Buffer::empty(area);
+            Paragraph::new(lines.clone())
+                .wrap(Wrap { trim: false })
+                .scroll((scroll as u16, 0))
+                .render(area, &mut full);
+            let first = starts.partition_point(|&r| r <= scroll).saturating_sub(1);
+            let end = starts[..lines.len()]
+                .partition_point(|&r| r < scroll + area.height as usize)
+                .max(first);
+            let mut sliced = Buffer::empty(area);
+            Paragraph::new(lines[first..end].to_vec())
+                .wrap(Wrap { trim: false })
+                .scroll(((scroll - starts[first]) as u16, 0))
+                .render(area, &mut sliced);
+            assert_eq!(full, sliced, "scroll {scroll}");
+        }
     }
 }
