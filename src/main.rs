@@ -62,10 +62,35 @@ async fn main() -> Result<()> {
     result
 }
 
+/// Query the terminal's image protocol, falling back to half-blocks.
+///
+/// When the terminal doesn't answer in time, ratatui-image silently returns its
+/// default half-block picker but leaves its query thread blocked reading stdin until
+/// a Device Status Report reply arrives — swallowing the user's first key press (seen
+/// under tmux, whose wrapped passthrough queries may go unanswered). In that case ask
+/// for a plain status report so the stuck thread consumes the terminal's reply
+/// instead. If nothing is waiting, our input thread ignores the reply as unparseable.
+fn detect_image_picker() -> limner::render_image::Picker {
+    use limner::render_image::{Picker, ProtocolType};
+    use std::io::Write;
+    let picker =
+        Picker::from_query_stdio().unwrap_or_else(|_| limner::render_image::halfblock_picker());
+    let font = picker.font_size();
+    let looks_like_timeout =
+        picker.protocol_type() == ProtocolType::Halfblocks && (font.width, font.height) == (10, 20);
+    if looks_like_timeout {
+        let mut out = io::stdout();
+        let _ = out.write_all(b"\x1b[5n").and_then(|()| out.flush());
+        // Let the stuck reader consume the reply before our input thread starts.
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    picker
+}
+
 /// Forward terminal input to the event loop and emit a `Tick` every [`TICK`].
 ///
-/// Mouse movement/drag reports are dropped: only clicks and wheel turns are used,
-/// and forwarding motion would trigger a redraw per pointer move.
+/// Plain pointer motion is dropped (it would trigger a redraw per move); presses,
+/// releases, drags (feed editor drag-and-drop), and wheel turns are forwarded.
 fn spawn_input_thread(tx: mpsc::UnboundedSender<AppEvent>) {
     std::thread::spawn(move || {
         let mut last_tick = Instant::now();
@@ -78,6 +103,8 @@ fn spawn_input_thread(tx: mpsc::UnboundedSender<AppEvent>) {
                         if matches!(
                             m.kind,
                             MouseEventKind::Down(_)
+                                | MouseEventKind::Up(_)
+                                | MouseEventKind::Drag(_)
                                 | MouseEventKind::ScrollUp
                                 | MouseEventKind::ScrollDown
                         ) =>
@@ -124,10 +151,7 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
 
     // Detect the terminal image protocol before the input thread starts reading
     // stdin, so the terminal's reply isn't swallowed as key presses.
-    app.picker = Some(
-        limner::render_image::Picker::from_query_stdio()
-            .unwrap_or_else(|_| limner::render_image::halfblock_picker()),
-    );
+    app.picker = Some(detect_image_picker());
     spawn_input_thread(tx.clone());
 
     'main: loop {
