@@ -46,18 +46,9 @@ impl Feed {
         order: usize,
     ) -> Self {
         Self {
-            title,
-            url,
-            category_id,
-            order,
             kind: FeedKind::FreshRss,
             remote_id: Some(remote_id),
-            unread_count: 0,
-            articles: vec![],
-            fetched: false,
-            fetch_error: None,
-            feed_updated_secs: None,
-            last_fetched_secs: None,
+            ..Self::new_local(title, url, category_id, order)
         }
     }
 
@@ -70,10 +61,11 @@ impl Feed {
 impl Article {
     /// Returns a symbol indicating the article's read/saved state: filled/empty circle/square.
     pub fn get_icon(&self) -> &'static str {
-        if self.is_saved {
-            if self.is_read { "□ " } else { "■ " }
-        } else {
-            if self.is_read { "○ " } else { "● " }
+        match (self.is_saved, self.is_read) {
+            (true, true) => "□ ",
+            (true, false) => "■ ",
+            (false, true) => "○ ",
+            (false, false) => "● ",
         }
     }
 

@@ -74,17 +74,10 @@ impl TextScroll {
         self.offsets.get(key).copied().unwrap_or(0)
     }
 
-    /// Scroll down by 1 row, clamping at `max`. Returns new offset.
-    pub fn scroll_down(&mut self, key: &str, max: u16) -> u16 {
+    /// Scroll by `delta` rows (negative = up), clamped to `0..=max`. Returns new offset.
+    pub fn scroll_by(&mut self, key: &str, delta: i32, max: u16) -> u16 {
         let offset = self.offsets.entry(key.to_string()).or_insert(0);
-        *offset = (*offset + 1).min(max);
-        *offset
-    }
-
-    /// Scroll up by 1 row, clamping at 0. Returns new offset.
-    pub fn scroll_up(&mut self, key: &str) -> u16 {
-        let offset = self.offsets.entry(key.to_string()).or_insert(0);
-        *offset = offset.saturating_sub(1);
+        *offset = (i32::from(*offset) + delta).clamp(0, i32::from(max)) as u16;
         *offset
     }
 }

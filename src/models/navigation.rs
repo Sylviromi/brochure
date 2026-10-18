@@ -146,42 +146,35 @@ impl SettingsItem {
         }
     }
 
+    /// Every item in on-screen order (top to bottom).
+    pub const ALL: [Self; 13] = [
+        Self::ImportOpml,
+        Self::ExportOpml,
+        Self::ClearData,
+        Self::CacheFullArticles,
+        Self::ClearArticleCache,
+        Self::AutoFetchOnStart,
+        Self::ArchivePolicy,
+        Self::FreshRss,
+        Self::ScrollLoop,
+        Self::BorderStyle,
+        Self::BodyAlignment,
+        Self::ZenWidth,
+        Self::Theme,
+    ];
+
+    fn position(self) -> usize {
+        Self::ALL.iter().position(|&i| i == self).unwrap_or(0)
+    }
+
     /// Move to the next settings item (wraps around).
     pub fn next(self) -> Self {
-        match self {
-            Self::ImportOpml => Self::ExportOpml,
-            Self::ExportOpml => Self::ClearData,
-            Self::ClearData => Self::CacheFullArticles,
-            Self::CacheFullArticles => Self::ClearArticleCache,
-            Self::ClearArticleCache => Self::AutoFetchOnStart,
-            Self::AutoFetchOnStart => Self::ArchivePolicy,
-            Self::ArchivePolicy => Self::FreshRss,
-            Self::FreshRss => Self::ScrollLoop,
-            Self::ScrollLoop => Self::BorderStyle,
-            Self::BorderStyle => Self::BodyAlignment,
-            Self::BodyAlignment => Self::ZenWidth,
-            Self::ZenWidth => Self::Theme,
-            Self::Theme => Self::ImportOpml,
-        }
+        Self::ALL[(self.position() + 1) % Self::ALL.len()]
     }
 
     /// Move to the previous settings item (wraps around).
     pub fn prev(self) -> Self {
-        match self {
-            Self::ImportOpml => Self::Theme,
-            Self::Theme => Self::ZenWidth,
-            Self::ZenWidth => Self::BodyAlignment,
-            Self::BodyAlignment => Self::BorderStyle,
-            Self::ExportOpml => Self::ImportOpml,
-            Self::ClearData => Self::ExportOpml,
-            Self::CacheFullArticles => Self::ClearData,
-            Self::ClearArticleCache => Self::CacheFullArticles,
-            Self::AutoFetchOnStart => Self::ClearArticleCache,
-            Self::ArchivePolicy => Self::AutoFetchOnStart,
-            Self::FreshRss => Self::ArchivePolicy,
-            Self::ScrollLoop => Self::FreshRss,
-            Self::BorderStyle => Self::ScrollLoop,
-        }
+        Self::ALL[(self.position() + Self::ALL.len() - 1) % Self::ALL.len()]
     }
 }
 
