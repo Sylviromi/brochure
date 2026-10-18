@@ -49,13 +49,13 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - run: cargo build --profile dist --locked --target ${{ matrix.target }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.name }}
-          path: target/${{ matrix.target }}/release/brochure${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          path: target/${{ matrix.target }}/dist/brochure${{ matrix.os == 'windows-latest' && '.exe' || '' }}
 
   publish:
     name: publish binaries
