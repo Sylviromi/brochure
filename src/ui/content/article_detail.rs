@@ -39,7 +39,7 @@ fn base_md_style(theme: &crate::ui::theme::ColorTheme) -> MarkdownStyle {
         code_block_bg: theme.bg_dark,
         code_block_alignment: Alignment::Left,
         link: Style::new().fg(theme.link).underlined(),
-        link_prefix: "🔗 ",
+        link_prefix: "",
         quote: Style::new().fg(theme.muted),
         quote_alignment: Alignment::Left,
         quote_indicator: "▍ ",
@@ -582,7 +582,7 @@ fn link_regions(
                 text.push_str(buf[(x, y)].symbol());
                 x += 1;
             }
-            let needle = text.trim().trim_start_matches('🔗').trim();
+            let needle = text.trim();
             if needle.is_empty() {
                 continue;
             }
