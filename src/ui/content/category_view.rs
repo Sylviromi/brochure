@@ -3,14 +3,17 @@
 use crate::app::App;
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::Rect,
     prelude::Stylize,
     style::Style,
     widgets::{List, ListItem, Paragraph},
 };
 
 use super::super::{content_block, render_scrollbar};
-use super::{article_list::build_article_list_item, footer::draw_article_footer};
+use super::{
+    article_list::build_article_list_item,
+    footer::{draw_article_footer, split_footer},
+};
 
 /// Render the article list panel as a flat date-sorted preview when the sidebar
 /// cursor rests on a category header (FeedList state, no navigation cursor).
@@ -26,13 +29,7 @@ pub(super) fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rec
         .map(|c| c.name.as_str())
         .unwrap_or("Category");
 
-    // Split area into content (list) and footer (1 row).
-    let rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(1)])
-        .split(area);
-    let content_area = rows[0];
-    let footer_area = rows[1];
+    let (content_area, footer_area) = split_footer(area);
 
     let block = content_block(
         format!(" {} ", cat_name).fg(app.theme.link).bold(),

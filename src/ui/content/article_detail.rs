@@ -17,7 +17,7 @@ use ratatui::{
 };
 
 use super::super::{content_block, render_scrollbar};
-use super::{footer::draw_article_footer, utils::format_pub_date};
+use super::{footer::draw_article_info, utils::format_pub_date};
 use tui_skeleton::{AnimationMode, SkeletonBlock};
 
 /// Base limner style config from the app theme (shared between header and body).
@@ -667,7 +667,7 @@ pub(super) fn draw_article_detail(
     );
 
     if show_footer {
-        draw_article_footer(f, app, bar_area, true);
+        draw_article_info(f, app, bar_area);
     }
 }
 

@@ -16,7 +16,7 @@ use ratatui::{
 
 use super::super::{content_block, render_scrollable_list};
 use super::{
-    footer::draw_article_footer,
+    footer::{draw_article_footer, split_footer},
     helpers::split_articles,
     utils::{age_color, scroll_title, short_age, truncate_title},
 };
@@ -94,14 +94,7 @@ pub(super) fn build_article_list_item(
 /// suppressed; `draw_three_panel` renders a single shared footer instead.
 pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_footer: bool) {
     let (area, footer_area) = if show_footer {
-        let cf = ratatui::layout::Layout::default()
-            .direction(ratatui::layout::Direction::Vertical)
-            .constraints([
-                ratatui::layout::Constraint::Min(0),
-                ratatui::layout::Constraint::Length(1),
-            ])
-            .split(area);
-        (cf[0], cf[1])
+        split_footer(area)
     } else {
         (area, Rect::default())
     };

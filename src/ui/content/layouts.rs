@@ -9,7 +9,7 @@ use super::super::feed_editor::draw_feed_editor;
 use super::article_detail::draw_article_detail;
 use super::article_list::draw_article_list;
 use super::category_view::draw_category_article_list;
-use super::footer::draw_article_footer;
+use super::footer::{draw_article_footer, split_footer};
 use super::saved_sidebar::draw_saved_sidebar;
 use super::sidebar::draw_sidebar;
 use crate::{app::App, models::AppState};
@@ -20,12 +20,7 @@ use crate::{app::App, models::AppState};
 /// after both panels, spanning the full combined width.
 fn draw_three_panel(f: &mut Frame, app: &mut App, right_area: Rect, is_preview: bool) {
     // Carve shared footer from the bottom before splitting into panels.
-    let rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(1)])
-        .split(right_area);
-    let panels_area = rows[0];
-    let footer_area = rows[1];
+    let (panels_area, footer_area) = split_footer(right_area);
 
     let panels = Layout::default()
         .direction(Direction::Horizontal)
