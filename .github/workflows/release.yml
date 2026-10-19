@@ -6,6 +6,12 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Rebuild an existing release's binaries (e.g. after fixing this workflow).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build, e.g. v0.11.0"
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -39,6 +45,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -51,11 +59,26 @@ jobs:
 
       - run: cargo build --profile dist --locked --target ${{ matrix.target }}
 
+      # Every target's binary is called `brochure`, so give each a unique asset name
+      # (they all land in one release). tar keeps the executable bit, which
+      # artifact uploads drop.
+      - name: Package
+        shell: bash
+        run: |
+          dir=target/${{ matrix.target }}/dist
+          if [[ "${{ matrix.os }}" == windows-* ]]; then
+            cp "$dir/brochure.exe" "${{ matrix.name }}"
+            echo "ASSET=${{ matrix.name }}" >> "$GITHUB_ENV"
+          else
+            tar -czf "${{ matrix.name }}.tar.gz" -C "$dir" brochure
+            echo "ASSET=${{ matrix.name }}.tar.gz" >> "$GITHUB_ENV"
+          fi
+
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.name }}
-          path: target/${{ matrix.target }}/dist/brochure${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          path: ${{ env.ASSET }}
 
   publish:
     name: publish binaries
@@ -72,4 +95,5 @@ jobs:
       - name: Attach to GitHub release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: dist/*
