@@ -690,6 +690,8 @@ mod tests {
     async fn freshrss_setup_fields_share_one_frame() {
         let mut app = App::new();
         app.update_available = None;
+        // Pin the style: the loaded user data decides it otherwise (e.g. on CI).
+        app.user_data.border_rounded = true;
         app.select_tab(Tab::Settings);
         app.freshrss_setup
             .open(Some("https://rss.example.com"), Some("alice"));
