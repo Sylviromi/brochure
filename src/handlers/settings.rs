@@ -105,14 +105,16 @@ fn apply_settings_action(app: &mut App, dir: SettingDir, tx: &UnboundedSender<Ap
         (SettingsItem::ClearArticleCache, SettingDir::Enter) => {
             app.state = AppState::ClearArticleCache;
         }
-        (SettingsItem::FreshRss, SettingDir::Enter)
-        | (SettingsItem::FreshRss, SettingDir::Right) => {
-            if app.user_data.freshrss.is_some() {
-                app.spawn_freshrss_sync(tx);
-            } else {
-                app.freshrss_setup.open(None, None);
-                app.state = AppState::FreshRssSetup;
-            }
+        (SettingsItem::FreshRss, SettingDir::Right) if app.user_data.freshrss.is_some() => {
+            app.spawn_freshrss_sync(tx);
+        }
+        (SettingsItem::FreshRss, SettingDir::Enter | SettingDir::Right) => {
+            let cfg = app.user_data.freshrss.as_ref();
+            app.freshrss_setup.open(
+                cfg.map(|c| c.base_url.as_str()),
+                cfg.map(|c| c.username.as_str()),
+            );
+            app.state = AppState::FreshRssSetup;
         }
         (SettingsItem::FreshRss, SettingDir::Left) if app.user_data.freshrss.is_some() => {
             app.disconnect_freshrss();

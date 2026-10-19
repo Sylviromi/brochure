@@ -12,6 +12,9 @@ pub struct FreshRssSetupState {
     pub username_input: TextInput,
     /// API password input (rendered masked).
     pub password_input: TextInput,
+    /// Username of the connection being edited, or `None` when connecting fresh.
+    /// While editing, a blank password keeps the one already stored for this user.
+    pub editing_username: Option<String>,
 }
 
 impl Default for FreshRssSetupState {
@@ -21,13 +24,16 @@ impl Default for FreshRssSetupState {
             server_input: TextInput::default(),
             username_input: TextInput::default(),
             password_input: TextInput::default(),
+            editing_username: None,
         }
     }
 }
 
 impl FreshRssSetupState {
     /// Prefill server/username from an existing config (if any) and reset to step 0.
+    /// Passing a `username` puts the wizard in edit mode.
     pub fn open(&mut self, base_url: Option<&str>, username: Option<&str>) {
+        self.editing_username = username.map(str::to_string);
         self.step = FreshRssStep::Server;
         self.server_input.text = base_url.unwrap_or("https://").to_string();
         self.server_input.cursor = self.server_input.text.chars().count();

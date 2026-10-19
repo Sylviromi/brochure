@@ -74,8 +74,8 @@ const SAVED_LIST: Keys = &[
 
 const SETTINGS: Keys = &[
     ("j/k ↑/↓", "Move selection"),
-    ("Enter", "Activate / open"),
-    ("h/l ←/→", "Change value (← on FreshRSS disconnects)"),
+    ("Enter", "Activate / open (FreshRSS: edit connection)"),
+    ("h/l ←/→", "Change value (FreshRSS: → syncs, ← disconnects)"),
     ("Esc", "Back to Feeds"),
 ];
 
