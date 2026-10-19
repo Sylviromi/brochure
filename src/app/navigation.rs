@@ -424,8 +424,8 @@ impl App {
                 self.selected_tab = Tab::Feeds;
                 self.state = AppState::FeedList;
             }
-            AppState::OPMLExportPath | AppState::OPMLImportPath => {
-                self.opml.path_input.clear();
+            AppState::ExportPath | AppState::ImportPath => {
+                self.file_prompt.path_input.clear();
                 self.state = AppState::SettingsList;
             }
             AppState::ClearData => self.state = AppState::SettingsList,

@@ -346,6 +346,32 @@ impl Default for UserData {
     }
 }
 
+impl UserData {
+    /// Id of the saved category called `name` (ignoring case), creating it when
+    /// missing. Returns `(id, created)`.
+    pub fn saved_category_for(&mut self, name: &str) -> (u32, bool) {
+        if let Some(c) = self
+            .saved_categories
+            .iter()
+            .find(|c| c.name.eq_ignore_ascii_case(name))
+        {
+            return (c.id, false);
+        }
+        let id = self
+            .saved_categories
+            .iter()
+            .map(|c| c.id)
+            .max()
+            .unwrap_or(0)
+            + 1;
+        self.saved_categories.push(SavedCategory {
+            id,
+            name: name.to_string(),
+        });
+        (id, true)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

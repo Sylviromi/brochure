@@ -18,6 +18,7 @@ optional FreshRSS sync. Single binary crate; no workspace.
 | `src/state/` | Per-screen sub-state structs owned by `App` |
 | `src/sync/` | FreshRSS: `freshrss` (pure GReader parsing/mapping/category placement), `client` (HTTP), `apply` (results → `App`), `secret` (credential store) |
 | `src/storage.rs` | JSON persistence in the platform data dir, OPML import/export |
+| `src/saved_io.rs` | Saved-articles import/export as Google Reader starred JSON (interoperable with other readers) |
 | `src/fetch.rs` | Shared HTTP client, feed parsing, article extraction (`dom_smoothie`), update check |
 
 Key patterns:

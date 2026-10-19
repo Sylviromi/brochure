@@ -1,7 +1,9 @@
 //! Key event handling for the settings screen and its modal sub-states.
 //!
-//! Covers `SettingsList`, the two-step `AddFeed` wizard, `OPMLImportPath`/`OPMLExportPath` text
+//! Covers `SettingsList`, the two-step `AddFeed` wizard, `ImportPath`/`ExportPath` text
 //! inputs, and `ClearData`/`ClearArticleCache` confirmation dialogs.
+
+use std::path::Path;
 
 use crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::UnboundedSender;
@@ -10,6 +12,8 @@ use crate::{
     app::App,
     fetch::{fetch_feed, fetch_feed_title},
     models::{AddFeedStep, AppEvent, AppState, Feed, SettingsItem},
+    saved_io,
+    state::file_prompt::FileFormat,
     storage::{
         article_cache_size, clear_all_data, clear_article_cache, default_export_path,
         expand_home_dir, export_opml_to_path, import_opml_from_path, save_categories, save_feeds,
@@ -90,15 +94,10 @@ pub(super) fn handle_settings(
 fn apply_settings_action(app: &mut App, dir: SettingDir, tx: &UnboundedSender<AppEvent>) {
     match (app.settings_selected, dir) {
         // ── Modal transitions (Enter only) ─────────────────────────────────
-        (SettingsItem::ImportOpml, SettingDir::Enter) => {
-            app.opml.path_input.clear();
-            app.state = AppState::OPMLImportPath;
-        }
-        (SettingsItem::ExportOpml, SettingDir::Enter) => {
-            app.opml.path_input.text = default_export_path();
-            app.opml.path_input.cursor = app.opml.path_input.text.chars().count();
-            app.state = AppState::OPMLExportPath;
-        }
+        (SettingsItem::ImportOpml, SettingDir::Enter) => open_import(app, FileFormat::Opml),
+        (SettingsItem::ExportOpml, SettingDir::Enter) => open_export(app, FileFormat::Opml),
+        (SettingsItem::ImportSaved, SettingDir::Enter) => open_import(app, FileFormat::Saved),
+        (SettingsItem::ExportSaved, SettingDir::Enter) => open_export(app, FileFormat::Saved),
         (SettingsItem::ClearData, SettingDir::Enter) => {
             app.state = AppState::ClearData;
         }
@@ -370,59 +369,114 @@ pub(super) fn handle_confirm_clear_cache(app: &mut App, key: KeyEvent) {
     });
 }
 
-/// Handles key events for the `OPMLImportPath` and `OPMLExportPath` text-input states.
+/// Open the import path prompt for `format`.
+fn open_import(app: &mut App, format: FileFormat) {
+    app.file_prompt.format = format;
+    app.file_prompt.path_input.clear();
+    app.state = AppState::ImportPath;
+}
+
+/// Open the export path prompt for `format`, prefilled with a suggested path.
+fn open_export(app: &mut App, format: FileFormat) {
+    let input = &mut app.file_prompt.path_input;
+    input.text = default_export_path(format.default_file_name());
+    input.cursor = input.text.chars().count();
+    app.file_prompt.format = format;
+    app.state = AppState::ExportPath;
+}
+
+/// Handles key events for the `ImportPath` and `ExportPath` text-input states.
 ///
-/// On Enter, the path is expanded (tilde support) and either exported or imported. A successful
-/// import spawns one background fetch task per new feed and extends the live feed list.
-pub(super) fn handle_opml_path(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEvent>) {
+/// On Enter, the path is expanded (tilde support) and the file is imported or
+/// exported in the prompt's format.
+pub(super) fn handle_file_prompt(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEvent>) {
     match key.code {
         KeyCode::Enter => {
-            let raw = app.opml.path_input.text.trim().to_string();
+            let raw = app.file_prompt.path_input.text.trim().to_string();
             if raw.is_empty() {
                 app.set_status("Path cannot be empty.".to_string());
                 return;
             }
             let path = expand_home_dir(&raw);
-            if app.state == AppState::OPMLExportPath {
-                match export_opml_to_path(&path, &app.feeds, &app.categories) {
-                    Ok(()) => app.set_status(format!("Exported to {raw}")),
-                    Err(e) => app.set_status(format!("Export failed: {e}")),
-                }
-            } else {
-                match import_opml_from_path(&path, &app.feeds, &app.categories) {
-                    Ok((new_feeds, new_cats)) if new_feeds.is_empty() && new_cats.is_empty() => {
-                        app.set_status("No new feeds found in OPML file.".to_string());
+            let export = app.state == AppState::ExportPath;
+            match (app.file_prompt.format, export) {
+                (FileFormat::Opml, true) => {
+                    match export_opml_to_path(&path, &app.feeds, &app.categories) {
+                        Ok(()) => app.set_status(format!("Exported to {raw}")),
+                        Err(e) => app.set_status(format!("Export failed: {e}")),
                     }
-                    Ok((new_feeds, new_cats)) => {
-                        let feed_count = new_feeds.len();
-                        let cat_count = new_cats.len();
-                        let first_new_idx = app.feeds.len();
-                        app.feeds_total += feed_count;
-                        app.feeds_pending += feed_count;
-                        for (i, feed) in new_feeds.iter().enumerate() {
-                            let tx2 = tx.clone();
-                            let url = feed.url.clone();
-                            let idx = first_new_idx + i;
-                            tokio::spawn(async move {
-                                let result = fetch_feed(&url).await;
-                                let _ = tx2.send(AppEvent::FeedFetched(idx, result));
-                            });
-                        }
-                        app.feeds.extend(new_feeds);
-                        app.categories.extend(new_cats);
-                        let _ = save_feeds(&app.feeds);
-                        let _ = save_categories(&app.categories);
-                        app.set_status(format!(
-                            "Imported {feed_count} feed(s), {cat_count} category(s)"
-                        ));
-                    }
-                    Err(e) => app.set_status(format!("Import failed: {e}")),
                 }
+                (FileFormat::Opml, false) => import_opml(app, &path, tx),
+                (FileFormat::Saved, true) => {
+                    match saved_io::export_saved(Path::new(&path), &app.user_data, &app.feeds) {
+                        Ok(n) => app.set_status(format!("Exported {n} saved article(s) to {raw}")),
+                        Err(e) => app.set_status(format!("Export failed: {e}")),
+                    }
+                }
+                (FileFormat::Saved, false) => import_saved(app, &path),
             }
-            app.opml.path_input.clear();
+            app.file_prompt.path_input.clear();
             app.state = AppState::SettingsList;
         }
         KeyCode::Esc => app.unselect(),
-        _ => app.opml.path_input.handle_key(key.code, None),
+        _ => app.file_prompt.path_input.handle_key(key.code, None),
     }
+}
+
+/// Add the feeds and categories from an OPML file, fetching each new feed.
+fn import_opml(app: &mut App, path: &str, tx: &UnboundedSender<AppEvent>) {
+    match import_opml_from_path(path, &app.feeds, &app.categories) {
+        Ok((new_feeds, new_cats)) if new_feeds.is_empty() && new_cats.is_empty() => {
+            app.set_status("No new feeds found in OPML file.".to_string());
+        }
+        Ok((new_feeds, new_cats)) => {
+            let feed_count = new_feeds.len();
+            let cat_count = new_cats.len();
+            let first_new_idx = app.feeds.len();
+            app.feeds_total += feed_count;
+            app.feeds_pending += feed_count;
+            for (i, feed) in new_feeds.iter().enumerate() {
+                let tx2 = tx.clone();
+                let url = feed.url.clone();
+                let idx = first_new_idx + i;
+                tokio::spawn(async move {
+                    let result = fetch_feed(&url).await;
+                    let _ = tx2.send(AppEvent::FeedFetched(idx, result));
+                });
+            }
+            app.feeds.extend(new_feeds);
+            app.categories.extend(new_cats);
+            let _ = save_feeds(&app.feeds);
+            let _ = save_categories(&app.categories);
+            app.set_status(format!(
+                "Imported {feed_count} feed(s), {cat_count} category(s)"
+            ));
+        }
+        Err(e) => app.set_status(format!("Import failed: {e}")),
+    }
+}
+
+/// Merge a starred-items export into the saved articles.
+fn import_saved(app: &mut App, path: &str) {
+    let imported = match saved_io::read_saved(Path::new(path)) {
+        Ok(imported) => imported,
+        Err(e) => {
+            app.set_status(format!("Import failed: {e}"));
+            return;
+        }
+    };
+    let (articles, categories) = saved_io::merge_saved(&mut app.user_data, imported);
+    if articles == 0 {
+        app.set_status("No new saved articles in that file.".to_string());
+        return;
+    }
+    let _ = save_user_data(&app.user_data);
+    // Articles already in a feed show their saved marker right away.
+    let saved = crate::events::saved_links(&app.user_data.saved_articles);
+    for article in app.feeds.iter_mut().flat_map(|f| f.articles.iter_mut()) {
+        article.is_saved |= saved.contains(article.link.as_str());
+    }
+    app.set_status(format!(
+        "Imported {articles} saved article(s), {categories} new category(s)"
+    ));
 }

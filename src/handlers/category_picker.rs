@@ -9,7 +9,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use super::article::get_selected_article;
 use crate::{
     app::App,
-    models::{AppEvent, AppState, SavedArticle, SavedCategory},
+    models::{AppEvent, AppState, SavedArticle},
     storage::save_user_data,
 };
 
@@ -36,27 +36,7 @@ pub(super) fn handle_category_picker(app: &mut App, key: KeyEvent, tx: &Unbounde
             KeyCode::Enter => {
                 let name = app.category_picker.input.text.trim().to_string();
                 if !name.is_empty() {
-                    let target_id = app
-                        .user_data
-                        .saved_categories
-                        .iter()
-                        .find(|c| c.name.eq_ignore_ascii_case(&name))
-                        .map(|c| c.id)
-                        .unwrap_or_else(|| {
-                            let new_id = app
-                                .user_data
-                                .saved_categories
-                                .iter()
-                                .map(|c| c.id)
-                                .max()
-                                .unwrap_or(0)
-                                + 1;
-                            app.user_data.saved_categories.push(SavedCategory {
-                                id: new_id,
-                                name: name.clone(),
-                            });
-                            new_id
-                        });
+                    let (target_id, _) = app.user_data.saved_category_for(&name);
                     save_to_category(app, tx, target_id);
                     app.set_status(format!("Saved to '{name}'!"));
                 }

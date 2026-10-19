@@ -19,8 +19,8 @@ use super::border_set;
 pub(super) fn draw_settings_tab(f: &mut Frame, app: &mut App, area: Rect) {
     match app.state {
         AppState::SettingsList
-        | AppState::OPMLExportPath
-        | AppState::OPMLImportPath
+        | AppState::ExportPath
+        | AppState::ImportPath
         | AppState::ClearData
         | AppState::ClearArticleCache
         | AppState::FreshRssSetup => draw_settings(f, app, area),
@@ -89,6 +89,16 @@ fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
         Row::Item {
             item: SettingsItem::ExportOpml,
             label: "[ Export OPML ]",
+            in_last: false,
+        },
+        Row::Item {
+            item: SettingsItem::ImportSaved,
+            label: "[ Import Saved ]",
+            in_last: false,
+        },
+        Row::Item {
+            item: SettingsItem::ExportSaved,
+            label: "[ Export Saved ]",
             in_last: false,
         },
         Row::Item {

@@ -164,6 +164,8 @@ pub struct ImportedArticle {
     /// kept for future `reading-list` fan-out.
     #[allow(dead_code)]
     pub origin_stream_id: Option<String>,
+    /// User label names (`user/<id>/label/<name>`) the item carries, in order.
+    pub labels: Vec<String>,
 }
 
 /// GReader state labels used by FreshRSS.
@@ -173,6 +175,13 @@ pub const LABEL_STARRED: &str = "user/-/state/com.google/starred";
 /// True if any category entry marks the item read (covers `.../read` suffix variants).
 pub fn categories_mark_read(categories: &[String]) -> bool {
     categories.iter().any(|c| c.ends_with("/read"))
+}
+
+/// The label name in a GReader label category (`user/-/label/Tech` → `Tech`).
+/// Readers use `-` or a numeric user id in the middle.
+pub fn label_name(category: &str) -> Option<&str> {
+    let (_, name) = category.split_once("/label/")?;
+    Some(name).filter(|n| !n.is_empty())
 }
 
 /// True if any category entry marks the item starred.
@@ -219,7 +228,14 @@ fn map_stream_item(item: StreamItem) -> ImportedArticle {
             link.clone()
         }
     });
+    let labels = item
+        .categories
+        .iter()
+        .filter_map(|c| label_name(c))
+        .map(str::to_string)
+        .collect();
     ImportedArticle {
+        labels,
         article: Article {
             title,
             description,
@@ -576,6 +592,7 @@ mod tests {
                 error: None,
             },
             origin_stream_id: None,
+            labels: vec![],
         }];
         let added = merge_articles(&mut existing, pulled);
         assert_eq!(added, 0);

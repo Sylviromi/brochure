@@ -23,7 +23,7 @@ use crate::models::{
     Tab, TextScroll, TextSelection, ThemeEditorState, UpdateInfo, UserData,
 };
 use crate::state::{
-    AddFeedState, CategoryPickerState, FeedEditorState, FreshRssSetupState, OpmlState,
+    AddFeedState, CategoryPickerState, FeedEditorState, FilePromptState, FreshRssSetupState,
 };
 use crate::storage::{article_cache_size, load_categories, load_feeds, load_user_data};
 use crate::ui::theme::ColorTheme;
@@ -110,7 +110,7 @@ pub struct App {
 
     // ── OPML path input ──────────────────────────────────────────────────────
     /// State for OPML import/export path input.
-    pub opml: OpmlState,
+    pub file_prompt: FilePromptState,
 
     // ── Fetch progress ───────────────────────────────────────────────────────
     /// Total feeds being fetched in the current batch.
@@ -325,7 +325,7 @@ impl App {
             category_picker: CategoryPickerState::default(),
             saved_cat_editor_scroll: ListScroll::default(),
             add_feed: AddFeedState::default(),
-            opml: OpmlState::default(),
+            file_prompt: FilePromptState::default(),
             feeds_total: 0,
             feeds_pending: 0,
             categories,

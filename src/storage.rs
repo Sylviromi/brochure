@@ -56,7 +56,7 @@ fn read_json<T: DeserializeOwned + Default>(path: &Path) -> T {
 /// Serialize `value` and replace `path` atomically: write a sibling temp file, then
 /// rename it over the target. A crash or full disk mid-write can then never leave a
 /// truncated file — which would load as empty and silently lose the user's data.
-fn write_json(path: &Path, value: &impl Serialize, pretty: bool) -> anyhow::Result<()> {
+pub(crate) fn write_json(path: &Path, value: &impl Serialize, pretty: bool) -> anyhow::Result<()> {
     let content = if pretty {
         serde_json::to_vec_pretty(value)?
     } else {
@@ -492,11 +492,11 @@ pub fn expand_home_dir(path: &str) -> String {
     path.to_string()
 }
 
-/// Returns the default export path suggestion (~/Downloads/export.opml or data dir).
-pub fn default_export_path() -> String {
+/// Suggested export path: `file_name` in ~/Downloads (or the home directory).
+pub fn default_export_path(file_name: &str) -> String {
     let path = dirs::download_dir()
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")))
-        .join("export.opml");
+        .join(file_name);
     path.display().to_string()
 }
 

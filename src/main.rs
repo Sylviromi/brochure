@@ -7,6 +7,7 @@ mod events;
 mod fetch;
 mod handlers;
 mod models;
+mod saved_io;
 mod state;
 mod storage;
 mod sync;

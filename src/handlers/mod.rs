@@ -44,8 +44,8 @@ fn is_text_input(app: &App) -> bool {
     matches!(
         app.state,
         AppState::AddFeed
-            | AppState::OPMLExportPath
-            | AppState::OPMLImportPath
+            | AppState::ExportPath
+            | AppState::ImportPath
             | AppState::FreshRssSetup
             | AppState::FeedEditorRename
             | AppState::SavedCategoryEditorRename
@@ -123,9 +123,7 @@ pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEv
         AppState::AddFeed => settings::handle_add_feed(app, key, tx),
         AppState::SettingsList => return settings::handle_settings(app, key, tx),
         AppState::FreshRssSetup => freshrss::handle_freshrss_setup(app, key, tx),
-        AppState::OPMLExportPath | AppState::OPMLImportPath => {
-            settings::handle_opml_path(app, key, tx)
-        }
+        AppState::ExportPath | AppState::ImportPath => settings::handle_file_prompt(app, key, tx),
         AppState::ClearData => settings::handle_confirm_delete_all(app, key),
         AppState::ClearArticleCache => settings::handle_confirm_clear_cache(app, key),
         AppState::ArticleList | AppState::ArticleDetail => {

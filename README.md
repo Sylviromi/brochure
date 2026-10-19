@@ -26,6 +26,7 @@ Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 ligh
 - **Categories** — organise feeds into collapsible groups (state remembered across restarts)
 - **Saved articles** — star any article and group saves by source
 - **OPML import/export** — bring your existing subscriptions in, or take them out
+- **Saved articles import/export** — starred-items JSON, the format FreshRSS, Inoreader and other readers use for their starred exports
 - **FreshRSS sync** — sync subscriptions, articles, and read/starred state with a FreshRSS server (grouped under a FreshRSS category)
 - **Mouse support** — click tabs, feeds, articles, settings, and links; scroll with the wheel; drag to copy text; drag and drop in the feed editor
 - **Keybindings popup** — press `?` on any screen to see its keys
@@ -105,7 +106,7 @@ brochure stores all data in the platform data directory — no config files to m
 
 Files: `feeds.json`, `articles.json`, `categories.json`, `user_data.json`.
 
-OPML exports go to your **Downloads** folder by default.
+OPML and saved-article exports go to your **Downloads** folder by default.
 
 ## Screens
 

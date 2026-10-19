@@ -18,9 +18,9 @@ pub enum AppState {
     /// Browsing categories in the Saved tab sidebar.
     SavedCategoryList,
     /// Prompting for OPML export file path.
-    OPMLExportPath,
+    ExportPath,
     /// Prompting for OPML import file path.
-    OPMLImportPath,
+    ImportPath,
     /// Confirmation dialog to clear all data.
     ClearData,
     /// Confirmation dialog to clear cached article content.
@@ -98,6 +98,10 @@ pub enum SettingsItem {
     ImportOpml,
     /// Export feeds to an OPML file.
     ExportOpml,
+    /// Import saved articles from a starred JSON export.
+    ImportSaved,
+    /// Export saved articles as starred JSON.
+    ExportSaved,
     /// Clear all user data and feeds.
     ClearData,
     /// Toggle whether to save full article content when fetching.
@@ -128,6 +132,12 @@ impl SettingsItem {
         match self {
             Self::ImportOpml => "Import feeds from an OPML file on disk",
             Self::ExportOpml => "Export your feed list to an OPML file",
+            Self::ImportSaved => {
+                "Import saved articles from a starred-items export (FreshRSS, Inoreader, …)"
+            }
+            Self::ExportSaved => {
+                "Export saved articles as starred-items JSON that other RSS readers can import"
+            }
             Self::ClearData => "Remove all feeds, categories, and preferences",
             Self::CacheFullArticles => {
                 "Save full article content to cache during fetch instead of just the description"
@@ -147,9 +157,11 @@ impl SettingsItem {
     }
 
     /// Every item in on-screen order (top to bottom).
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 15] = [
         Self::ImportOpml,
         Self::ExportOpml,
+        Self::ImportSaved,
+        Self::ExportSaved,
         Self::ClearData,
         Self::CacheFullArticles,
         Self::ClearArticleCache,

@@ -5,11 +5,7 @@
 
 use crossterm::event::{KeyCode, KeyEvent};
 
-use crate::{
-    app::App,
-    models::{AppState, SavedCategory},
-    storage::save_user_data,
-};
+use crate::{app::App, models::AppState, storage::save_user_data};
 
 /// Handles key events for the `SavedCategoryEditor` list state.
 ///
@@ -95,24 +91,8 @@ pub(super) fn handle_saved_category_editor_new(app: &mut App, key: KeyEvent) {
             let name = app.feed_editor.input.text.trim().to_string();
             if !name.is_empty() {
                 // Reuse existing category if same name already exists.
-                let already_exists = app
-                    .user_data
-                    .saved_categories
-                    .iter()
-                    .any(|c| c.name.eq_ignore_ascii_case(&name));
-                if !already_exists {
-                    let new_id = app
-                        .user_data
-                        .saved_categories
-                        .iter()
-                        .map(|c| c.id)
-                        .max()
-                        .unwrap_or(0)
-                        + 1;
-                    app.user_data.saved_categories.push(SavedCategory {
-                        id: new_id,
-                        name: name.clone(),
-                    });
+                let (_, created) = app.user_data.saved_category_for(&name);
+                if created {
                     let _ = save_user_data(&app.user_data);
                     app.set_status(format!("Category '{name}' created."));
                 } else {

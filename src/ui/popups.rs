@@ -1,7 +1,7 @@
-//! Modal overlay popups: add-feed wizard, OPML paths, confirm dialogs, and category picker.
+//! Modal overlay popups: add-feed wizard, import/export paths, confirm dialogs, and category picker.
 //!
 //! This module renders transient modal dialogs that appear over the main content,
-//! including the two-step add-feed wizard, OPML import/export path prompts, confirmation dialogs,
+//! including the two-step add-feed wizard, import/export path prompts, confirmation dialogs,
 //! and the category picker for saving articles to custom categories.
 
 use crate::{
@@ -330,13 +330,13 @@ pub(super) fn draw_confirm_delete_cat(
     draw_confirm_dialog(f, app, " ⚠  Delete Category ", body, 70);
 }
 
-/// Renders the OPML import/export path input popup.
-pub(super) fn draw_opml_path_popup(f: &mut Frame, app: &App) {
-    let is_export = app.state == AppState::OPMLExportPath;
-    let title = if is_export {
-        " Export OPML — destination path "
+/// Renders the import/export file path input popup.
+pub(super) fn draw_file_path_popup(f: &mut Frame, app: &App) {
+    let what = app.file_prompt.format.label();
+    let title = if app.state == AppState::ExportPath {
+        format!(" Export {what} — destination path ")
     } else {
-        " Import OPML — source path "
+        format!(" Import {what} — source path ")
     };
 
     let area = f.area();
@@ -367,8 +367,8 @@ pub(super) fn draw_opml_path_popup(f: &mut Frame, app: &App) {
     );
 
     let content = cursor_line(
-        &app.opml.path_input.text,
-        app.opml.path_input.cursor,
+        &app.file_prompt.path_input.text,
+        app.file_prompt.path_input.cursor,
         &app.theme,
     );
 

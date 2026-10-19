@@ -303,11 +303,8 @@ fn draw_screen(f: &mut Frame, app: &mut App) {
     if app.state == AppState::FreshRssSetup {
         popups::draw_freshrss_setup_popup(f, app);
     }
-    if matches!(
-        app.state,
-        AppState::OPMLExportPath | AppState::OPMLImportPath
-    ) {
-        popups::draw_opml_path_popup(f, app);
+    if matches!(app.state, AppState::ExportPath | AppState::ImportPath) {
+        popups::draw_file_path_popup(f, app);
     }
     if app.state == AppState::ClearData {
         popups::draw_confirm_delete_all(f, app);

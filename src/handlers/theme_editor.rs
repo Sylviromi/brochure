@@ -199,10 +199,7 @@ pub(super) fn handle_theme_editor(app: &mut App, key: KeyEvent) {
                     .map(|ct| ct.name.to_lowercase().replace(' ', "-"))
                     .unwrap_or_else(|| "theme".to_string())
             };
-            let base = default_export_path();
-            let export_path =
-                std::path::PathBuf::from(&base).with_file_name(format!("{default_name}.toml"));
-            app.theme_editor.path_input.text = export_path.display().to_string();
+            app.theme_editor.path_input.text = default_export_path(&format!("{default_name}.toml"));
             app.theme_editor.path_input.cursor = app.theme_editor.path_input.text.chars().count();
             app.state = AppState::ThemeEditorExport;
         }
