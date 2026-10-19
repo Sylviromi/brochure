@@ -6,7 +6,8 @@
 //!   Links in the article text open in the browser.
 //! - Drag (feed editor): press on a feed or category and drag to move it; release
 //!   inside the panel drops it, outside cancels. Dragging a category sideways
-//!   changes its nesting depth.
+//!   changes its nesting depth one level per indent step (overshooting the panel
+//!   sideways still drops).
 //!
 //! Actions are routed through the keyboard handlers where possible so both input
 //! paths behave identically. Hit regions come from the last drawn frame
@@ -418,7 +419,13 @@ async fn release(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEven
             EditorPanel::Feeds => app.hit.editor_feeds,
             EditorPanel::Categories => app.hit.editor_cats,
         };
-        let code = if hits(area, col, row) {
+        // A sideways category drag (changing nesting depth) may overshoot the panel
+        // edge, so for categories only leaving it above or below cancels.
+        let drops = match d.panel {
+            EditorPanel::Feeds => hits(area, col, row),
+            EditorPanel::Categories => (area.top()..area.bottom()).contains(&row),
+        };
+        let code = if drops {
             KeyCode::Char(' ')
         } else {
             KeyCode::Esc
@@ -484,19 +491,30 @@ fn drag_target_to(app: &mut App, d: EditorDrag, col: u16, row: u16) {
             ) else {
                 return;
             };
+            // The panel shows the post-drop preview: map the row under the pointer
+            // back to that category's row in the real tree.
+            let (shown, moving_id) = app.editor_category_rows();
             let cats =
-                visible_cat_only_items(&app.categories, &app.feeds, &app.feed_editor.collapsed)
-                    .len();
-            let cursor = app.feed_editor.cat_cursor;
-            let preview_at = (cursor < cats).then_some(cursor + 1);
-            // One slot past the last category drops at the root level.
-            app.feed_editor.cat_cursor = unpreview(r, cursor, preview_at).min(cats);
-            let dx = i32::from(col) - i32::from(d.start_col);
-            let depth_delta = match dx {
-                3.. => 1,
-                ..=-3 => -1,
-                _ => 0,
+                visible_cat_only_items(&app.categories, &app.feeds, &app.feed_editor.collapsed);
+            let target_id = match shown.get(r) {
+                Some(FeedTreeItem::Category { id, .. }) => Some(*id),
+                _ => None,
             };
+            if target_id != moving_id {
+                // Below the last row: one slot past the end drops last at the root level.
+                app.feed_editor.cat_cursor = target_id
+                    .and_then(|t| {
+                        cats.iter().position(
+                            |item| matches!(item, FeedTreeItem::Category { id, .. } if *id == t),
+                        )
+                    })
+                    .unwrap_or(cats.len());
+            }
+            // Each indent step (2 columns) sideways is one nesting level; dragging
+            // left climbs ancestors all the way to the root level.
+            let dx = i32::from(col) - i32::from(d.start_col);
+            let min = -i32::from(app.editor_cat_cursor_depth());
+            let depth_delta = (dx / 2).clamp(min, 1) as i8;
             app.feed_editor.mode = FeedEditorMode::Moving {
                 origin_render_idx,
                 original_cursor,
@@ -840,6 +858,41 @@ mod tests {
 
     /// Drag a feed onto another row, then release outside the panel: move mode
     /// follows the pointer and the release cancels (nothing is saved).
+    #[tokio::test]
+    async fn dragging_a_category_left_climbs_to_the_root_level() {
+        use crate::models::Category;
+        let mut app = App::new();
+        app.update_available = None;
+        with_test_feeds(&mut app);
+        let cat = |id, parent_id| Category {
+            id,
+            name: format!("Cat {id}"),
+            parent_id,
+            order: 0,
+        };
+        // Cat 1 > Cat 2 > Cat 3
+        app.categories = vec![cat(1, None), cat(2, Some(1)), cat(3, Some(2))];
+        app.feed_editor.collapsed.clear();
+        app.state = AppState::FeedEditor;
+        app.feed_editor.panel = EditorPanel::Categories;
+        app.feed_editor.cat_cursor = 2;
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        draw(&mut app);
+        let area = app.hit.editor_cats;
+        let (x, y) = (area.x + 10, area.y + 2);
+
+        handle_mouse(&mut app, left_click(x, y), &tx).await;
+        let drag_to = |col| mouse(MouseEventKind::Drag(MouseButton::Left), col, y);
+        handle_mouse(&mut app, drag_to(x - 2), &tx).await;
+        let depth = |app: &App| match app.feed_editor.mode {
+            FeedEditorMode::Moving { depth_delta, .. } => depth_delta,
+            _ => panic!("not moving"),
+        };
+        assert_eq!(depth(&app), -1);
+        handle_mouse(&mut app, drag_to(x - 8), &tx).await;
+        assert_eq!(depth(&app), -2, "clamped at the root level");
+    }
+
     #[tokio::test]
     async fn dragging_a_feed_moves_the_target_and_cancels_outside() {
         let mut app = App::new();

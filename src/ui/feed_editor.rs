@@ -4,7 +4,7 @@
 //! with drag-to-move support, right panel shows categories with add/rename/delete controls.
 
 use crate::{
-    app::{App, visible_cat_only_items, visible_tree_items},
+    app::{App, visible_tree_items},
     models::{AppState, EditorPanel, FeedEditorMode, FeedTreeItem},
     ui::content::utils::split_cursor,
 };
@@ -61,7 +61,7 @@ fn draw_editor_feeds(f: &mut Frame, app: &mut App, area: Rect) {
     let mode_label = if is_active {
         match &app.feed_editor.mode {
             FeedEditorMode::Normal => "",
-            FeedEditorMode::Moving { .. } => " MOVE — j/k navigate, Space drop, Esc cancel ",
+            FeedEditorMode::Moving { .. } => " MOVE ",
             FeedEditorMode::Renaming { .. } => " RENAME ",
             FeedEditorMode::EditingUrl { .. } => " EDIT URL ",
             _ => "",
@@ -305,30 +305,12 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
     let is_rename = app.state == AppState::FeedEditorRename;
     let in_moving_mode = matches!(app.feed_editor.mode, FeedEditorMode::Moving { .. });
 
-    // For cat-move ghost: find the category ID being moved.
-    let moving_cat_id: Option<u64> = if in_moving_mode {
-        if let FeedEditorMode::Moving {
-            origin_render_idx, ..
-        } = &app.feed_editor.mode
-        {
-            let items = visible_tree_items(&app.categories, &app.feeds, &app.feed_editor.collapsed);
-            match items.get(*origin_render_idx) {
-                Some(FeedTreeItem::Category { id, .. }) => Some(*id),
-                _ => None,
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
+    let (cats, moving_cat_id) = app.editor_category_rows();
 
     let mode_label = if is_active {
         match &app.feed_editor.mode {
             FeedEditorMode::Normal => "",
-            FeedEditorMode::Moving { .. } => {
-                " MOVE — j/k navigate, ◀▶ depth, Space drop, Esc cancel "
-            }
+            FeedEditorMode::Moving { .. } => " MOVE ",
             FeedEditorMode::Renaming { .. } => " RENAME ",
             FeedEditorMode::NewCategory { .. } => " NEW CATEGORY ",
             FeedEditorMode::EditingUrl { .. } => " EDIT URL ",
@@ -355,7 +337,6 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let cats = visible_cat_only_items(&app.categories, &app.feeds, &app.feed_editor.collapsed);
     let rounded = app.user_data.border_rounded;
 
     if cats.is_empty() {
@@ -400,7 +381,7 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
                 && app.feed_editor.cat_cursor == idx
                 && !in_new_cat_mode
                 && !in_moving_mode;
-            let is_ghost = moving_cat_id == Some(*id);
+            let is_moving = moving_cat_id == Some(*id);
             let cat_colors = app.theme.category_colors();
             let color = cat_colors[(*id % cat_colors.len() as u64) as usize];
             let indent = tree_indent(&cats, idx, *depth);
@@ -438,28 +419,22 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
                 .map(|c| c.name.as_str())
                 .unwrap_or("?");
 
-            let style = if is_ghost {
-                Style::default()
-                    .fg(app.theme.muted)
-                    .add_modifier(Modifier::DIM)
+            let (style, connector_style, badge_style) = if is_moving {
+                let highlight = Style::default().fg(app.theme.bg_dark).bg(app.theme.warning);
+                (
+                    highlight.bold(),
+                    Style::default().fg(app.theme.warning),
+                    highlight,
+                )
             } else if selected {
-                Style::default()
-                    .fg(app.theme.bg_dark)
-                    .bg(color)
-                    .bold()
-                    .bold()
+                let highlight = Style::default().fg(app.theme.bg_dark).bg(color);
+                (highlight.bold(), highlight, highlight)
             } else {
-                Style::default().fg(color).bold()
-            };
-            let connector_style = if selected && !is_ghost {
-                Style::default().fg(app.theme.bg_dark).bg(color)
-            } else {
-                Style::default().fg(app.theme.border)
-            };
-            let badge_style = if selected && !is_ghost {
-                Style::default().fg(app.theme.bg_dark).bg(color)
-            } else {
-                Style::default().fg(app.theme.muted)
+                (
+                    Style::default().fg(color).bold(),
+                    Style::default().fg(app.theme.border),
+                    Style::default().fg(app.theme.muted),
+                )
             };
 
             ListItem::new(Line::from(vec![
@@ -504,44 +479,13 @@ fn draw_editor_categories(f: &mut Frame, app: &mut App, area: Rect) {
         );
     }
 
-    // In Moving mode: insert drop-preview row for category.
-    let mut display_cursor = if is_active {
-        app.feed_editor.cat_cursor
-    } else {
-        usize::MAX
+    let display_cursor = match moving_cat_id {
+        Some(id) => cats
+            .iter()
+            .position(|item| matches!(item, FeedTreeItem::Category { id: c, .. } if *c == id))
+            .unwrap_or(0),
+        None => app.feed_editor.cat_cursor,
     };
-    if in_moving_mode && moving_cat_id.is_some() && is_active {
-        let cursor = app.feed_editor.cat_cursor;
-        if cursor < cats.len() {
-            let src_name = moving_cat_id
-                .and_then(|id| {
-                    app.categories
-                        .iter()
-                        .find(|c| c.id == id)
-                        .map(|c| c.name.as_str())
-                })
-                .unwrap_or("?");
-            let depth_delta = match &app.feed_editor.mode {
-                FeedEditorMode::Moving { depth_delta, .. } => *depth_delta,
-                _ => 0,
-            };
-            let cursor_depth = match cats.get(cursor) {
-                Some(FeedTreeItem::Category { depth, .. }) => *depth as i8,
-                _ => 0,
-            };
-            let preview_depth = (cursor_depth + depth_delta).max(0) as u8;
-            let indent = "  ".repeat(preview_depth as usize);
-            let preview = ListItem::new(Line::from(vec![
-                indent.fg(app.theme.border),
-                "➤ ".fg(app.theme.warning).bold(),
-                format!("{src_name} ▼").fg(app.theme.warning).bold(),
-            ]));
-            let insert_at = (cursor + 1).min(final_items.len());
-            final_items.insert(insert_at, preview);
-            display_cursor = insert_at;
-        }
-    }
-
     if is_active {
         app.editor_cats_list_state.select(Some(
             display_cursor.min(final_items.len().saturating_sub(1)),

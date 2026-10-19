@@ -136,14 +136,30 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
                         matches!(items.get(origin), Some(FeedTreeItem::Category { .. }))
                     };
                     match key.code {
-                        KeyCode::Char('j') | KeyCode::Down => app.next(),
-                        KeyCode::Char('k') | KeyCode::Up => app.previous(),
+                        KeyCode::Down | KeyCode::Up => {
+                            if key.code == KeyCode::Down {
+                                app.next();
+                            } else {
+                                app.previous();
+                            }
+                            if is_cat_move {
+                                // Keep the depth offset reachable from the new cursor row,
+                                // so the next ←/→ press always changes something.
+                                let min = -(app.editor_cat_cursor_depth() as i8);
+                                app.feed_editor.mode = FeedEditorMode::Moving {
+                                    origin_render_idx: origin,
+                                    original_cursor: orig,
+                                    depth_delta: depth_delta.max(min),
+                                };
+                            }
+                        }
                         KeyCode::Left if is_cat_move => {
-                            // Go shallower (sibling of cursor's parent).
+                            // Go shallower, one ancestor per press, down to the root level.
+                            let min = -(app.editor_cat_cursor_depth() as i8);
                             app.feed_editor.mode = FeedEditorMode::Moving {
                                 origin_render_idx: origin,
                                 original_cursor: orig,
-                                depth_delta: (depth_delta - 1).max(-1),
+                                depth_delta: (depth_delta - 1).max(min),
                             };
                         }
                         KeyCode::Right if is_cat_move => {
@@ -156,14 +172,9 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
                         }
                         KeyCode::Char(' ') => {
                             if is_cat_move {
-                                let new_pos = app.apply_category_move(
-                                    origin,
-                                    app.feed_editor.cat_cursor,
-                                    depth_delta,
-                                );
-                                if let Some(pos) = new_pos {
-                                    app.feed_editor.cat_cursor = pos;
-                                }
+                                // A no-op drop returns the cursor to the category.
+                                app.feed_editor.cat_cursor =
+                                    app.apply_category_move().unwrap_or(orig);
                                 app.feed_editor.mode = FeedEditorMode::Normal;
                                 // Stays on Categories panel
                             } else {
@@ -427,5 +438,86 @@ pub(super) fn handle_feed_editor(app: &mut App, key: KeyEvent, _tx: &UnboundedSe
             }
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::KeyModifiers;
+
+    #[tokio::test]
+    async fn left_climbs_to_root_from_any_depth() {
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new();
+        let cat = |id, parent_id| Category {
+            id,
+            name: format!("Cat {id}"),
+            parent_id,
+            order: 0,
+        };
+        // Cat 1 > Cat 2 > Cat 3
+        app.categories = vec![cat(1, None), cat(2, Some(1)), cat(3, Some(2))];
+        app.feed_editor.collapsed.clear();
+        app.state = AppState::FeedEditor;
+        app.feed_editor.panel = EditorPanel::Categories;
+        app.feed_editor.cat_cursor = 2;
+        let mut press = |code| {
+            handle_feed_editor(&mut app, KeyEvent::new(code, KeyModifiers::NONE), &tx);
+            match app.feed_editor.mode {
+                FeedEditorMode::Moving { depth_delta, .. } => depth_delta,
+                _ => panic!("not moving"),
+            }
+        };
+        assert_eq!(press(KeyCode::Char(' ')), 0);
+        assert_eq!(press(KeyCode::Left), -1);
+        assert_eq!(press(KeyCode::Left), -2);
+        assert_eq!(press(KeyCode::Left), -2, "stops at the root level");
+        assert_eq!(press(KeyCode::Right), -1);
+    }
+
+    #[tokio::test]
+    async fn move_preview_shows_the_category_where_it_will_land() {
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new();
+        app.feeds.clear();
+        let cat = |id, parent_id, order| Category {
+            id,
+            name: format!("Cat {id}"),
+            parent_id,
+            order,
+        };
+        // 1 > (2 > 3, 4), 5
+        app.categories = vec![
+            cat(1, None, 0),
+            cat(2, Some(1), 0),
+            cat(3, Some(2), 0),
+            cat(4, Some(1), 1),
+            cat(5, None, 1),
+        ];
+        app.feed_editor.collapsed.clear();
+        app.state = AppState::FeedEditor;
+        app.feed_editor.panel = EditorPanel::Categories;
+        app.feed_editor.cat_cursor = 2;
+        let rows = |app: &App| {
+            let (rows, moving) = app.editor_category_rows();
+            let rows: Vec<(u64, u8)> = rows
+                .iter()
+                .filter_map(|item| match item {
+                    FeedTreeItem::Category { id, depth, .. } => Some((*id, *depth)),
+                    _ => None,
+                })
+                .collect();
+            (rows, moving)
+        };
+        for code in [KeyCode::Char(' '), KeyCode::Left, KeyCode::Left] {
+            handle_feed_editor(&mut app, KeyEvent::new(code, KeyModifiers::NONE), &tx);
+        }
+        // Cat 3 previews at the root level, right after Cat 1's subtree.
+        assert_eq!(
+            rows(&app),
+            (vec![(1, 0), (2, 1), (4, 1), (3, 0), (5, 0)], Some(3))
+        );
+        assert_eq!(app.categories[2].parent_id, Some(2), "nothing saved yet");
     }
 }

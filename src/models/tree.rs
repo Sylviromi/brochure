@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub type CategoryId = u64;
 
 /// A category node in the feed tree (persisted to categories.json).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Category {
     /// Unique identifier for this category.
     pub id: CategoryId,

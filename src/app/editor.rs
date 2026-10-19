@@ -1,7 +1,9 @@
 //! Feed editor operations: cursor movement, deleting, and moving feeds/categories.
 
 use super::{App, feed_row_indices, step_cursor, visible_cat_only_items, visible_tree_items};
-use crate::models::{CategoryId, EditorPanel, FAVORITES_URL, FeedEditorMode, FeedTreeItem};
+use crate::models::{
+    Category, CategoryId, EditorPanel, FAVORITES_URL, FeedEditorMode, FeedTreeItem,
+};
 use crate::storage::{save_categories, save_feeds};
 use std::collections::HashSet;
 
@@ -46,6 +48,17 @@ impl App {
             if let Some(n) = step_cursor(cur, rows.len(), forward, wrap) {
                 self.feed_editor.cursor = rows[n];
             }
+        }
+    }
+
+    /// Nesting depth of the category under the categories-panel cursor (0 = root,
+    /// also for the "drop at root" slot past the end).
+    pub(crate) fn editor_cat_cursor_depth(&self) -> u8 {
+        match visible_cat_only_items(&self.categories, &self.feeds, &self.feed_editor.collapsed)
+            .get(self.feed_editor.cat_cursor)
+        {
+            Some(FeedTreeItem::Category { depth, .. }) => *depth,
+            _ => 0,
         }
     }
 
@@ -121,98 +134,61 @@ impl App {
         let _ = save_feeds(&self.feeds);
     }
 
-    /// Returns true if `ancestor_id` is an ancestor of (or equal to) `node_id`.
-    fn is_ancestor_of(&self, ancestor_id: CategoryId, node_id: CategoryId) -> bool {
-        if node_id == ancestor_id {
-            return true;
-        }
-        let parent = self
-            .categories
-            .iter()
-            .find(|c| c.id == node_id)
-            .and_then(|c| c.parent_id);
-        match parent {
-            Some(pid) => self.is_ancestor_of(ancestor_id, pid),
-            None => false,
-        }
-    }
-
-    /// Apply a category move and return the new `editor_cat_cursor` for the moved category.
-    pub(crate) fn apply_category_move(
-        &mut self,
-        origin_full_idx: usize,
-        dest_cat_cursor: usize,
-        depth_delta: i8,
-    ) -> Option<usize> {
-        let src_id = match self.editor_items().get(origin_full_idx) {
-            Some(FeedTreeItem::Category { id, .. }) => *id,
-            _ => return None,
+    /// The category being moved and the category list as it would look if dropped
+    /// at the current cursor/depth — the single source for both the on-screen preview
+    /// and the actual drop. The list is `None` when the drop would change nothing.
+    pub(crate) fn editor_category_move_preview(
+        &self,
+    ) -> Option<(CategoryId, Option<Vec<Category>>)> {
+        let FeedEditorMode::Moving {
+            origin_render_idx,
+            depth_delta,
+            ..
+        } = self.feed_editor.mode
+        else {
+            return None;
         };
-
+        let Some(FeedTreeItem::Category { id: src_id, .. }) =
+            self.editor_items().get(origin_render_idx).cloned()
+        else {
+            return None;
+        };
         let cats =
             visible_cat_only_items(&self.categories, &self.feeds, &self.feed_editor.collapsed);
-
-        if dest_cat_cursor >= cats.len() {
-            if let Some(cat) = self.categories.iter_mut().find(|c| c.id == src_id) {
-                cat.parent_id = None;
-            }
-            self.place_category_after_sibling(src_id, None, None);
-            let _ = save_categories(&self.categories);
-            return self.editor_cat_position(src_id);
-        }
-
-        let cursor_cat_id = match cats.get(dest_cat_cursor) {
-            Some(FeedTreeItem::Category { id, .. }) => *id,
-            _ => return None,
+        // One slot past the last row means "last at the root level".
+        let cursor_id = match cats.get(self.feed_editor.cat_cursor) {
+            Some(FeedTreeItem::Category { id, .. }) => Some(*id),
+            _ => None,
         };
+        let moved = category_move_result(&self.categories, src_id, cursor_id, depth_delta);
+        Some((src_id, moved))
+    }
 
-        let (new_parent_id, after_anchor_id) = if depth_delta >= 1 {
-            if cursor_cat_id == src_id {
-                return None;
-            }
-            (Some(cursor_cat_id), None)
-        } else {
-            let mut anchor_id = cursor_cat_id;
-            for _ in 0..depth_delta.unsigned_abs() {
-                let p = self
-                    .categories
-                    .iter()
-                    .find(|c| c.id == anchor_id)
-                    .and_then(|c| c.parent_id);
-                match p {
-                    Some(pid) => anchor_id = pid,
-                    None => break,
-                }
-            }
-            let anchor_parent = self
-                .categories
-                .iter()
-                .find(|c| c.id == anchor_id)
-                .and_then(|c| c.parent_id);
-            let after = if anchor_id == src_id {
-                None
-            } else {
-                Some(anchor_id)
-            };
-            (anchor_parent, after)
+    /// Rows shown in the categories panel, plus the id of the category being moved.
+    /// While moving, the rows are the tree as it will look after the drop (with the
+    /// target's ancestors expanded), so the moving category appears at its target.
+    pub(crate) fn editor_category_rows(&self) -> (Vec<FeedTreeItem>, Option<CategoryId>) {
+        let Some((moving_id, moved)) = self.editor_category_move_preview() else {
+            let rows =
+                visible_cat_only_items(&self.categories, &self.feeds, &self.feed_editor.collapsed);
+            return (rows, None);
         };
-
-        if let Some(pid) = new_parent_id
-            && self.is_ancestor_of(src_id, pid)
-        {
-            return None;
+        let categories = moved.as_deref().unwrap_or(&self.categories);
+        let mut collapsed = self.feed_editor.collapsed.clone();
+        let mut parent = parent_of(categories, moving_id);
+        while let Some(pid) = parent {
+            collapsed.remove(&pid);
+            parent = parent_of(categories, pid);
         }
-        if after_anchor_id == Some(src_id) {
-            return None;
-        }
+        let rows = visible_cat_only_items(categories, &self.feeds, &collapsed);
+        (rows, Some(moving_id))
+    }
 
-        if let Some(cat) = self.categories.iter_mut().find(|c| c.id == src_id) {
-            cat.parent_id = new_parent_id;
-        }
-
-        self.place_category_after_sibling(src_id, after_anchor_id, new_parent_id);
+    /// Apply the pending category move and return the moved category's new row.
+    pub(crate) fn apply_category_move(&mut self) -> Option<usize> {
+        let (src_id, moved) = self.editor_category_move_preview()?;
+        self.categories = moved?;
         let _ = save_categories(&self.categories);
-
         self.editor_cat_position(src_id)
     }
 
@@ -294,38 +270,194 @@ impl App {
             self.feeds[idx].order = order;
         }
     }
+}
 
-    /// Insert `moved_id` into `parent`'s sibling list right after `after_id`, then reassign orders.
-    fn place_category_after_sibling(
-        &mut self,
-        moved_id: CategoryId,
-        after_id: Option<CategoryId>,
-        parent: Option<CategoryId>,
-    ) {
-        let mut siblings: Vec<usize> = self
-            .categories
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| c.parent_id == parent && c.id != moved_id)
-            .map(|(i, _)| i)
-            .collect();
-        siblings.sort_by_key(|&i| self.categories[i].order);
+fn parent_of(categories: &[Category], id: CategoryId) -> Option<CategoryId> {
+    categories
+        .iter()
+        .find(|c| c.id == id)
+        .and_then(|c| c.parent_id)
+}
 
-        let Some(moved_pos) = self.categories.iter().position(|c| c.id == moved_id) else {
-            return;
-        };
-        let insert_at = match after_id {
-            Some(aid) => siblings
-                .iter()
-                .position(|&i| self.categories[i].id == aid)
-                .map(|p| p + 1)
-                .unwrap_or(siblings.len()),
-            None => 0,
-        };
-        siblings.insert(insert_at, moved_pos);
-
-        for (order, &idx) in siblings.iter().enumerate() {
-            self.categories[idx].order = order;
+/// Returns true if `ancestor_id` is an ancestor of (or equal to) `node_id`.
+fn is_ancestor_of(categories: &[Category], ancestor_id: CategoryId, node_id: CategoryId) -> bool {
+    let mut node = Some(node_id);
+    while let Some(id) = node {
+        if id == ancestor_id {
+            return true;
         }
+        node = parent_of(categories, id);
+    }
+    false
+}
+
+/// Where category `src_id` lands when dropped on the row of `cursor_id`:
+/// `(new parent, sibling to insert after)`, or `None` if the drop is invalid.
+///
+/// `depth_delta` is relative to the cursor row: `+1` nests inside it, `0` places it
+/// after it as a sibling, and each step below zero climbs one ancestor (so a large
+/// enough negative value reaches the root level).
+fn category_move_target(
+    categories: &[Category],
+    src_id: CategoryId,
+    cursor_id: CategoryId,
+    depth_delta: i8,
+) -> Option<(Option<CategoryId>, Option<CategoryId>)> {
+    let (parent, after) = if depth_delta >= 1 {
+        (Some(cursor_id), None)
+    } else {
+        let mut anchor = cursor_id;
+        for _ in 0..depth_delta.unsigned_abs() {
+            match parent_of(categories, anchor) {
+                Some(pid) => anchor = pid,
+                None => break,
+            }
+        }
+        if anchor == src_id {
+            // Dropped back on its own row at its own depth: nothing to move.
+            return None;
+        }
+        (parent_of(categories, anchor), Some(anchor))
+    };
+    if parent.is_some_and(|pid| is_ancestor_of(categories, src_id, pid)) {
+        return None;
+    }
+    Some((parent, after))
+}
+
+/// `categories` with `src_id` dropped on the row of `cursor_id` (`None` = past the
+/// last row, i.e. last at the root level), or `None` if the drop is invalid or a no-op.
+fn category_move_result(
+    categories: &[Category],
+    src_id: CategoryId,
+    cursor_id: Option<CategoryId>,
+    depth_delta: i8,
+) -> Option<Vec<Category>> {
+    let (parent, after) = match cursor_id {
+        Some(cursor_id) => category_move_target(categories, src_id, cursor_id, depth_delta)?,
+        None => {
+            let last_root = categories
+                .iter()
+                .filter(|c| c.parent_id.is_none() && c.id != src_id)
+                .max_by_key(|c| c.order)
+                .map(|c| c.id);
+            (None, last_root)
+        }
+    };
+    let mut moved = categories.to_vec();
+    moved.iter_mut().find(|c| c.id == src_id)?.parent_id = parent;
+    place_category_after_sibling(&mut moved, src_id, after, parent);
+    (moved != categories).then_some(moved)
+}
+
+/// Insert `moved_id` into `parent`'s sibling list right after `after_id` (first when
+/// `None`), then renumber the siblings' orders.
+fn place_category_after_sibling(
+    categories: &mut [Category],
+    moved_id: CategoryId,
+    after_id: Option<CategoryId>,
+    parent: Option<CategoryId>,
+) {
+    let mut siblings: Vec<usize> = (0..categories.len())
+        .filter(|&i| categories[i].parent_id == parent && categories[i].id != moved_id)
+        .collect();
+    siblings.sort_by_key(|&i| categories[i].order);
+    let Some(moved_pos) = categories.iter().position(|c| c.id == moved_id) else {
+        return;
+    };
+    let insert_at = match after_id {
+        Some(aid) => siblings
+            .iter()
+            .position(|&i| categories[i].id == aid)
+            .map_or(siblings.len(), |p| p + 1),
+        None => 0,
+    };
+    siblings.insert(insert_at, moved_pos);
+    for (order, &idx) in siblings.iter().enumerate() {
+        categories[idx].order = order;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cat(id: CategoryId, parent_id: Option<CategoryId>, order: usize) -> Category {
+        Category {
+            id,
+            name: format!("c{id}"),
+            parent_id,
+            order,
+        }
+    }
+
+    /// A(1) > B(2) > C(3), plus root D(4).
+    fn tree() -> Vec<Category> {
+        vec![
+            cat(1, None, 0),
+            cat(2, Some(1), 0),
+            cat(3, Some(2), 0),
+            cat(4, None, 1),
+        ]
+    }
+
+    #[test]
+    fn child_moved_left_on_itself_lands_at_root_after_parent() {
+        assert_eq!(
+            category_move_target(&tree(), 2, 2, -1),
+            Some((None, Some(1)))
+        );
+    }
+
+    #[test]
+    fn grandchild_climbs_one_level_per_step() {
+        let cats = tree();
+        assert_eq!(
+            category_move_target(&cats, 3, 3, -1),
+            Some((Some(1), Some(2)))
+        );
+        assert_eq!(category_move_target(&cats, 3, 3, -2), Some((None, Some(1))));
+    }
+
+    #[test]
+    fn cannot_nest_inside_own_subtree() {
+        assert_eq!(category_move_target(&tree(), 1, 3, 1), None);
+        assert_eq!(category_move_target(&tree(), 1, 2, 0), None);
+    }
+
+    fn layout(cats: &[Category]) -> Vec<(CategoryId, Option<CategoryId>, usize)> {
+        let mut v: Vec<_> = cats.iter().map(|c| (c.id, c.parent_id, c.order)).collect();
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn past_the_end_appends_at_root() {
+        let moved = category_move_result(&tree(), 3, None, 0).unwrap();
+        // C becomes the last root category, after D.
+        assert_eq!(
+            layout(&moved),
+            vec![(1, None, 0), (2, Some(1), 0), (3, None, 2), (4, None, 1)]
+        );
+    }
+
+    #[test]
+    fn no_op_moves_produce_no_result() {
+        // Already last at root.
+        assert_eq!(category_move_result(&tree(), 4, None, 0), None);
+        assert_eq!(category_move_result(&tree(), 2, Some(2), 0), None);
+    }
+
+    #[test]
+    fn dropping_on_itself_is_a_no_op() {
+        assert_eq!(category_move_target(&tree(), 2, 2, 0), None);
+    }
+
+    #[test]
+    fn dropping_on_root_row_keeps_root_level() {
+        assert_eq!(
+            category_move_target(&tree(), 3, 4, 0),
+            Some((None, Some(4)))
+        );
     }
 }
