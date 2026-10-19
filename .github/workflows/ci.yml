@@ -21,6 +21,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # `--all-features` enables `os-keyring`, whose Secret Service backend links libdbus.
+      - run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
       - run: cargo test --all-features
 
   fmt:
@@ -46,5 +49,8 @@ jobs:
           components: clippy
 
       - uses: Swatinem/rust-cache@v2
+
+      # `--all-features` enables `os-keyring`, whose Secret Service backend links libdbus.
+      - run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
 
       - run: cargo clippy --all-features -- -D warnings
