@@ -133,6 +133,7 @@ impl App {
 
     /// Place the sidebar cursor on row `idx` and update the article preview.
     pub(crate) fn set_sidebar_cursor(&mut self, idx: usize) {
+        self.detached.sidebar = false;
         self.sidebar_cursor = idx;
         self.sidebar_title_start_tick = self.tick;
         self.selected_article = 0;
@@ -158,6 +159,7 @@ impl App {
 
     /// Select article `idx` in the active list and restart its title animation.
     pub(crate) fn set_article_cursor(&mut self, idx: usize) {
+        self.detached.article_list = false;
         self.selected_article = idx;
         self.article_title_start_tick = self.tick;
     }
@@ -226,6 +228,7 @@ impl App {
 
     /// Place the saved-sidebar cursor on entry `idx` (0 = "All Saved") and refresh the preview.
     pub(crate) fn set_saved_cursor(&mut self, idx: usize) {
+        self.detached.saved_sidebar = false;
         self.saved_sidebar_cursor = idx;
         self.sidebar_title_start_tick = self.tick;
         self.sync_saved_preview();

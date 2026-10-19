@@ -39,8 +39,67 @@ fn handle_zen_mode(app: &mut App, key: KeyEvent) -> bool {
     false
 }
 
+/// True when keystrokes are typed into a text field (so letters are not shortcuts).
+fn is_text_input(app: &App) -> bool {
+    matches!(
+        app.state,
+        AppState::AddFeed
+            | AppState::OPMLExportPath
+            | AppState::OPMLImportPath
+            | AppState::FreshRssSetup
+            | AppState::FeedEditorRename
+            | AppState::SavedCategoryEditorRename
+            | AppState::SavedCategoryEditorNew
+            | AppState::ThemeEditorHexInput
+            | AppState::ThemeEditorRename
+            | AppState::ThemeEditorExport
+            | AppState::ThemeEditorImport
+    ) || (app.state == AppState::CategoryPicker && app.category_picker.new_mode)
+}
+
+/// Keys while the keybindings popup is open (it swallows everything else).
+fn handle_help(app: &mut App, key: KeyEvent) {
+    match key.code {
+        KeyCode::Char('?') | KeyCode::Esc | KeyCode::Char('q') | KeyCode::Enter => {
+            app.help_open = false;
+        }
+        KeyCode::Down => app.help_scroll = app.help_scroll.saturating_add(1),
+        KeyCode::Up => app.help_scroll = app.help_scroll.saturating_sub(1),
+        KeyCode::PageDown => app.help_scroll = app.help_scroll.saturating_add(10),
+        KeyCode::PageUp => app.help_scroll = app.help_scroll.saturating_sub(10),
+        _ => {}
+    }
+}
+
 /// Route a key event to the correct handler based on the current app state.
 pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEvent>) -> bool {
+    // Keyboard navigation always brings wheel-scrolled lists back to their cursor
+    // and dismisses any mouse text selection.
+    app.detached = Default::default();
+    app.selection = None;
+
+    // Outside text fields, j/k always mean ↓/↑ so every list and view agrees.
+    let mut key = key;
+    if !is_text_input(app) {
+        key.code = match key.code {
+            KeyCode::Char('j') => KeyCode::Down,
+            KeyCode::Char('k') => KeyCode::Up,
+            code => code,
+        };
+    }
+    if app.help_open {
+        handle_help(app, key);
+        return false;
+    }
+    if key.code == KeyCode::Char('?')
+        && !is_text_input(app)
+        && app.update_available.is_none()
+        && app.feed_editor.delete_cat.is_none()
+    {
+        app.help_open = true;
+        app.help_scroll = 0;
+        return false;
+    }
     if app.zen_mode {
         return handle_zen_mode(app, key);
     }

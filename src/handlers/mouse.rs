@@ -19,18 +19,31 @@ use tokio::sync::mpsc::UnboundedSender;
 use super::article::prefetch_article_if_stub;
 use crate::{
     app::{App, visible_cat_only_items},
-    models::{AppEvent, AppState, EditorPanel, FeedEditorMode, FeedTreeItem, hits, list_row},
+    models::{
+        AppEvent, AppState, EditorPanel, FeedEditorMode, FeedTreeItem, PendingClick, TextSelection,
+        hits, list_row,
+    },
     state::EditorDrag,
     ui::content::helpers::split_articles,
 };
 
-/// Lines scrolled per wheel notch in article text.
-const WHEEL_LINES: usize = 3;
+/// Lines scrolled per wheel notch in article text and unfocused lists.
+const WHEEL_LINES: i32 = 3;
 
 /// Route one mouse event. Returns `true` when the app should quit (never, today —
 /// kept for symmetry with key handling).
 pub async fn handle_mouse(app: &mut App, ev: MouseEvent, tx: &UnboundedSender<AppEvent>) -> bool {
     let (col, row) = (ev.column, ev.row);
+    if app.help_open {
+        // The keybindings popup is modal: wheel scrolls it, a click closes it.
+        match ev.kind {
+            MouseEventKind::ScrollDown => app.help_scroll = app.help_scroll.saturating_add(3),
+            MouseEventKind::ScrollUp => app.help_scroll = app.help_scroll.saturating_sub(3),
+            MouseEventKind::Down(_) => app.help_open = false,
+            _ => {}
+        }
+        return false;
+    }
     match ev.kind {
         MouseEventKind::ScrollDown => scroll(app, col, row, KeyCode::Down, tx).await,
         MouseEventKind::ScrollUp => scroll(app, col, row, KeyCode::Up, tx).await,
@@ -46,12 +59,45 @@ async fn press(app: &mut App, code: KeyCode, tx: &UnboundedSender<AppEvent>) -> 
     super::handle_key(app, KeyEvent::new(code, KeyModifiers::NONE), tx).await
 }
 
-async fn press_n(app: &mut App, code: KeyCode, n: usize, tx: &UnboundedSender<AppEvent>) -> bool {
-    for _ in 0..n {
-        if press(app, code, tx).await {
-            return true;
-        }
+/// Single-list screens whose rows are recorded in `hit.rows` (see `click_row`).
+fn has_row_list(app: &App) -> bool {
+    match app.state {
+        AppState::ThemeEditor
+        | AppState::ThemeEditorNew
+        | AppState::ThemeEditorColorEdit
+        | AppState::SavedCategoryEditor => true,
+        AppState::CategoryPicker => !app.category_picker.new_mode,
+        _ => false,
     }
+}
+
+/// Picker popups: a click outside them cancels.
+fn is_picker_popup(app: &App) -> bool {
+    matches!(
+        app.state,
+        AppState::ThemeEditorNew | AppState::CategoryPicker
+    )
+}
+
+/// Click on a row of a single-list screen: select it, or activate it (Enter) when
+/// it is already selected.
+async fn click_row(app: &mut App, idx: usize, tx: &UnboundedSender<AppEvent>) -> bool {
+    let cursor = match app.state {
+        AppState::ThemeEditor => &mut app.theme_editor.cursor,
+        AppState::ThemeEditorNew => &mut app.theme_editor.clone_cursor,
+        AppState::ThemeEditorColorEdit => &mut app.theme_editor.color_cursor,
+        AppState::CategoryPicker => &mut app.category_picker.cursor,
+        AppState::SavedCategoryEditor => {
+            // No Enter action here (rename is `r`), so a click only selects.
+            app.saved_cat_editor_scroll.set(idx);
+            return false;
+        }
+        _ => return false,
+    };
+    if *cursor == idx {
+        return press(app, KeyCode::Enter, tx).await;
+    }
+    *cursor = idx;
     false
 }
 
@@ -67,7 +113,7 @@ fn panels_interactive(app: &App) -> bool {
         AppState::FeedEditor => {
             app.feed_editor.delete_cat.is_none() && app.feed_editor.mode == FeedEditorMode::Normal
         }
-        _ => false,
+        _ => has_row_list(app),
     }
 }
 
@@ -78,9 +124,11 @@ async fn scroll(
     arrow: KeyCode,
     tx: &UnboundedSender<AppEvent>,
 ) -> bool {
-    // Full-screen overlays take the wheel wherever the pointer is.
+    let down = arrow == KeyCode::Down;
+    let lines = if down { WHEEL_LINES } else { -WHEEL_LINES };
     if app.zen_mode {
-        return press_n(app, arrow, WHEEL_LINES, tx).await;
+        app.scroll_article(lines);
+        return false;
     }
     if app.update_available.is_some() {
         return press(app, arrow, tx).await;
@@ -93,18 +141,33 @@ async fn scroll(
     if !panels_interactive(app) {
         return false;
     }
+    if has_row_list(app) {
+        // One list on screen: the wheel moves its cursor wherever the pointer is.
+        return press(app, arrow, tx).await;
+    }
     let hit = &app.hit;
+    // The focused list moves its cursor; any other panel scrolls in place without
+    // taking focus, so reading isn't interrupted.
     if hits(hit.article_detail, col, row) {
-        if app.state == AppState::ArticleDetail {
-            return press_n(app, arrow, WHEEL_LINES, tx).await;
-        }
+        app.scroll_article(lines);
     } else if hits(hit.article_list, col, row) {
-        if focus_article_list(app) {
+        if app.state == AppState::ArticleList {
             return press(app, arrow, tx).await;
         }
-    } else if hits(hit.sidebar, col, row) || hits(hit.saved_sidebar, col, row) {
-        focus_sidebar(app);
-        return press(app, arrow, tx).await;
+        app.detached.article_list = true;
+        nudge_view(&mut app.article_list_state, lines);
+    } else if hits(hit.sidebar, col, row) {
+        if app.state == AppState::FeedList {
+            return press(app, arrow, tx).await;
+        }
+        app.detached.sidebar = true;
+        nudge_view(&mut app.sidebar_list_state, lines);
+    } else if hits(hit.saved_sidebar, col, row) {
+        if app.state == AppState::SavedCategoryList {
+            return press(app, arrow, tx).await;
+        }
+        app.detached.saved_sidebar = true;
+        nudge_view(&mut app.saved_sidebar_list_state, lines);
     } else if hits(hit.editor_feeds, col, row) {
         focus_editor_panel(app, EditorPanel::Feeds);
         return press(app, arrow, tx).await;
@@ -118,19 +181,55 @@ async fn scroll(
     false
 }
 
+/// Shift a list's viewport by `rows` (the renderer clamps it to the content).
+fn nudge_view(state: &mut ratatui::widgets::ListState, rows: i32) {
+    let offset = state.offset() as i64 + i64::from(rows);
+    *state.offset_mut() = offset.max(0) as usize;
+}
+
 async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>) -> bool {
-    if let Some(url) = link_at(app, col, row) {
-        open_link(app, &url);
-        return false;
-    }
-    if app.zen_mode {
-        return false;
-    }
+    app.selection = None;
     if app.update_available.is_some() {
         // Clicking anywhere dismisses the update notice, like Esc.
         return press(app, KeyCode::Esc, tx).await;
     }
-    if !panels_interactive(app) {
+    // Article text: a press may start a text selection, so its click action (open a
+    // link / open the previewed article) waits for a release without dragging.
+    if hits(app.hit.article_detail, col, row) && (app.zen_mode || panels_interactive(app)) {
+        let pending = link_at(app, col, row).map(PendingClick::Link).or_else(|| {
+            (!app.zen_mode && app.state == AppState::ArticleList)
+                .then_some(PendingClick::OpenArticle)
+        });
+        start_selection(app, app.hit.article_detail, col, row, pending);
+        return false;
+    }
+    if app.zen_mode || !panels_interactive(app) {
+        return false;
+    }
+    if let Some(&(_, idx)) = app.hit.rows.iter().find(|(r, _)| hits(*r, col, row)) {
+        return click_row(app, idx, tx).await;
+    }
+    if is_picker_popup(app) {
+        if !hits(app.hit.popup, col, row) {
+            return press(app, KeyCode::Esc, tx).await;
+        }
+        return false;
+    }
+    if hits(app.hit.help_hint, col, row) {
+        app.help_open = true;
+        app.help_scroll = 0;
+        return false;
+    }
+    if hits(app.hit.changelog, col, row) {
+        // Acts on release, so dragging over the text selects it instead.
+        let line = app.changelog_scroll as usize + usize::from(row - app.hit.changelog.y);
+        let entry = app
+            .hit
+            .changelog_entries
+            .iter()
+            .position(|&(first, last)| (first..=last).contains(&line));
+        let pending = entry.map(PendingClick::ChangelogEntry);
+        start_selection(app, app.hit.changelog, col, row, pending);
         return false;
     }
 
@@ -159,13 +258,6 @@ async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>
         row,
     ) {
         return click_article_row(app, v, tx).await;
-    }
-    if hits(app.hit.article_detail, col, row) {
-        // Clicking the preview opens the article, like Enter on the list.
-        if app.state == AppState::ArticleList {
-            return press(app, KeyCode::Enter, tx).await;
-        }
-        return false;
     }
     if let Some(&(_, item)) = app.hit.settings.iter().find(|(r, _)| hits(*r, col, row)) {
         if app.settings_selected == item {
@@ -206,6 +298,36 @@ async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>
     false
 }
 
+// ── Text selection ────────────────────────────────────────────────────────────
+
+/// Begin a (potential) text selection at `(col, row)` within `bounds`.
+fn start_selection(app: &mut App, bounds: Rect, col: u16, row: u16, pending: Option<PendingClick>) {
+    app.selection = Some(TextSelection {
+        bounds,
+        anchor: (col, row),
+        cursor: (col, row),
+        moved: false,
+        pending,
+    });
+}
+
+/// Copy the selected text if a release asked for it. Called after each draw, when
+/// `selection_text` matches what is highlighted on screen.
+pub fn finish_selection_copy(app: &mut App) {
+    if !std::mem::take(&mut app.selection_copy_requested) {
+        return;
+    }
+    let text = app.selection_text.trim().to_string();
+    if text.is_empty() {
+        return;
+    }
+    let chars = text.chars().count();
+    match super::article::copy_to_clipboard(&text) {
+        None => app.set_status(format!("Copied {chars} characters")),
+        Some(_) => app.set_status("⚠ Copy failed: no clipboard tool available"),
+    }
+}
+
 // ── Feed editor drag-and-drop ────────────────────────────────────────────────
 
 /// Remember a press on an editor row so a following drag can move it.
@@ -222,6 +344,15 @@ fn arm_drag(app: &mut App, panel: EditorPanel, col: u16, row: u16, reclick: bool
 /// Pointer moved with the button held: enter move mode on the first motion, then
 /// keep the drop target under the pointer.
 async fn drag(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>) -> bool {
+    if let Some(sel) = app.selection.as_mut() {
+        let b = sel.bounds;
+        sel.cursor = (
+            col.clamp(b.left(), b.right().saturating_sub(1)),
+            row.clamp(b.top(), b.bottom().saturating_sub(1)),
+        );
+        sel.moved |= sel.cursor != sel.anchor;
+        return false;
+    }
     let Some(mut d) = app.feed_editor.drag else {
         return false;
     };
@@ -251,6 +382,31 @@ async fn drag(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>)
 /// Button released: drop (inside the panel) or cancel (outside); a plain re-click
 /// on a category toggles it.
 async fn release(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>) -> bool {
+    if let Some(sel) = app.selection.as_mut() {
+        if sel.moved {
+            // Copied after the next draw, once `selection_text` reflects the final drag.
+            app.selection_copy_requested = true;
+            return false;
+        }
+        let pending = sel.pending.take();
+        app.selection = None;
+        return match pending {
+            Some(PendingClick::Link(url)) => {
+                open_link(app, &url);
+                false
+            }
+            Some(PendingClick::OpenArticle) => press(app, KeyCode::Enter, tx).await,
+            Some(PendingClick::ChangelogEntry(i)) => {
+                if app.changelog_cursor == i {
+                    // Enter toggles the selected release's collapse state.
+                    return press(app, KeyCode::Enter, tx).await;
+                }
+                app.changelog_cursor = i;
+                false
+            }
+            None => false,
+        };
+    }
     let Some(d) = app.feed_editor.drag.take() else {
         return false;
     };
@@ -617,17 +773,21 @@ mod tests {
         .await;
         assert_eq!(app.selected_article, 1);
 
-        // Wheel over the sidebar hands focus back to it and moves its cursor.
+        // Wheel over the unfocused sidebar scrolls it in place: reading continues and
+        // the selection stays; the next key press snaps the view back to the cursor.
         draw(&mut app);
         let sidebar = app.hit.sidebar;
         handle_mouse(
             &mut app,
-            mouse(MouseEventKind::ScrollUp, sidebar.x + 2, sidebar.y),
+            mouse(MouseEventKind::ScrollDown, sidebar.x + 2, sidebar.y),
             &tx,
         )
         .await;
-        assert_eq!(app.state, AppState::FeedList);
-        assert_eq!(app.sidebar_cursor, 1);
+        assert_eq!(app.state, AppState::ArticleList);
+        assert_eq!(app.sidebar_cursor, 2);
+        assert!(app.detached.sidebar);
+        press(&mut app, KeyCode::Down, &tx).await;
+        assert!(!app.detached.sidebar);
     }
 
     #[tokio::test]
@@ -749,5 +909,205 @@ mod tests {
         }
         assert_eq!(app.content_line_count, rows_with_image, "image rows kept");
         assert!(rows_with_image > 3);
+    }
+
+    /// Scrolling to the bottom and switching to the (wider) zen view must not leave
+    /// the article scrolled past its end.
+    #[tokio::test]
+    async fn zen_clamps_scroll_from_narrower_view() {
+        let mut app = App::new();
+        app.update_available = None;
+        with_test_feeds(&mut app);
+        app.feeds[0].articles[0].content = (0..60)
+            .map(|i| {
+                format!("Paragraph {i} with plenty of words so that it wraps a few times.\n\n")
+            })
+            .collect();
+        app.selected_feed = 0;
+        app.selected_article = 0;
+        app.clear_category_view();
+        app.state = AppState::ArticleDetail;
+        draw(&mut app);
+        app.scroll_article(i32::MAX / 2);
+        draw(&mut app);
+        let narrow_bottom = app.article_scroll.get("https://example.test/0");
+        assert!(narrow_bottom > 0);
+
+        app.zen_mode = true;
+        draw(&mut app);
+        let max = app
+            .content_line_count
+            .saturating_sub(app.content_area_height as usize) as u16;
+        let offset = app.article_scroll.get("https://example.test/0");
+        assert!(offset <= max, "offset {offset} > max {max}");
+        assert!(offset < narrow_bottom, "wider view has fewer rows");
+    }
+
+    #[tokio::test]
+    async fn wheel_scrolls_preview_without_focusing_it() {
+        let mut app = App::new();
+        app.update_available = None;
+        with_test_feeds(&mut app);
+        app.feeds[0].articles[0].content = (0..60)
+            .map(|i| format!("Paragraph {i} with plenty of words so that it wraps.\n\n"))
+            .collect();
+        app.selected_feed = 0;
+        app.selected_article = 0;
+        app.clear_category_view();
+        app.state = AppState::ArticleList;
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        draw(&mut app);
+        let detail = app.hit.article_detail;
+        handle_mouse(
+            &mut app,
+            mouse(MouseEventKind::ScrollDown, detail.x + 2, detail.y + 2),
+            &tx,
+        )
+        .await;
+        assert_eq!(app.state, AppState::ArticleList);
+        assert_eq!(app.article_scroll.get("https://example.test/0"), 3);
+    }
+
+    #[tokio::test]
+    async fn dragging_over_article_text_selects_it() {
+        let mut app = App::new();
+        app.update_available = None;
+        with_test_feeds(&mut app);
+        app.feeds[0].articles[0].content = format!(
+            "Alpha beta gamma delta.\n\nSecond paragraph here.\n\n{}",
+            "x".repeat(crate::models::CONTENT_STUB_MAX_LEN)
+        );
+        app.selected_feed = 0;
+        app.selected_article = 0;
+        app.clear_category_view();
+        app.state = AppState::ArticleDetail;
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut terminal = Terminal::new(TestBackend::new(140, 40)).unwrap();
+        terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+
+        // Find the row showing "Alpha" and drag across "Alpha beta".
+        let buffer = terminal.backend().buffer().clone();
+        let area = app.hit.article_detail;
+        let (x, y) = (area.top()..area.bottom())
+            .find_map(|y| {
+                let line: String = (area.left()..area.right())
+                    .map(|x| buffer[(x, y)].symbol().to_string())
+                    .collect();
+                line.find("Alpha").map(|i| (area.left() + i as u16, y))
+            })
+            .expect("article text on screen");
+        handle_mouse(&mut app, left_click(x, y), &tx).await;
+        let drag = mouse(MouseEventKind::Drag(MouseButton::Left), x + 9, y);
+        handle_mouse(&mut app, drag, &tx).await;
+        terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+        assert_eq!(app.selection_text, "Alpha beta");
+        assert!(
+            terminal.backend().buffer()[(x, y)]
+                .modifier
+                .contains(ratatui::style::Modifier::REVERSED)
+        );
+
+        let up = mouse(MouseEventKind::Up(MouseButton::Left), x + 9, y);
+        handle_mouse(&mut app, up, &tx).await;
+        assert!(app.selection_copy_requested, "release asks for a copy");
+        assert_eq!(app.state, AppState::ArticleDetail);
+
+        // Any key dismisses the highlight.
+        press(&mut app, KeyCode::Up, &tx).await;
+        assert!(app.selection.is_none());
+    }
+
+    #[tokio::test]
+    async fn help_popup_and_jk_follow_text_input_rules() {
+        let mut app = App::new();
+        app.update_available = None;
+        with_test_feeds(&mut app);
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+
+        // j moves the feed list (it used to only accept arrow keys).
+        press(&mut app, KeyCode::Char('j'), &tx).await;
+        assert_eq!(app.sidebar_cursor, 1);
+
+        press(&mut app, KeyCode::Char('?'), &tx).await;
+        assert!(app.help_open);
+        draw(&mut app);
+        // Keys go to the popup while it is open.
+        press(&mut app, KeyCode::Char('j'), &tx).await;
+        assert_eq!(app.sidebar_cursor, 1);
+        press(&mut app, KeyCode::Esc, &tx).await;
+        assert!(!app.help_open);
+
+        // In a text field, ? and j are typed, not shortcuts.
+        app.state = AppState::AddFeed;
+        app.add_feed.return_state = AppState::FeedList;
+        press(&mut app, KeyCode::Char('?'), &tx).await;
+        press(&mut app, KeyCode::Char('j'), &tx).await;
+        assert!(!app.help_open);
+        assert_eq!(app.add_feed.url_input.text, "?j");
+    }
+
+    #[tokio::test]
+    async fn clicking_a_changelog_entry_selects_it() {
+        let mut app = App::new();
+        app.update_available = None;
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        app.select_tab(Tab::Changelog);
+        app.changelog_cursor = 0;
+        app.changelog_scroll = 0;
+        draw(&mut app);
+        let (first, _) = *app.hit.changelog_entries.get(1).expect("two releases");
+        let area = app.hit.changelog;
+        let y = area.y + (first - app.changelog_scroll as usize) as u16;
+        handle_mouse(&mut app, left_click(area.x + 5, y), &tx).await;
+        assert_eq!(app.changelog_cursor, 0, "acts on release, not press");
+        let up = mouse(MouseEventKind::Up(MouseButton::Left), area.x + 5, y);
+        handle_mouse(&mut app, up, &tx).await;
+        assert_eq!(app.changelog_cursor, 1);
+    }
+
+    #[tokio::test]
+    async fn theme_list_rows_skip_headers_and_picker_cancels_outside() {
+        use crate::ui::theme::{BUILTIN_DARK_COUNT, ColorTheme};
+        let mut app = App::new();
+        app.update_available = None;
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        app.state = AppState::ThemeEditor;
+        app.theme_editor.cursor = 0;
+        let mut terminal = Terminal::new(TestBackend::new(140, 50)).unwrap();
+        terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+
+        // The row recorded for the first light theme really shows that theme.
+        let (rect, _) = *app
+            .hit
+            .rows
+            .iter()
+            .find(|(_, idx)| *idx == BUILTIN_DARK_COUNT)
+            .expect("first light theme visible");
+        let buffer = terminal.backend().buffer();
+        let text: String = (rect.left()..rect.right())
+            .map(|x| buffer[(x, rect.y)].symbol().to_string())
+            .collect();
+        let name = ColorTheme::builtin_names()[BUILTIN_DARK_COUNT];
+        assert!(text.contains(name), "{text:?} should show {name}");
+
+        handle_mouse(&mut app, left_click(rect.x + 2, rect.y), &tx).await;
+        assert_eq!(app.theme_editor.cursor, BUILTIN_DARK_COUNT);
+        handle_mouse(
+            &mut app,
+            mouse(MouseEventKind::ScrollDown, rect.x, rect.y),
+            &tx,
+        )
+        .await;
+        assert_eq!(app.theme_editor.cursor, BUILTIN_DARK_COUNT + 1);
+
+        // Clone picker popup: rows map 1:1, clicking outside cancels it.
+        app.state = AppState::ThemeEditorNew;
+        app.theme_editor.clone_cursor = 0;
+        terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+        let (rect, _) = *app.hit.rows.iter().find(|(_, i)| *i == 2).unwrap();
+        handle_mouse(&mut app, left_click(rect.x + 2, rect.y), &tx).await;
+        assert_eq!(app.theme_editor.clone_cursor, 2);
+        handle_mouse(&mut app, left_click(0, 49), &tx).await;
+        assert_eq!(app.state, AppState::ThemeEditor);
     }
 }

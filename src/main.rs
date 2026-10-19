@@ -156,6 +156,7 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Result<()
 
     'main: loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;
+        handlers::mouse::finish_selection_copy(&mut app);
 
         let Some(event) = rx.recv().await else { break };
         let mut next = Some(event);

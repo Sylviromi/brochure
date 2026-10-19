@@ -169,7 +169,14 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
 
-    app.sidebar_list_state.select(Some(cursor));
+    let len = items.len();
+    super::super::sync_list_view(
+        &mut app.sidebar_list_state,
+        cursor,
+        app.detached.sidebar,
+        len,
+        list_area.height,
+    );
     render_scrollable_list(f, items, list_area, &mut app.sidebar_list_state, &app.theme);
     app.hit.sidebar = list_area;
 

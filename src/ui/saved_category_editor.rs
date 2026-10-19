@@ -78,6 +78,7 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
         })
         .collect();
 
+    let len = items.len();
     render_scrollable_list(
         f,
         items,
@@ -85,6 +86,8 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
         &mut app.saved_cat_editor_scroll.list_state,
         &app.theme,
     );
+    let offset = app.saved_cat_editor_scroll.list_state.offset();
+    app.hit.record_rows(inner, offset, len, Some);
 
     // Render input row when creating a new category.
     if app.state == AppState::SavedCategoryEditorNew {

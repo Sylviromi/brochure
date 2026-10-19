@@ -656,7 +656,6 @@ pub(super) fn draw_article_detail(
         (inner_area, Rect::default())
     };
 
-    app.hit.article_detail = content_area;
     render_article_content(
         f,
         app,
@@ -685,6 +684,8 @@ pub(crate) fn render_article_content(
     hide_scrollbar: bool,
     article: &crate::models::Article,
 ) {
+    // Recorded here (not by the caller) so zen mode is clickable/selectable too.
+    app.hit.article_detail = content_area;
     // First image is the hero (MediaRSS) image, the rest are body extras.
     let header_image_url: Option<String> = article.images.first().cloned();
     let body_images: Vec<String> = match header_image_url {
@@ -743,7 +744,12 @@ pub(crate) fn render_article_content(
     };
     let render_width = layout.width;
     let line_count = layout.line_count();
-    let scroll_offset = app.article_scroll.get(&article.link);
+    // Clamp the saved offset to this layout: the same article wraps to fewer rows
+    // in a wider view (e.g. zen), so an offset from a narrower view can overshoot.
+    let max_scroll = line_count
+        .saturating_sub(content_area.height as usize)
+        .min(u16::MAX as usize) as u16;
+    let scroll_offset = app.article_scroll.scroll_by(&article.link, 0, max_scroll);
     let scroll = scroll_offset as usize;
 
     // Only the lines intersecting the viewport are handed to ratatui, so frame cost
@@ -759,12 +765,12 @@ pub(crate) fn render_article_content(
     let header_visual = layout.header_rows;
     let images = layout.images.clone();
 
-    if !is_preview {
-        app.content_area_height = content_area.height;
-        app.content_line_count = line_count;
-        app.article_content_area = content_area;
-        app.article_scroll_offset = scroll_offset;
-    }
+    // Only one article panel is drawn per frame, so the preview's metrics are the
+    // ones wheel scrolling needs too.
+    app.content_area_height = content_area.height;
+    app.content_line_count = line_count;
+    app.article_content_area = content_area;
+    app.article_scroll_offset = scroll_offset;
     // Always store images so spawn_article_image_downloads picks them up in both
     // preview and full-detail mode.
     app.article_images = images;

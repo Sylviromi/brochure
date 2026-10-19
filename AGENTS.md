@@ -29,6 +29,9 @@ Key patterns:
   `handlers/mouse.rs` reads them and, where possible, replays the equivalent key press
   so mouse and keyboard share one code path. New panels/lists should record their
   area and get a branch in `mouse.rs`.
+- **Keys.** `handlers::handle_key` maps `j`/`k` to `↓`/`↑` everywhere except text
+  inputs (`is_text_input`), so handlers only match arrows. The `?` popup's tables
+  live in `ui/help.rs` — update them whenever a handler's keys change.
 - **Article rendering is cached** (`ui/content/article_detail.rs`): markdown is only
   re-rendered when `render_key` changes, and the image layout only when images load or
   the viewport height changes; each frame draws just the visible lines. Any new input

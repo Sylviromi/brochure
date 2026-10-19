@@ -414,7 +414,7 @@ pub(super) fn draw_opml_path_popup(f: &mut Frame, app: &App) {
 }
 
 /// Renders the category picker popup for saving an article to a custom category.
-pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
+pub(super) fn draw_category_picker(f: &mut Frame, app: &mut App) {
     let area = f.area();
     let cats = &app.user_data.saved_categories;
     let cats_len = cats.len();
@@ -528,8 +528,18 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &App) {
         lines.push(Line::from(Span::styled("  ✕ Unsave", unsave_style)));
     }
 
-    let para = Paragraph::new(lines);
-    f.render_widget(para, inner);
+    let row_count = lines.len();
+    f.render_widget(Paragraph::new(lines), inner);
+    app.hit.popup = popup_area;
+    if !app.category_picker.new_mode {
+        let shown = cats_len.min(visible_cats);
+        app.hit.record_rows(inner, 0, row_count, |row| match row {
+            r if r < shown => Some(scroll_top + r),
+            r if r == shown => Some(cats_len), // + New category…
+            r if r == shown + 2 => Some(cats_len + 1), // ✕ Unsave (after separator)
+            _ => None,
+        });
+    }
 
     if cats_len > visible_cats {
         let bar_area = Rect {

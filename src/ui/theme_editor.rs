@@ -22,7 +22,7 @@ use super::{border_set, content_block};
 // ── Entry points ──────────────────────────────────────────────────────────────
 
 /// Top-level draw dispatcher for all `ThemeEditor*` states.
-pub(super) fn draw_theme_editor_screen(f: &mut Frame, app: &App, area: Rect) {
+pub(super) fn draw_theme_editor_screen(f: &mut Frame, app: &mut App, area: Rect) {
     match app.state {
         AppState::ThemeEditor | AppState::ThemeEditorExport | AppState::ThemeEditorImport => {
             draw_main(f, app, area);
@@ -53,7 +53,7 @@ pub(super) fn draw_theme_editor_screen(f: &mut Frame, app: &App, area: Rect) {
 
 // ── Main editor (theme list + color preview) ──────────────────────────────────
 
-fn draw_main(f: &mut Frame, app: &App, area: Rect) {
+fn draw_main(f: &mut Frame, app: &mut App, area: Rect) {
     let bg = Block::default().bg(app.theme.bg);
     f.render_widget(bg, area);
 
@@ -66,7 +66,7 @@ fn draw_main(f: &mut Frame, app: &App, area: Rect) {
     draw_color_preview(f, app, cols[1]);
 }
 
-fn draw_theme_list(f: &mut Frame, app: &App, area: Rect) {
+fn draw_theme_list(f: &mut Frame, app: &mut App, area: Rect) {
     let block = content_block(
         Line::from(" Themes ").fg(app.theme.accent).bold(),
         true,
@@ -177,7 +177,23 @@ fn draw_theme_list(f: &mut Frame, app: &App, area: Rect) {
     };
     let mut list_state = ListState::default();
     list_state.select(Some(display_cursor));
+    let len = items.len();
     f.render_stateful_widget(List::new(items), inner, &mut list_state);
+
+    // Only the active list takes clicks (the clone picker covers this one).
+    if app.state == AppState::ThemeEditor {
+        let builtin = builtin_names.len();
+        let customs = app.user_data.custom_themes.len();
+        app.hit
+            .record_rows(inner, list_state.offset(), len, |row| match row {
+                r if r < BUILTIN_DARK_COUNT => Some(r),
+                r if r == BUILTIN_DARK_COUNT => None, // "Light" header
+                r if r <= builtin => Some(r - 1),
+                r if r == builtin + 1 => None, // "Custom" header
+                r if r - 2 < builtin + customs => Some(r - 2),
+                _ => None, // "(no custom themes)"
+            });
+    }
 }
 
 fn draw_color_preview(f: &mut Frame, app: &App, area: Rect) {
@@ -237,7 +253,7 @@ fn draw_color_preview(f: &mut Frame, app: &App, area: Rect) {
 
 // ── Clone picker popup ────────────────────────────────────────────────────────
 
-fn draw_clone_picker(f: &mut Frame, app: &App) {
+fn draw_clone_picker(f: &mut Frame, app: &mut App) {
     let builtin_names = ColorTheme::builtin_names();
     let custom_count = app.user_data.custom_themes.len();
     let total = builtin_names.len() + custom_count;
@@ -309,12 +325,15 @@ fn draw_clone_picker(f: &mut Frame, app: &App) {
 
     let mut list_state = ListState::default();
     list_state.select(Some(cursor));
+    let len = items.len();
     f.render_stateful_widget(List::new(items), inner, &mut list_state);
+    app.hit.popup = popup_area;
+    app.hit.record_rows(inner, list_state.offset(), len, Some);
 }
 
 // ── Color-slot editor ─────────────────────────────────────────────────────────
 
-fn draw_color_edit(f: &mut Frame, app: &App, area: Rect) {
+fn draw_color_edit(f: &mut Frame, app: &mut App, area: Rect) {
     let bg = Block::default().bg(app.theme.bg);
     f.render_widget(bg, area);
 
@@ -391,7 +410,9 @@ fn draw_color_edit(f: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
+    let len = lines.len();
     f.render_widget(Paragraph::new(lines), inner);
+    app.hit.record_rows(inner, 0, len, Some);
 }
 
 // ── Shared text-input popup ───────────────────────────────────────────────────

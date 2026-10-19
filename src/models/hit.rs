@@ -9,6 +9,8 @@ use ratatui::layout::{Position, Rect};
 pub struct HitAreas {
     /// One rect per tab label in the tab bar.
     pub tabs: Vec<(Rect, Tab)>,
+    /// The `[?] keys` hint in the tab bar.
+    pub help_hint: Rect,
     /// Feeds sidebar list (Feeds tab).
     pub sidebar: Rect,
     /// Saved-categories sidebar list (Saved tab).
@@ -23,16 +25,105 @@ pub struct HitAreas {
     pub settings: Vec<(Rect, SettingsItem)>,
     /// Changelog panel.
     pub changelog: Rect,
+    /// `(first_line, last_line)` of each changelog entry, before scrolling.
+    pub changelog_entries: Vec<(usize, usize)>,
     /// Feed editor: feeds/tree panel list.
     pub editor_feeds: Rect,
     /// Feed editor: categories panel list.
     pub editor_cats: Rect,
+    /// Rows of the active list on screens with a single list (themes, colour slots,
+    /// saved-category manager, pickers): `(row rect, cursor index it selects)`.
+    pub rows: Vec<(Rect, usize)>,
+    /// Outline of the open picker popup (clicks outside it cancel).
+    pub popup: Rect,
 }
 
 impl HitAreas {
     /// Forget everything; called at the start of each frame.
     pub fn clear(&mut self) {
         *self = Self::default();
+    }
+}
+
+/// Action deferred from a press to its release, so a press that turns into a text
+/// drag doesn't trigger it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PendingClick {
+    /// Open this link in the browser.
+    Link(String),
+    /// Open the previewed article (press landed on the preview pane).
+    OpenArticle,
+    /// Select this changelog entry, or toggle it if already selected.
+    ChangelogEntry(usize),
+}
+
+/// A mouse text selection, in screen cells, confined to the panel it started in.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextSelection {
+    /// Panel the selection is clipped to.
+    pub bounds: Rect,
+    /// Cell where the button went down.
+    pub anchor: (u16, u16),
+    /// Cell under the pointer now.
+    pub cursor: (u16, u16),
+    /// True once the pointer moved (a plain click selects nothing).
+    pub moved: bool,
+    /// What a plain click (no drag) at the anchor should do on release.
+    pub pending: Option<PendingClick>,
+}
+
+impl TextSelection {
+    /// `(start, end)` in reading order as `(col, row)` pairs.
+    pub fn ordered(&self) -> ((u16, u16), (u16, u16)) {
+        let (a, b) = (self.anchor, self.cursor);
+        if (a.1, a.0) <= (b.1, b.0) {
+            (a, b)
+        } else {
+            (b, a)
+        }
+    }
+
+    /// Column span `[from, to]` selected on `row`, if any.
+    pub fn columns_on(&self, row: u16) -> Option<(u16, u16)> {
+        let ((c0, r0), (c1, r1)) = self.ordered();
+        if !self.moved || row < r0 || row > r1 {
+            return None;
+        }
+        let from = if row == r0 { c0 } else { self.bounds.left() };
+        let to = if row == r1 {
+            c1
+        } else {
+            self.bounds.right().saturating_sub(1)
+        };
+        (from <= to).then_some((from, to))
+    }
+}
+
+/// Lists whose viewport was wheel-scrolled away from their cursor (the panel wasn't
+/// focused). Cleared by the next key press or selection change.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct DetachedViews {
+    pub sidebar: bool,
+    pub saved_sidebar: bool,
+    pub article_list: bool,
+}
+
+impl HitAreas {
+    /// Record a row rect for each visible row of a list drawn in `area` scrolled by
+    /// `offset`; `target` maps a list index to the cursor index it selects (`None`
+    /// for headers and separators).
+    pub fn record_rows(
+        &mut self,
+        area: Rect,
+        offset: usize,
+        len: usize,
+        target: impl Fn(usize) -> Option<usize>,
+    ) {
+        for (y, idx) in (area.top()..area.bottom()).zip(offset..len) {
+            if let Some(t) = target(idx) {
+                self.rows.push((Rect::new(area.x, y, area.width, 1), t));
+            }
+        }
     }
 }
 

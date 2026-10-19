@@ -7,6 +7,7 @@ mod changelog;
 mod chrome;
 pub(crate) mod content;
 mod feed_editor;
+mod help;
 mod popups;
 mod saved_category_editor;
 mod settings;
@@ -54,6 +55,24 @@ pub(crate) fn border_set(rounded: bool) -> symbols::border::Set<'static> {
         symbols::border::ROUNDED
     } else {
         symbols::border::PLAIN
+    }
+}
+
+/// Position a list's viewport: follow `cursor`, or — when the user wheel-scrolled the
+/// list away from it (`detached`) — keep the manual offset, clamped to the content.
+pub(crate) fn sync_list_view(
+    state: &mut ListState,
+    cursor: usize,
+    detached: bool,
+    len: usize,
+    height: u16,
+) {
+    if detached {
+        state.select(None);
+        let max = len.saturating_sub(height as usize);
+        *state.offset_mut() = state.offset().min(max);
+    } else {
+        state.select(Some(cursor));
     }
 }
 
@@ -190,6 +209,47 @@ pub(crate) fn render_scrollbar(
 /// (add-feed wizard, OPML paths, confirm dialogs, category picker, saved category editor).
 pub fn draw(f: &mut Frame, app: &mut App) {
     app.hit.clear();
+    draw_screen(f, app);
+    if app.help_open {
+        help::draw_help_popup(f, app);
+    }
+    apply_selection(f, app);
+}
+
+/// Highlight the mouse text selection and capture its text for copying on release.
+fn apply_selection(f: &mut Frame, app: &mut App) {
+    app.selection_text.clear();
+    let Some(sel) = &app.selection else {
+        return;
+    };
+    let buf = f.buffer_mut();
+    let area = buf.area;
+    let mut rows = Vec::new();
+    for row in sel.bounds.top()..sel.bounds.bottom().min(area.bottom()) {
+        let Some((from, to)) = sel.columns_on(row) else {
+            continue;
+        };
+        let mut text = String::new();
+        let mut filler = 0;
+        for col in from..=to.min(area.right().saturating_sub(1)) {
+            let cell = &mut buf[(col, row)];
+            cell.modifier.insert(ratatui::style::Modifier::REVERSED);
+            // A wide grapheme's trailing cells hold filler, not text.
+            if filler > 0 {
+                filler -= 1;
+                continue;
+            }
+            let symbol = cell.symbol();
+            filler = ratatui::text::Span::raw(symbol).width().saturating_sub(1);
+            text.push_str(symbol);
+        }
+        rows.push(text.trim_end().to_string());
+    }
+    app.selection_text = rows.join("\n");
+}
+
+/// Draw everything for the current state (tabs, panels, popups).
+fn draw_screen(f: &mut Frame, app: &mut App) {
     if app.zen_mode {
         draw_zen_mode(f, app);
         return;
@@ -197,15 +257,10 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(0),
-            Constraint::Length(3),
-        ])
+        .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(f.area());
 
     chrome::draw_tab_bar(f, app, chunks[0]);
-    chrome::draw_footer(f, app, chunks[2]);
 
     if matches!(
         app.state,

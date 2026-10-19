@@ -1,20 +1,17 @@
-//! Shared chrome rendering: tab bar, progress bar, and footer hints.
-//!
-//! This module renders the persistent chrome elements that appear on every frame:
-//! the top tab bar showing the current tab, feed stats, and progress during fetches;
-//! and the footer showing context-sensitive key hints and scrolling status messages.
+//! Shared chrome rendering: the tab bar (tabs, `?` hint, status message or totals)
+//! and the fetch progress bar.
 
 use crate::{
     app::App,
-    models::{AppState, FAVORITES_URL, Tab},
+    models::{FAVORITES_URL, Tab},
 };
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout, Rect},
     prelude::Stylize,
     style::Style,
     text::{Line, Span},
-    widgets::{List, ListItem, Paragraph},
+    widgets::Paragraph,
 };
 
 use super::content_block;
@@ -48,38 +45,35 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &mut App, area: Rect) {
         }
         tab_spans.push(Span::raw("  "));
     }
-    tab_spans.push("  [Tab] switch tab".fg(app.theme.border));
-
-    let feed_count = app.feeds.iter().filter(|f| f.url != FAVORITES_URL).count();
-    let total_articles: usize = app.feeds.iter().map(|f| f.articles.len()).sum();
-    let total_unread: usize = app.feeds.iter().map(|f| f.unread_count).sum();
-    let stats = ListItem::new(Line::from(vec![
-        "Feeds: ".fg(app.theme.muted),
-        feed_count.to_string().fg(app.theme.warning),
-        "  Total: ".fg(app.theme.muted),
-        total_articles.to_string().fg(app.theme.warning),
-        "  Unread: ".fg(app.theme.muted),
-        total_unread.to_string().fg(app.theme.warning),
-        Span::raw(" "),
-    ]));
-    let stats_width = stats.width() as u16;
+    tab_spans.push(HELP_HINT.fg(app.theme.border));
+    let tabs_width = Line::from(tab_spans.clone()).width() as u16;
 
     let block = content_block("", false, app.user_data.border_rounded, &app.theme);
     let inner = block.inner(area);
     f.render_widget(block, area);
 
+    // Right side: the latest status message while it's fresh, otherwise totals.
+    let right = if status_is_fresh(app) {
+        let width = inner.width.saturating_sub(tabs_width + 2) as usize;
+        status_line(app, width)
+    } else {
+        stats_line(app)
+    };
+    let right_width = right.width() as u16;
     let cols = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Min(0), Constraint::Length(stats_width)])
+        .constraints([Constraint::Min(0), Constraint::Length(right_width)])
         .split(inner);
 
     // Record each tab label's cells for mouse clicks (spans are laid out left to right).
     let mut x = cols[0].x;
     for span in &tab_spans {
         let width = span.width() as u16;
+        let rect = Rect::new(x, cols[0].y, width, 1).intersection(cols[0]);
         if let Some(&(_, tab)) = tabs.iter().find(|(label, _)| *label == span.content) {
-            let rect = Rect::new(x, cols[0].y, width, 1).intersection(cols[0]);
             app.hit.tabs.push((rect, tab));
+        } else if span.content == HELP_HINT {
+            app.hit.help_hint = rect;
         }
         x = x.saturating_add(width);
     }
@@ -87,7 +81,59 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &mut App, area: Rect) {
         Paragraph::new(Line::from(tab_spans)).bg(app.theme.bg),
         cols[0],
     );
-    f.render_widget(List::new([stats]).bg(app.theme.bg), cols[1]);
+    f.render_widget(Paragraph::new(right).bg(app.theme.bg), cols[1]);
+}
+
+/// Tab-bar hint that opens the keybindings popup (also clickable).
+const HELP_HINT: &str = "[?] keys";
+
+/// How long (in ~250 ms ticks) a status message stays in the tab bar.
+const STATUS_TICKS: usize = 40;
+
+fn status_is_fresh(app: &App) -> bool {
+    !app.status_msg.is_empty() && app.tick.saturating_sub(app.status_msg_start_tick) < STATUS_TICKS
+}
+
+/// `Feeds: N  Total: N  Unread: N` totals.
+fn stats_line(app: &App) -> Line<'static> {
+    let theme = &app.theme;
+    let feed_count = app.feeds.iter().filter(|f| f.url != FAVORITES_URL).count();
+    let total_articles: usize = app.feeds.iter().map(|f| f.articles.len()).sum();
+    let total_unread: usize = app.feeds.iter().map(|f| f.unread_count).sum();
+    Line::from(vec![
+        "Feeds: ".fg(theme.muted),
+        feed_count.to_string().fg(theme.warning),
+        "  Total: ".fg(theme.muted),
+        total_articles.to_string().fg(theme.warning),
+        "  Unread: ".fg(theme.muted),
+        total_unread.to_string().fg(theme.warning),
+        Span::raw(" "),
+    ])
+}
+
+/// The status message fitted to `width` columns. Text after the first `": "` scrolls
+/// one character per tick when too long; the prefix (e.g. a feed name) stays put.
+fn status_line(app: &App, width: usize) -> Line<'static> {
+    let msg = &app.status_msg;
+    let (prefix, body) = match msg.find(": ") {
+        Some(pos) => msg.split_at(pos + 2),
+        None => ("", msg.as_str()),
+    };
+    let color = if msg.starts_with('⚠') {
+        app.theme.warning
+    } else {
+        app.theme.success
+    };
+    let prefix: String = prefix.chars().take(width.saturating_sub(4)).collect();
+    let viewport = width.saturating_sub(prefix.chars().count() + 1);
+    let body_chars: Vec<char> = body.chars().collect();
+    let max_offset = body_chars.len().saturating_sub(viewport);
+    let start = app
+        .tick
+        .saturating_sub(app.status_msg_start_tick)
+        .min(max_offset);
+    let visible: String = body_chars[start..].iter().take(viewport).collect();
+    Line::from(format!("{prefix}{visible} ").fg(color))
 }
 
 /// Renders a progress bar showing feed fetch completion (done/total).
@@ -118,104 +164,6 @@ pub(super) fn draw_progress_bar(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(
         Paragraph::new(counter)
             .style(Style::default().fg(app.theme.muted))
-            .bg(app.theme.bg),
-        cols[1],
-    );
-}
-
-/// Renders the bottom footer showing context-sensitive key hints and a scrolling status message.
-pub(super) fn draw_footer(f: &mut Frame, app: &App, area: Rect) {
-    let hints = match app.state {
-        AppState::ArticleDetail => {
-            " [↑/↓] Scroll   [m] Read   [s] Save   [C] Copy   [Esc] Back   [q] Quit "
-        }
-        AppState::ArticleList => {
-            " [↑/↓] Navigate   [Enter] Open   [m] Read   [s] Save   [O] Open   [C] Copy   [Esc] Back   [q] Quit "
-        }
-        AppState::SettingsList => {
-            " [↑/↓] Navigate   [Enter] Select   [Tab/Shift+Tab] Switch Tab   [Esc] Back   [q] Quit "
-        }
-        AppState::AddFeed
-        | AppState::OPMLExportPath
-        | AppState::OPMLImportPath
-        | AppState::FreshRssSetup => " [Enter] Confirm   [Esc] Cancel ",
-        AppState::ClearData | AppState::ClearArticleCache => " [Enter] Confirm   [Esc] Cancel ",
-        AppState::SavedCategoryList => {
-            " [↑/↓] Navigate   [Enter] Open   [Tab/Shift+Tab] Switch Tab   [q] Quit "
-        }
-        AppState::FeedEditor => {
-            " [↑/↓] Navigate   [Tab] Switch Panel   [Enter] Toggle   [Space] Move   [a] Add Feed   [n] New Category   [r] Rename   [u] URL   [d] Delete   [Esc] Back "
-        }
-        AppState::FeedEditorRename => " [Enter] Confirm   [Esc] Cancel ",
-        AppState::CategoryPicker => " [↑/↓] Navigate   [Enter] Select   [Esc] Cancel ",
-        AppState::SavedCategoryEditor => " [↑/↓] Navigate   [r] Rename   [d] Delete   [Esc] Back ",
-        AppState::SavedCategoryEditorRename | AppState::SavedCategoryEditorNew => {
-            " [Enter] Confirm   [Esc] Cancel "
-        }
-        AppState::SavedCategoryEditorDeleteConfirm => " [Enter] Confirm   [Esc] Cancel ",
-        AppState::FeedList => {
-            " [↑/↓] Navigate   [Space] Expand   [Enter] Open   [r] Refresh   [R] Fetch All   [e] Edit   [Tab/Shift+Tab] Switch Tab   [q] Quit "
-        }
-        AppState::Changelog => " [↑/↓] Scroll   [Tab/Shift+Tab] Switch Tab   [q] Quit ",
-        AppState::ThemeEditor => {
-            " [↑/↓] Navigate   [Enter] Select   [n] New   [e] Edit   [r] Rename   [d] Delete   [x] Export   [i] Import   [q] Back "
-        }
-        AppState::ThemeEditorNew => " [↑/↓] Navigate   [Enter] Clone from   [Esc] Cancel ",
-        AppState::ThemeEditorColorEdit => " [↑/↓] Navigate   [Enter] Edit slot   [s/Esc] Back ",
-        AppState::ThemeEditorHexInput
-        | AppState::ThemeEditorRename
-        | AppState::ThemeEditorExport
-        | AppState::ThemeEditorImport => " [Enter] Confirm   [Esc] Cancel ",
-    };
-
-    let block = content_block("", false, app.user_data.border_rounded, &app.theme);
-    let inner = block.inner(area);
-    f.render_widget(block, area);
-
-    let hints_width = hints.len() as u16;
-    let cols = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Min(0), Constraint::Length(hints_width)])
-        .split(inner);
-
-    // Scrolling status: split on first ": " → static prefix + scrolling body.
-    let status = if !app.status_msg.is_empty() {
-        let status_width = cols[0].width as usize;
-        let (prefix, body) = if let Some(pos) = app.status_msg.find(": ") {
-            let (p, b) = app.status_msg.split_at(pos + 2);
-            (format!(" {p}"), b.to_string())
-        } else {
-            (" ".to_string(), app.status_msg.clone())
-        };
-        let prefix_len = prefix.chars().count();
-        let body_chars: Vec<char> = body.chars().collect();
-        let body_len = body_chars.len();
-        // Reserve 1 char on each side for padding.
-        let viewport = status_width.saturating_sub(prefix_len + 1);
-
-        if body_len <= viewport {
-            format!("{prefix}{body} ").fg(app.theme.success)
-        } else {
-            // Scroll 1 char per tick (~250 ms), stop at end.
-            let max_offset = body_len.saturating_sub(viewport);
-            let elapsed = app.tick.saturating_sub(app.status_msg_start_tick);
-            let start = elapsed.min(max_offset);
-            let visible: String = body_chars[start..].iter().take(viewport).collect();
-            format!("{prefix}{visible} ").fg(app.theme.success)
-        }
-    } else {
-        Span::raw("")
-    };
-
-    f.render_widget(
-        Paragraph::new(Line::from(vec![status])).bg(app.theme.bg),
-        cols[0],
-    );
-
-    f.render_widget(
-        Paragraph::new(hints)
-            .style(Style::default().fg(app.theme.muted))
-            .alignment(Alignment::Right)
             .bg(app.theme.bg),
         cols[1],
     );

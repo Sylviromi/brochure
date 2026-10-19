@@ -83,7 +83,11 @@ pub(super) fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rec
             )
         })
         .collect();
-    app.article_list_state.select(None);
+    // Preview has no cursor: it starts at the top unless wheel-scrolled.
+    if !app.detached.article_list {
+        *app.article_list_state.offset_mut() = 0;
+    }
+    super::super::sync_list_view(&mut app.article_list_state, 0, true, total, inner.height);
     f.render_stateful_widget(
         List::new(items),
         list_render_area,
@@ -95,7 +99,15 @@ pub(super) fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rec
             width: 1,
             ..inner
         };
-        render_scrollbar(f, bar_area, total, inner.height as usize, 0, &app.theme);
+        let offset = app.article_list_state.offset();
+        render_scrollbar(
+            f,
+            bar_area,
+            total,
+            inner.height as usize,
+            offset,
+            &app.theme,
+        );
     }
 
     draw_article_footer(f, app, footer_area, false);

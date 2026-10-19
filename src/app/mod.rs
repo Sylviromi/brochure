@@ -19,8 +19,8 @@ pub use tree::{sidebar_tree_items, visible_cat_only_items, visible_tree_items};
 use crate::models::Category;
 use crate::models::Feed;
 use crate::models::{
-    AppState, Article, CategoryId, FeedTreeItem, HitAreas, ListScroll, SettingsItem, Tab,
-    TextScroll, ThemeEditorState, UpdateInfo, UserData,
+    AppState, Article, CategoryId, DetachedViews, FeedTreeItem, HitAreas, ListScroll, SettingsItem,
+    Tab, TextScroll, TextSelection, ThemeEditorState, UpdateInfo, UserData,
 };
 use crate::state::{
     AddFeedState, CategoryPickerState, FeedEditorState, FreshRssSetupState, OpmlState,
@@ -211,6 +211,20 @@ pub struct App {
     // ── Mouse ────────────────────────────────────────────────────────────
     /// Clickable regions recorded during the last draw.
     pub hit: HitAreas,
+    /// Lists scrolled by the wheel independently of their cursor.
+    pub detached: DetachedViews,
+    /// Mouse text selection in progress or just made (highlighted until the next input).
+    pub selection: Option<TextSelection>,
+    /// Text under `selection` as of the last frame (what a release copies).
+    pub selection_text: String,
+    /// A drag ended: copy `selection_text` after the next draw.
+    pub selection_copy_requested: bool,
+
+    // ── Help popup ───────────────────────────────────────────────────────
+    /// Keybindings popup (`?`) is open.
+    pub help_open: bool,
+    /// Scroll offset of the keybindings popup.
+    pub help_scroll: u16,
 }
 
 /// Move a cursor one step forward or backward within `len` rows, wrapping or
@@ -350,6 +364,12 @@ impl App {
             freshrss_auth: None,
             freshrss_setup: FreshRssSetupState::default(),
             hit: HitAreas::default(),
+            detached: DetachedViews::default(),
+            selection: None,
+            selection_text: String::new(),
+            selection_copy_requested: false,
+            help_open: false,
+            help_scroll: 0,
         };
 
         app.populate_all_feeds_view();

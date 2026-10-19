@@ -173,7 +173,13 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
         let clamped = app
             .selected_article
             .min(app.category_view_articles.len().saturating_sub(1));
-        app.article_list_state.select(Some(clamped));
+        super::super::sync_list_view(
+            &mut app.article_list_state,
+            clamped,
+            app.detached.article_list,
+            items.len(),
+            inner.height,
+        );
         render_scrollable_list(f, items, inner, &mut app.article_list_state, &app.theme);
         if show_footer {
             draw_article_footer(f, app, footer_area, false);
@@ -342,7 +348,13 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
                 .unwrap_or(0)
         };
 
-    app.article_list_state.select(Some(visual_selected));
+    super::super::sync_list_view(
+        &mut app.article_list_state,
+        visual_selected,
+        app.detached.article_list,
+        items.len(),
+        list_area.height,
+    );
     render_scrollable_list(f, items, list_area, &mut app.article_list_state, &app.theme);
 
     if show_footer {

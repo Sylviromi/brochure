@@ -148,89 +148,28 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
 
         header_lines.push(full_lines.len());
 
-        let cursor_highlight = if is_cursor {
-            Style::default()
-                .fg(app.theme.bg_dark)
-                .bg(app.theme.accent)
-                .bold()
-        } else {
-            Style::default().fg(app.theme.text)
-        };
-
-        let toggle_color = if is_cursor {
-            app.theme.bg_dark
-        } else {
-            app.theme.muted
-        };
-
-        full_lines.push(
-            Line::from(vec![
-                connector
-                    .to_string()
-                    .fg(if is_cursor {
-                        app.theme.bg_dark
-                    } else {
-                        app.theme.border
-                    })
-                    .bg(if is_cursor {
-                        app.theme.accent
-                    } else {
-                        app.theme.bg
-                    }),
-                toggle_indicator.fg(toggle_color).bg(if is_cursor {
-                    app.theme.accent
-                } else {
-                    app.theme.bg
-                }),
-                " ".fg(if is_cursor {
-                    app.theme.bg_dark
-                } else {
-                    app.theme.border
-                })
-                .bg(if is_cursor {
-                    app.theme.accent
-                } else {
-                    app.theme.bg
-                }),
-                format!("v{}", entry.version)
-                    .fg(if is_cursor {
-                        app.theme.bg_dark
-                    } else {
-                        app.theme.accent
-                    })
-                    .bg(if is_cursor {
-                        app.theme.accent
-                    } else {
-                        app.theme.bg
-                    })
+        let header = if is_cursor {
+            let text = format!(
+                "{connector}{toggle_indicator} v{}  ·  {}",
+                entry.version, entry.date
+            );
+            Line::from(text).style(
+                Style::default()
+                    .fg(app.theme.bg_dark)
+                    .bg(app.theme.accent)
                     .bold(),
-                "  ·  "
-                    .fg(if is_cursor {
-                        app.theme.bg_dark
-                    } else {
-                        app.theme.border
-                    })
-                    .bg(if is_cursor {
-                        app.theme.accent
-                    } else {
-                        app.theme.bg
-                    }),
-                entry
-                    .date
-                    .clone()
-                    .fg(if is_cursor {
-                        app.theme.bg_dark
-                    } else {
-                        app.theme.muted
-                    })
-                    .bg(if is_cursor {
-                        app.theme.accent
-                    } else {
-                        app.theme.bg
-                    }),
+            )
+        } else {
+            Line::from(vec![
+                connector.fg(app.theme.border),
+                toggle_indicator.fg(app.theme.muted),
+                Span::raw(" "),
+                format!("v{}", entry.version).fg(app.theme.accent).bold(),
+                "  ·  ".fg(app.theme.border),
+                entry.date.clone().fg(app.theme.muted),
             ])
-            .style(cursor_highlight),
-        );
+        };
+        full_lines.push(header);
 
         if !collapsed {
             full_lines.push(Line::from(vec![
@@ -276,6 +215,9 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
             app.changelog_scroll = cursor_line as u16;
         }
     }
+
+    // Entry line ranges for mouse clicks (lines are unwrapped: one line per row).
+    app.hit.changelog_entries = header_lines.iter().copied().zip(entry_ends).collect();
 
     let total_lines = full_lines.len();
     let max_scroll = total_lines.saturating_sub(viewport_height) as u16;

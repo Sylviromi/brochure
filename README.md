@@ -27,7 +27,8 @@ Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 ligh
 - **Saved articles** — star any article and group saves by source
 - **OPML import/export** — bring your existing subscriptions in, or take them out
 - **FreshRSS sync** — sync subscriptions, articles, and read/starred state with a FreshRSS server (grouped under a FreshRSS category)
-- **Mouse support** — click tabs, feeds, articles, settings, and links; scroll with the wheel; drag and drop in the feed editor
+- **Mouse support** — click tabs, feeds, articles, settings, and links; scroll with the wheel; drag to copy text; drag and drop in the feed editor
+- **Keybindings popup** — press `?` on any screen to see its keys
 - **Readability fetch** — pulls full article body when the feed only provides a summary
 - **Fetch policy** — choose when brochure refreshes: on start, every hour, every day, or never
 - **Feed editor** — rename, move, and delete feeds and categories without leaving the TUI
@@ -39,6 +40,7 @@ Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 ligh
 
 | Key | Action |
 |-----|--------|
+| `?` | Keybindings for the current screen |
 | `q` | Quit |
 | `j` / `k`, `↓` / `↑` | Move selection |
 | `Enter` | Open feed, category, or article |
@@ -60,15 +62,16 @@ Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 ligh
 | `s` | Save article (pick a category) |
 | `z` | Zen mode — full-screen, distraction-free reading |
 | `O` | Open article in browser |
-| `C` | Copy article link |
+| `C` | Copy article link (feed URL from the article list) |
 | `n` / `p` | Next / previous article (zen mode) |
 | `PgDn` / `PgUp`, `Home` / `End` | Scroll the article |
 
 **Mouse:** click a tab, feed, category, article, or setting to select it; click the
 selected one again to open it (categories expand/collapse). The wheel scrolls whichever
-panel is under the pointer. Click a link in an article to open it in your browser. In the
-feed editor, drag feeds and categories to move them (drag a category sideways to change
-its nesting); release outside the panel to cancel.
+panel is under the pointer without moving focus, so you can scroll the sidebar while
+reading. Click a link in an article to open it in your browser, or drag over article text
+to copy it to the clipboard. In the feed editor, drag feeds and categories to move them
+(drag a category sideways to change its nesting); release outside the panel to cancel.
 
 ## Installation
 
@@ -138,7 +141,7 @@ link      = "#89b4fa"   # links and inline highlights
 success   = "#a6e3a1"   # read articles, positive indicators
 header    = "#fab387"   # section headers, popup titles
 bg        = "#1e1e2e"   # main panel background
-bg_dark   = "#181825"   # tab bar, footer, sidebar chrome
+bg_dark   = "#181825"   # tab bar, sidebar chrome
 text      = "#cdd6f4"   # article titles and body text
 muted     = "#a6adc8"   # timestamps, secondary info
 border    = "#313244"   # panel dividers, unfocused panel borders
