@@ -7,7 +7,7 @@
 use crate::{
     app::App,
     models::{AddFeedStep, AppState, CategoryId, FreshRssStep},
-    ui::content::utils::split_cursor,
+    ui::{content::utils::split_cursor, theme::ColorTheme},
 };
 use ratatui::layout::Constraint::{Fill, Length, Min};
 use ratatui::{
@@ -16,7 +16,7 @@ use ratatui::{
     prelude::Stylize,
     style::Style,
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
+    widgets::{Block, Borders, Clear, Padding, Paragraph},
 };
 
 use super::{border_set, content_block, render_scrollbar};
@@ -59,222 +59,186 @@ fn wrap_bullet(text: &str, total_width: usize) -> Vec<String> {
         .collect()
 }
 
+/// One labelled input box inside a [`draw_form_popup`].
+struct FormField<'a> {
+    label: &'a str,
+    content: Line<'a>,
+    active: bool,
+}
+
+/// `text` with a block cursor at char index `cursor`.
+fn cursor_line(text: &str, cursor: usize, theme: &ColorTheme) -> Line<'static> {
+    let (before, cursor_ch, after) = split_cursor(text, cursor);
+    Line::from(vec![
+        before.fg(theme.text),
+        cursor_ch.fg(theme.bg).bg(theme.success),
+        after.fg(theme.text),
+    ])
+}
+
+/// `[Enter] action  [Esc] action` hint line shown at the bottom of a form.
+fn key_hint(enter: &str, esc: &str, theme: &ColorTheme) -> Line<'static> {
+    Line::from(vec![
+        " [Enter] ".fg(theme.accent).bold(),
+        format!("{enter}   ").fg(theme.muted),
+        "[Esc] ".fg(theme.accent).bold(),
+        esc.to_string().fg(theme.muted),
+    ])
+}
+
+/// Renders a centered, framed form: `fields` stacked as input boxes with a key
+/// hint underneath, all on one solid background so nothing behind shows through.
+fn draw_form_popup(f: &mut Frame, app: &App, title: &str, fields: &[FormField], hint: Line) {
+    let theme = &app.theme;
+    let rounded = app.user_data.border_rounded;
+    // Border + top padding + 3 rows per field + gaps + padding + hint + border.
+    let n = fields.len() as u16;
+    let height = 2 + 1 + n * 3 + n.saturating_sub(1) + 1 + 1;
+    let popup = f
+        .area()
+        .centered(Constraint::Percentage(60), Constraint::Length(height));
+
+    f.render_widget(Clear, popup);
+    let frame = content_block(title.fg(theme.header).bold(), true, rounded, theme);
+    let inner = frame.inner(popup);
+    f.render_widget(frame, popup);
+
+    let mut constraints = vec![Length(1)];
+    for i in 0..fields.len() {
+        if i > 0 {
+            constraints.push(Length(1));
+        }
+        constraints.push(Length(3));
+    }
+    constraints.extend([Fill(1), Length(1)]);
+    let rows = Layout::vertical(constraints)
+        .horizontal_margin(1)
+        .split(inner);
+
+    for (i, field) in fields.iter().enumerate() {
+        let block = Block::default()
+            .border_set(border_set(rounded))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(if field.active {
+                theme.accent
+            } else {
+                theme.border
+            }))
+            .padding(Padding::horizontal(1))
+            .title(Span::styled(
+                field.label,
+                Style::default().fg(theme.link).bold(),
+            ));
+        f.render_widget(
+            Paragraph::new(field.content.clone()).block(block),
+            rows[1 + i * 2],
+        );
+    }
+    f.render_widget(Paragraph::new(hint), rows[rows.len() - 1]);
+}
+
 /// Renders the add-feed popup with URL and title input fields.
 pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
-    let area = f.area();
+    let theme = &app.theme;
+    let state = &app.add_feed;
+    let on_url = state.step == AddFeedStep::Url;
+    let input = &state.url_input;
 
-    let vertical = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(35),
-            Constraint::Length(3),
-            Constraint::Length(1),
-            Constraint::Length(3),
-            Constraint::Percentage(35),
-        ])
-        .split(area);
-
-    let center = |row: Rect| {
-        Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(20),
-                Constraint::Percentage(60),
-                Constraint::Percentage(20),
-            ])
-            .split(row)[1]
-    };
-
-    let url_area = center(vertical[1]);
-    let title_area = center(vertical[3]);
-
-    // URL field
-    f.render_widget(Clear, url_area);
-    let url_content = if app.add_feed.step == AddFeedStep::Url {
-        let (before, cursor_ch, after) =
-            split_cursor(&app.add_feed.url_input.text, app.add_feed.url_input.cursor);
-        Line::from(vec![
-            before.fg(app.theme.text),
-            cursor_ch.fg(app.theme.bg).bg(app.theme.success),
-            after.fg(app.theme.text),
-        ])
+    let url_content = if on_url {
+        cursor_line(&input.text, input.cursor, theme)
     } else {
-        Line::from(Span::styled(
-            app.add_feed.url.clone(),
-            Style::default().fg(app.theme.text),
-        ))
+        Line::from(state.url.clone().fg(theme.text))
     };
-    let url_block = Block::default()
-        .border_set(border_set(app.user_data.border_rounded))
-        .borders(Borders::ALL)
-        .border_style(
-            Style::default().fg(if app.add_feed.step == AddFeedStep::Url {
-                app.theme.accent
-            } else {
-                app.theme.muted
-            }),
-        )
-        .bg(app.theme.bg)
-        .title(Span::styled(
-            " Feed URL ",
-            Style::default().fg(app.theme.link).bold(),
-        ));
-    f.render_widget(Paragraph::new(url_content).block(url_block), url_area);
-
-    // Title field
-    f.render_widget(Clear, title_area);
-    let title_label = if app.add_feed.step == AddFeedStep::Url {
-        " Feed Title (enter URL first) "
-    } else {
-        " Feed Title (Enter to save, Esc to cancel) "
-    };
-    let title_block = Block::default()
-        .border_set(border_set(app.user_data.border_rounded))
-        .borders(Borders::ALL)
-        .border_style(
-            Style::default().fg(if app.add_feed.step == AddFeedStep::Title {
-                app.theme.accent
-            } else {
-                app.theme.muted
-            }),
-        )
-        .bg(app.theme.bg)
-        .title(Span::styled(
-            title_label,
-            Style::default().fg(app.theme.link).bold(),
-        ));
-
-    if app.add_feed.step == AddFeedStep::Title && app.add_feed.url_input.text.is_empty() {
-        match &app.add_feed.fetched_title {
-            Some(t) if !t.is_empty() => {
-                f.render_widget(
-                    Paragraph::new(t.as_str())
-                        .block(title_block)
-                        .style(Style::default().fg(app.theme.muted)),
-                    title_area,
-                );
-                return;
-            }
-            Some(_) => {
-                f.render_widget(
-                    Paragraph::new("")
-                        .block(title_block)
-                        .style(Style::default().fg(app.theme.text)),
-                    title_area,
-                );
-            }
-            None => {
-                f.render_widget(
-                    Paragraph::new("⏳ Fetching title...")
-                        .block(title_block)
-                        .style(Style::default().fg(app.theme.text)),
-                    title_area,
-                );
-            }
+    // The title step reuses `url_input`; when it's blank the fetched title is the default.
+    let title_content = if on_url {
+        Line::default()
+    } else if input.text.is_empty() {
+        match state.fetched_title.as_deref() {
+            Some(t) => Line::from(t.to_string().fg(theme.muted)),
+            None => Line::from("⏳ Fetching title...".fg(theme.muted)),
         }
-        return;
-    }
-
-    let title_content =
-        if app.add_feed.step == AddFeedStep::Title && !app.add_feed.url_input.text.is_empty() {
-            let (before, cursor_ch, after) =
-                split_cursor(&app.add_feed.url_input.text, app.add_feed.url_input.cursor);
-            Line::from(vec![
-                before.fg(app.theme.text),
-                cursor_ch.fg(app.theme.bg).bg(app.theme.success),
-                after.fg(app.theme.text),
-            ])
-        } else {
-            Line::from(String::new())
-        };
-    f.render_widget(Paragraph::new(title_content).block(title_block), title_area);
+    } else {
+        cursor_line(&input.text, input.cursor, theme)
+    };
+    let fields = [
+        FormField {
+            label: " Feed URL ",
+            content: url_content,
+            active: on_url,
+        },
+        FormField {
+            label: if on_url {
+                " Feed title "
+            } else {
+                " Feed title (blank uses the fetched title) "
+            },
+            content: title_content,
+            active: !on_url,
+        },
+    ];
+    let hint = key_hint(if on_url { "Next" } else { "Add feed" }, "Cancel", theme);
+    draw_form_popup(f, app, " Add Feed ", &fields, hint);
 }
 
 /// Renders the FreshRSS setup wizard: server, username, and masked API password fields.
 pub(super) fn draw_freshrss_setup_popup(f: &mut Frame, app: &App) {
-    let area = f.area();
-    let vertical = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(32),
-            Constraint::Length(3),
-            Constraint::Length(1),
-            Constraint::Length(3),
-            Constraint::Length(1),
-            Constraint::Length(3),
-            Constraint::Percentage(32),
-        ])
-        .split(area);
-    let center = |row: Rect| {
-        Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(20),
-                Constraint::Percentage(60),
-                Constraint::Percentage(20),
-            ])
-            .split(row)[1]
+    let theme = &app.theme;
+    let setup = &app.freshrss_setup;
+    let field = |label, input: &crate::models::TextInput, step, masked: bool| {
+        let active = setup.step == step;
+        let display = if masked {
+            "•".repeat(input.text.chars().count())
+        } else {
+            input.text.clone()
+        };
+        // Masking keeps one char per char, so the cursor index still lines up.
+        let content = if active {
+            cursor_line(&display, input.cursor, theme)
+        } else {
+            Line::from(display.fg(theme.text))
+        };
+        FormField {
+            label,
+            content,
+            active,
+        }
     };
+    let editing = setup.editing_username.is_some();
     let fields = [
-        (
-            center(vertical[1]),
+        field(
             " Server (https://rss.example.com) ",
-            &app.freshrss_setup.server_input.text,
-            app.freshrss_setup.server_input.cursor,
+            &setup.server_input,
             FreshRssStep::Server,
             false,
         ),
-        (
-            center(vertical[3]),
+        field(
             " Username ",
-            &app.freshrss_setup.username_input.text,
-            app.freshrss_setup.username_input.cursor,
+            &setup.username_input,
             FreshRssStep::Username,
             false,
         ),
-        (
-            center(vertical[5]),
-            " API password (Enter to save + sync, Esc to go back) ",
-            &app.freshrss_setup.password_input.text,
-            app.freshrss_setup.password_input.cursor,
+        field(
+            if editing {
+                " API password (leave blank to keep current) "
+            } else {
+                " API password "
+            },
+            &setup.password_input,
             FreshRssStep::Password,
             true,
         ),
     ];
-    for (field_area, title, text, cursor, step, masked) in fields {
-        f.render_widget(Clear, field_area);
-        let active = app.freshrss_setup.step == step;
-        let display: String = if masked {
-            "•".repeat(text.chars().count())
-        } else {
-            text.clone()
-        };
-        // Re-split the masked display on the same cursor so the caret tracks typing.
-        let content = if active {
-            let (before, cursor_ch, after) = split_cursor(&display, cursor);
-            Line::from(vec![
-                before.fg(app.theme.text),
-                cursor_ch.fg(app.theme.bg).bg(app.theme.success),
-                after.fg(app.theme.text),
-            ])
-        } else {
-            Line::from(Span::styled(display, Style::default().fg(app.theme.text)))
-        };
-        let block = Block::default()
-            .border_set(border_set(app.user_data.border_rounded))
-            .borders(Borders::ALL)
-            .border_style(Style::default().fg(if active {
-                app.theme.accent
-            } else {
-                app.theme.muted
-            }))
-            .bg(app.theme.bg)
-            .title(Span::styled(
-                title,
-                Style::default().fg(app.theme.link).bold(),
-            ));
-        f.render_widget(Paragraph::new(content).block(block), field_area);
-    }
+    let (enter, esc) = match setup.step {
+        FreshRssStep::Server => ("Next", "Cancel"),
+        FreshRssStep::Username => ("Next", "Back"),
+        FreshRssStep::Password => ("Save + sync", "Back"),
+    };
+    let title = if editing {
+        " Edit FreshRSS Connection "
+    } else {
+        " Connect to FreshRSS "
+    };
+    draw_form_popup(f, app, title, &fields, key_hint(enter, esc, theme));
 }
 
 /// Renders a centered confirmation dialog with a red bordered block.
@@ -402,13 +366,11 @@ pub(super) fn draw_opml_path_popup(f: &mut Frame, app: &App) {
         &app.theme,
     );
 
-    let (before, cursor_ch, after) =
-        split_cursor(&app.opml.path_input.text, app.opml.path_input.cursor);
-    let content = Line::from(vec![
-        before.fg(app.theme.text),
-        cursor_ch.fg(app.theme.bg).bg(app.theme.success),
-        after.fg(app.theme.text),
-    ]);
+    let content = cursor_line(
+        &app.opml.path_input.text,
+        app.opml.path_input.cursor,
+        &app.theme,
+    );
 
     f.render_widget(Paragraph::new(content).block(block), center);
 }
@@ -705,4 +667,54 @@ pub(super) fn draw_update_popup(f: &mut Frame, app: &mut App) {
         ])),
         hint_area,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        app::App,
+        models::{AppState, FreshRssStep, Tab},
+    };
+    use ratatui::{Terminal, backend::TestBackend};
+
+    fn screen(app: &mut App) -> Vec<String> {
+        let mut terminal = Terminal::new(TestBackend::new(90, 24)).unwrap();
+        terminal.draw(|f| crate::ui::draw(f, app)).unwrap();
+        let buf = terminal.backend().buffer();
+        (0..24)
+            .map(|y| (0..90).map(|x| buf[(x, y)].symbol()).collect())
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn freshrss_setup_fields_share_one_frame() {
+        let mut app = App::new();
+        app.update_available = None;
+        app.select_tab(Tab::Settings);
+        app.freshrss_setup
+            .open(Some("https://rss.example.com"), Some("alice"));
+        app.freshrss_setup.step = FreshRssStep::Password;
+        app.state = AppState::FreshRssSetup;
+        let rows = screen(&mut app);
+
+        let top = rows
+            .iter()
+            .position(|r| r.contains("Edit FreshRSS Connection"))
+            .expect("form title rendered");
+        let col = |row: &str, needle: &str| row[..row.find(needle).unwrap()].chars().count();
+        let frame_x = col(&rows[top], "╭ Edit");
+        let hint = rows
+            .iter()
+            .position(|r| r.contains("[Enter] Save + sync"))
+            .expect("key hint rendered");
+        // Every row from the title to the hint is enclosed by the form's left border,
+        // including the gaps between the input boxes.
+        for row in &rows[top + 1..=hint] {
+            assert_eq!(row.chars().nth(frame_x), Some('│'), "row: {row}");
+        }
+        assert!(
+            rows.iter().any(|r| r.contains("│ alice")),
+            "padded field text"
+        );
+    }
 }
