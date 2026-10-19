@@ -145,11 +145,23 @@
   {
     "version": "0.10.0",
     "date": "2026-08-17",
-    "summary": "Maintenance release with various improvements.",
+    "summary": "Prebuilt binaries for every platform and more reliable feed fetching.",
     "highlights": [
-      "1 features change",
-      "2 ui changes",
-      "1 fixes change"
+      "Prebuilt binaries for Linux, macOS, and Windows",
+      "Failed feed fetches are retried automatically",
+      "Fewer sites block feed requests"
+    ]
+  },
+  {
+    "version": "0.11.0",
+    "date": "2026-10-19",
+    "summary": "FreshRSS sync, full mouse support, and a keybindings popup, plus a long list of fixes.",
+    "highlights": [
+      "Sync feeds and read state with FreshRSS",
+      "Click, scroll, drag, and open links with the mouse",
+      "Press ? to see every key for the current screen",
+      "Settings and feeds survive crashes during a save",
+      "Smoother scrolling and less disk writing"
     ]
   }
 ]
