@@ -85,9 +85,10 @@ Testing notes:
   CI release binaries use the `dist` profile (fat LTO, 1 codegen unit). Keep it that way.
 - Before adding a dependency, check `cargo tree -d` for duplicates and prefer
   `default-features = false` with only the features used.
-- Local dev patches `limner` to `../limner` via the git-ignored `.cargo/config.toml`.
-  That strips limner's `source`/`checksum` from `Cargo.lock`, which breaks `--locked`
-  CI builds; `scripts/release.py` (`ensure_clean_lock`) restores them before release.
+- `limner` comes from crates.io. Patching it to a local checkout (`[patch.crates-io]`
+  in a `.cargo/config.toml`) strips its `source`/`checksum` from `Cargo.lock`, which
+  breaks `--locked` CI builds — drop the patch and `git checkout Cargo.lock` before
+  committing.
 
 ---
 
