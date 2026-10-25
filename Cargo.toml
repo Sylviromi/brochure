@@ -44,6 +44,29 @@ dom_smoothie = "0.18.2"
 # Already built for limner; renders saved-article Markdown back to HTML on export.
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 
+# `cargo binstall brochure` fetches the prebuilt binary from the GitHub release
+# (built by .github/workflows/release.yml) instead of compiling. Asset names
+# there must stay in sync with these URLs.
+[package.metadata.binstall]
+bin-dir = "{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+[package.metadata.binstall.overrides.x86_64-unknown-linux-gnu]
+pkg-url = "{ repo }/releases/download/v{ version }/brochure-linux-x86_64.tar.gz"
+
+[package.metadata.binstall.overrides.aarch64-unknown-linux-gnu]
+pkg-url = "{ repo }/releases/download/v{ version }/brochure-linux-aarch64.tar.gz"
+
+[package.metadata.binstall.overrides.x86_64-apple-darwin]
+pkg-url = "{ repo }/releases/download/v{ version }/brochure-macos-x86_64.tar.gz"
+
+[package.metadata.binstall.overrides.aarch64-apple-darwin]
+pkg-url = "{ repo }/releases/download/v{ version }/brochure-macos-aarch64.tar.gz"
+
+[package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-url = "{ repo }/releases/download/v{ version }/brochure-windows-x86_64.exe"
+pkg-fmt = "bin"
+
 [features]
 default = []
 # OS credential store (Keychain / Credential Manager / Secret Service).

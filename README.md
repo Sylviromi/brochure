@@ -76,9 +76,21 @@ to copy it to the clipboard. In the feed editor, drag feeds and categories to mo
 
 ## Installation
 
+Download a prebuilt binary (Linux, macOS, Windows) without compiling, using
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall):
+
+```bash
+cargo binstall brochure
+```
+
+Binaries are also attached to each [GitHub release](https://github.com/Sylviromi/brochure/releases/latest).
+Or build from source (takes a few minutes):
+
 ```bash
 cargo install brochure --locked
 ```
+
+Update the same way — re-run whichever command you installed with.
 
 Or via [pkgsrc](https://www.pkgsrc.org/) (NetBSD and other platforms):
 
@@ -92,7 +104,7 @@ Then launch with:
 brochure
 ```
 
-**Requirements:** Rust 1.95 or later. Install via [rustup](https://rustup.rs) if needed.
+**Requirements (source builds):** Rust 1.95 or later. Install via [rustup](https://rustup.rs) if needed.
 
 ## Data & configuration
 
