@@ -139,6 +139,15 @@ static BUILTIN_THEMES: &[(&str, &str, &str)] = &[
 /// Number of dark built-in themes (positions 0..DARK_COUNT in BUILTIN_THEMES).
 pub const BUILTIN_DARK_COUNT: usize = 17;
 
+/// Perceived-luminance check; non-RGB colours count as dark.
+fn is_light(color: Color) -> bool {
+    let Color::Rgb(r, g, b) = color else {
+        return false;
+    };
+    let lin = |c: u8| (c as f32 / 255.0).powf(2.2);
+    0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b) > 0.35
+}
+
 /// Full color palette for the application UI.
 ///
 /// Every named slot maps to one semantic role. Built-in themes are loaded from
@@ -201,16 +210,23 @@ impl ColorTheme {
     /// Uses perceived luminance to decide between `bg` (light) and `bg_dark` (dark).
     /// Call this whenever text is rendered on a colored surface (selections, badges).
     pub fn contrast_color(&self, bg_color: Color) -> Color {
-        let lum = match bg_color {
-            Color::Rgb(r, g, b) => {
-                let r = r as f32 / 255.0;
-                let g = g as f32 / 255.0;
-                let b = b as f32 / 255.0;
-                0.2126 * r.powf(2.2) + 0.7152 * g.powf(2.2) + 0.0722 * b.powf(2.2)
-            }
-            _ => 0.0,
-        };
-        if lum > 0.35 { self.bg_dark } else { self.bg }
+        if is_light(bg_color) {
+            self.bg_dark
+        } else {
+            self.bg
+        }
+    }
+
+    /// Bundled syntect theme for code blocks.  syntect only ships a handful,
+    /// so Solarized matches exactly and everything else goes by background
+    /// brightness (custom themes included).
+    pub fn syntax_theme(&self) -> &'static str {
+        match (self.name.starts_with("Solarized"), is_light(self.bg_dark)) {
+            (true, true) => "Solarized (light)",
+            (true, false) => "Solarized (dark)",
+            (false, true) => "InspiredGitHub",
+            (false, false) => "base16-ocean.dark",
+        }
     }
 
     /// Convenience alias used as the default fallback throughout the app.
@@ -387,6 +403,18 @@ mod tests {
             assert_eq!(ColorTheme::slug(name), *slug, "slug mismatch for {name}");
         }
         assert_eq!(ColorTheme::slug("Unknown Theme"), "custom");
+    }
+
+    #[test]
+    fn syntax_theme_follows_theme_brightness() {
+        let names: Vec<&str> = BUILTIN_THEMES
+            .iter()
+            .map(|(slug, ..)| ColorTheme::builtin(slug).unwrap().syntax_theme())
+            .collect();
+        assert!(names.contains(&"base16-ocean.dark"));
+        assert!(names.contains(&"InspiredGitHub"));
+        assert!(names.contains(&"Solarized (light)"));
+        assert!(names.contains(&"Solarized (dark)"));
     }
 
     #[test]

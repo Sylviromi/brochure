@@ -13,6 +13,7 @@ use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
+    symbols::{border, line},
     widgets::{Paragraph, Wrap},
 };
 
@@ -37,7 +38,13 @@ fn base_md_style(theme: &crate::ui::theme::ColorTheme) -> MarkdownStyle {
         inline_code: Style::new().fg(theme.code).bg(theme.code_bg),
         code_block: Style::new().fg(theme.code),
         code_block_bg: theme.bg_dark,
-        code_block_alignment: Alignment::Left,
+        code_block_border: Some(border::ROUNDED),
+        code_block_border_style: Style::new().fg(theme.border),
+        code_block_language: Style::new().fg(theme.accent).bold(),
+        syntax_theme: Some(theme.syntax_theme()),
+        table_border: line::ROUNDED,
+        table_border_style: Style::new().fg(theme.border),
+        table_header: Style::new().fg(theme.accent).bold(),
         link: Style::new().fg(theme.link).underlined(),
         link_prefix: "",
         quote: Style::new().fg(theme.muted),
