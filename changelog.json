@@ -163,5 +163,16 @@
       "Settings and feeds survive crashes during a save",
       "Smoother scrolling and less disk writing"
     ]
+  },
+  {
+    "version": "0.12.0",
+    "date": "2026-10-25",
+    "summary": "Nicer code blocks and tables in articles, and a faster way to install.",
+    "highlights": [
+      "Syntax-highlighted code blocks matching your theme",
+      "Tables drawn with borders and aligned columns",
+      "Install a prebuilt binary with cargo binstall",
+      "Fixes for nested lists, quotes, and code blocks"
+    ]
   }
 ]
