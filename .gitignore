@@ -5,6 +5,7 @@
 docs
 .idea
 TASKS.md
+RELEASING.md
 changelog/
 vault
 .worktrees/

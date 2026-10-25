@@ -131,5 +131,5 @@ internal refactoring details. If a change is invisible to the user (code
 cleanup, helper extraction, deduplication), omit it entirely.
 
 `changelog/next-update.md` is gitignored — do **not** `git add` or commit it.
-`scripts/release.py` turns it into `changelog/vX.Y.Z.md` and a `changelog.json`
-entry (shown in the in-app Changelog tab) at release time.
+At release time it becomes `changelog/vX.Y.Z.md` plus a `changelog.json` entry
+(shown in the in-app Changelog tab).

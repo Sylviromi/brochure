@@ -1,8 +1,8 @@
 name: Release
 
 # Builds release binaries for every tag push (vX.Y.Z) and attaches them to the
-# GitHub release created by `scripts/release.py`. Users who don't want a
-# multi-minute `cargo install` compile can download a prebuilt binary instead.
+# GitHub release for that tag. `cargo binstall brochure` downloads these, so
+# asset names must match [package.metadata.binstall] in Cargo.toml.
 on:
   push:
     tags: ["v*"]
