@@ -29,7 +29,16 @@ Key patterns:
 - **Mouse.** Renderers record clickable rects in `app.hit` every frame;
   `handlers/mouse.rs` reads them and, where possible, replays the equivalent key press
   so mouse and keyboard share one code path. New panels/lists should record their
-  area and get a branch in `mouse.rs`.
+  area and get a branch in `mouse.rs`; pass a `ScrollTarget` to `render_scrollbar`
+  to make a scrollbar draggable.
+- **Wheel scrolls, clicks select.** The wheel moves a list's viewport, never its
+  cursor: it sets the list's `app.detached` flag and `sync_list_view` keeps the manual
+  offset until the next key press. Rows style their own selection (no ratatui
+  highlight). Note ratatui's `ListState::select(None)` also zeroes the offset. The
+  sidebar/article lists select on mouse-up so a press-and-drag scrolls them instead.
+- **Pixel mouse.** Where the terminal supports it, pointer reports arrive in pixels
+  (`pixel_mouse.rs`); the input thread converts them to cells and passes the
+  fractional row along for smooth scrollbar drags. Handlers only ever see cells.
 - **Keys.** `handlers::handle_key` maps `j`/`k` to `↓`/`↑` everywhere except text
   inputs (`is_text_input`), so handlers only match arrows. The `?` popup's tables
   live in `ui/help.rs` — update them whenever a handler's keys change.
@@ -37,6 +46,15 @@ Key patterns:
   re-rendered when `render_key` changes, and the image layout only when images load or
   the viewport height changes; each frame draws just the visible lines. Any new input
   that affects the rendered article must be added to `render_key`, or it will go stale.
+- **Notifications.** Report anything to the user with `app.notify(msg)`: it shows as a
+  toast (`ui/toast.rs`); a leading `✓ ` / `⚠ ` picks the success / warning style.
+  Don't toast per feed during a refresh — failures go in `app.refresh_errors` and show
+  in the live refresh card and the batch summary (`events::finish_fetch`).
+- **Full-article fetches** all go through `handlers::article::prefetch_article_if_stub`,
+  which fetches a link at most once per session (`full_fetch_tried`) and drives the
+  skeleton (`full_fetch_pending`). Never write placeholder text into `content`.
+- **Text selection** is stored in document rows (`TextSelection`), not screen rows: a
+  panel that supports it calls `ui::selection::highlight` and `capture` while drawing.
 - **Persistence.** All saves go through `storage::write_json` (atomic temp-file +
   rename). The article cache is written once per refresh batch (`events::finish_fetch`)
   and on quit — not per feed.
@@ -47,33 +65,32 @@ Key patterns:
 
 ## Code Quality (apply on every edit)
 
-Whenever you read or edit a file — even for a small fix — also look for:
+In any file you touch, look for:
 
-- **Duplicate or near-duplicate code** that belongs in a shared helper function.
-- **Functions that are too long** and would be clearer if split into smaller, focused helpers.
-- **Files that have grown too large** and would benefit from being split into sub-modules.
-- **Obvious simplifications**: dead branches, redundant variables, needlessly verbose patterns.
+- duplicate or near-duplicate code that belongs in a shared helper;
+- functions or files that have grown too long and should be split;
+- dead branches, redundant variables, needlessly verbose patterns.
 
-Make these improvements in the same change when they are clearly better and low-risk.
-When the improvement is larger or uncertain, surface it to the user as a suggestion.
+Fix these in the same change when the fix is clearly better and low-risk; otherwise
+suggest it to the user.
 
 ---
 
 ## Checks (run after every change)
 
-These mirror CI (`.github/workflows/ci.yml`), which fails on any clippy warning:
-
 ```
-cargo fmt && cargo clippy --all-features -- -D warnings && cargo test --all-features
+cargo fmt && cargo clippy --all-features --all-targets -- -D warnings && cargo test --all-features
 ```
 
-`cargo fix --allow-dirty` is handy for clearing unused imports, but review what it changed.
+CI (`.github/workflows/ci.yml`) runs the same, minus `--all-targets` (so it doesn't lint
+test code), and fails on any clippy warning. `cargo fix --allow-dirty` clears unused
+imports; review what it changed.
 
 Testing notes:
 
 - `App::new()` loads from the **real** data dir. Tests may build an `App`, but must not
   exercise paths that save (marking read, toggling collapse, editing feeds…).
-  `handlers/mouse.rs` tests show how to swap in in-memory feeds.
+  `handlers/mouse/tests.rs` shows how to swap in in-memory feeds.
 - To run the app without touching your own data: `XDG_DATA_HOME=/tmp/brochure-sandbox cargo run`.
 - UI behaviour can be tested headlessly with `ratatui::backend::TestBackend` + `ui::draw`.
 
@@ -105,30 +122,24 @@ Use the `<type>: <lowercase description>` format:
 | `docs:`  | Documentation-only changes           |
 | `test:`  | Adding or updating tests             |
 
-**When refactoring**, split changes into focused commits — one per logical concern, e.g.
-`refactor: extract shared http_get_bytes helper`, `refactor: split app.rs into submodules`.
-
-**Guidelines:**
-- One file appears in at most one commit in a batch
-- Each commit compiles on its own (when possible)
-- Subject line is 72 chars or fewer
-- Do not use `-i`/interactive flags (`rebase -i`, `add -i`, `add -p`)
+- Split refactors into one commit per concern (e.g. `refactor: extract shared
+  http_get_bytes helper`, `refactor: split app.rs into submodules`).
+- A file appears in at most one commit per batch; each commit compiles on its own
+  when possible.
+- Subject line ≤ 72 chars.
+- No interactive flags (`rebase -i`, `add -i`, `add -p`).
 
 ---
 
 ## Changelog
 
-**Before committing any changes**, review `git diff` for user-facing changes and
-append qualifying entries to `changelog/next-update.md` under the appropriate
-section (`## Features`, `## UI`, `## Fixes`, `## Refactor`).
+Before committing, check `git diff` for user-facing changes and append entries to
+`changelog/next-update.md` under `## Features`, `## UI`, `## Fixes` or `## Refactor`,
+as `- YYYY-MM-DD: Description` (today's date, below older entries).
 
-Each entry must use today's date: `- YYYY-MM-DD: Description`. Append new
-entries below older ones within each section.
-
-**Changelog entries are user-facing only.** Write what the user sees or gains —
-not how it was implemented. No library names, function names, file paths, or
-internal refactoring details. If a change is invisible to the user (code
-cleanup, helper extraction, deduplication), omit it entirely.
+Entries are **user-facing only**: what the user sees or gains, not how. No library,
+function or file names. Changes invisible to the user (cleanup, helper extraction,
+deduplication) get no entry.
 
 `changelog/next-update.md` is gitignored — do **not** `git add` or commit it.
 At release time it becomes `changelog/vX.Y.Z.md` plus a `changelog.json` entry
