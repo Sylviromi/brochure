@@ -181,10 +181,11 @@ async fn run(
     'main: loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;
         // Terminal images aren't redrawn by the cell diff, so a toast that moved off one
-        // would leave its marks behind: repaint the whole screen.
+        // would leave its marks behind. Blanking the last frame makes the next draw resend
+        // every cell over the screen as it is (no clear, so no flash).
         let images_shown = !app.hit.article_images.is_empty() || app.zoom.is_some();
         if images_shown && toast_rects.iter().any(|r| !app.hit.toasts.contains(r)) {
-            terminal.clear()?;
+            terminal.swap_buffers();
             terminal.draw(|f| ui::draw(f, &mut app))?;
         }
         toast_rects = std::mem::take(&mut app.hit.toasts);
