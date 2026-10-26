@@ -73,16 +73,16 @@ fn save_connection(app: &mut App, tx: &UnboundedSender<AppEvent>) {
     setup.clear_secret();
 
     if keep_password {
-        app.set_status("FreshRSS connection updated.");
+        app.notify("FreshRSS connection updated.");
     } else {
         match crate::sync::secret::set_password(&username, &password, &data_dir()) {
-            Ok(SecretSource::Env) => app.set_status("Using API password from environment."),
-            Ok(SecretSource::Keyring) => app.set_status("FreshRSS saved to OS keyring."),
+            Ok(SecretSource::Env) => app.notify("Using API password from environment."),
+            Ok(SecretSource::Keyring) => app.notify("FreshRSS saved to OS keyring."),
             Ok(SecretSource::File) => {
-                app.set_status("No OS keyring — API password saved to a locked file.")
+                app.notify("No OS keyring — API password saved to a locked file.")
             }
             Err(e) => {
-                app.set_status(format!("⚠ Could not store API password: {e}"));
+                app.notify(format!("⚠ Could not store API password: {e}"));
                 return;
             }
         }

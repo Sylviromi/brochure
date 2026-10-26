@@ -124,6 +124,14 @@ pub enum SettingsItem {
     Theme,
     /// Connect a FreshRSS server (Enter: sync now / open setup; Left: disconnect).
     FreshRss,
+    /// Cycle the screen corner toasts appear in.
+    ToastPosition,
+    /// Cycle how long toasts stay on screen.
+    ToastDuration,
+    /// Cycle how many toasts show at once.
+    ToastCount,
+    /// Toggle the live refresh-progress toast.
+    ToastProgress,
 }
 
 impl SettingsItem {
@@ -153,11 +161,17 @@ impl SettingsItem {
             Self::ZenWidth => "Width of the zen reading mode as a percentage of the terminal",
             Self::Theme => "Browse built-in themes and create custom ones",
             Self::FreshRss => "Connect a FreshRSS server to sync subscriptions and read state",
+            Self::ToastPosition => "Screen corner where notifications appear",
+            Self::ToastDuration => "How long each notification stays on screen",
+            Self::ToastCount => "How many notifications show at once",
+            Self::ToastProgress => {
+                "Show refresh progress, plus blocked and failed feeds, while feeds update"
+            }
         }
     }
 
     /// Every item in on-screen order (top to bottom).
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 19] = [
         Self::ImportOpml,
         Self::ExportOpml,
         Self::ImportSaved,
@@ -168,6 +182,10 @@ impl SettingsItem {
         Self::AutoFetchOnStart,
         Self::ArchivePolicy,
         Self::FreshRss,
+        Self::ToastPosition,
+        Self::ToastDuration,
+        Self::ToastCount,
+        Self::ToastProgress,
         Self::ScrollLoop,
         Self::BorderStyle,
         Self::BodyAlignment,

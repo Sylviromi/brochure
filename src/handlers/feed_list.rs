@@ -17,15 +17,12 @@ fn refresh_category(app: &mut App, cat_id: u64, tx: &UnboundedSender<AppEvent>) 
     if feed_indices.is_empty() {
         return;
     }
-    app.set_status("Fetching category feeds...");
     app.refresh_feeds(&feed_indices, tx);
 }
 
 /// Refresh everything (local feeds + a FreshRSS sync when configured).
 fn refresh_all_feeds(app: &mut App, tx: &UnboundedSender<AppEvent>) {
-    if app.refresh_all(tx) {
-        app.set_status("Fetching all feeds...");
-    }
+    app.refresh_all(tx);
 }
 
 /// Handle key input while viewing the main feed list; supports navigation, refresh, and feed editor entry.
@@ -41,11 +38,8 @@ pub(super) fn handle_feed_list(
                 refresh_all_feeds(app, tx);
             } else if let Some(cat_id) = app.selected_sidebar_category {
                 refresh_category(app, cat_id, tx);
-            } else if let Some(feed) = app.feeds.get(app.selected_feed) {
-                let idx = app.selected_feed;
-                let title = feed.title.clone();
-                app.set_status(format!("Refreshing {title}..."));
-                app.refresh_feed_at(idx, tx);
+            } else {
+                app.refresh_feed_at(app.selected_feed, tx);
             }
         }
         KeyCode::Char('R') if !app.in_saved_context => {

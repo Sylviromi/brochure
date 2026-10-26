@@ -51,7 +51,7 @@ pub fn start_initial_fetch(app: &mut App, tx: &UnboundedSender<AppEvent>) {
         FetchPolicy::EveryDay => Some(86400),
         FetchPolicy::Never => None,
     };
-    let started = match max_age {
+    match max_age {
         Some(max_age) => {
             let ts = now_secs();
             app.refresh_where(
@@ -69,7 +69,6 @@ pub fn start_initial_fetch(app: &mut App, tx: &UnboundedSender<AppEvent>) {
             false
         }
     };
-    app.set_status(if started { "Fetching feeds..." } else { "" });
 }
 
 /// Handle a fetched feed result: merge read/starred state, update counts, save cache.
@@ -178,15 +177,16 @@ fn archived_survivors(
         .collect()
 }
 
-/// Record a failed refresh on feed `idx` and surface it in the status bar.
+/// Record a failed refresh on feed `idx`; it is counted in the batch's toasts.
 pub(crate) fn record_fetch_error(app: &mut App, idx: usize, error: String) {
     let Some(feed) = app.feeds.get_mut(idx) else {
         return;
     };
-    let msg = format!("⚠ {}: {error}", feed.title);
+    let (tag, _) = crate::fetch::feed_error_tag(&error);
+    app.refresh_errors
+        .push((tag, format!("{}: {error}", feed.title)));
     feed.fetch_error = Some(error);
     feed.fetched = true;
-    app.set_status(msg);
 }
 
 /// Clamp the article cursor if feed `idx` is the one being viewed and its list shrank.
@@ -207,8 +207,9 @@ pub(crate) fn finish_fetch(app: &mut App) {
     app.feeds_pending = app.feeds_pending.saturating_sub(1);
     app.refresh_article_views();
     if app.feeds_pending == 0 {
+        let errors = std::mem::take(&mut app.refresh_errors);
+        app.notify(refresh_summary(app.feeds_total, &errors));
         app.feeds_total = 0;
-        app.set_status("Feeds loaded.");
         let _ = storage::save_feeds(&app.feeds);
         let _ = storage::save_articles(&app.feeds, app.user_data.cache_full_articles);
     }
@@ -235,23 +236,45 @@ pub fn on_full_article_fetched(
     let Some(article) = article.filter(|a| a.link == link) else {
         return;
     };
-    let msg = match result {
+    let failure = match result {
         Ok(markdown) => {
             article.error = None;
             article.content = markdown;
-            "Article loaded.".to_string()
+            None
         }
         Err(e) => {
             // Keep the feed's own content (and its images) to read instead.
-            let msg = format!("Extraction failed: {e}");
+            let msg = format!("⚠ Couldn't load the full article: {e}");
             article.error = Some(e);
-            msg
+            Some(msg)
         }
     };
     if selected {
         app.content_line_count = article.content.lines().count().max(1);
     }
-    app.set_status(msg);
+    if let Some(msg) = failure {
+        app.notify(msg);
+    }
+}
+
+/// One-line outcome of a refresh batch of `total` feeds with `errors` failures.
+fn refresh_summary(total: usize, errors: &[(&'static str, String)]) -> String {
+    let plural = if total == 1 { "" } else { "s" };
+    match errors {
+        [] => format!("✓ Refreshed {total} feed{plural}"),
+        [(_, msg)] if total == 1 => format!("⚠ {msg}"),
+        _ => {
+            let blocked = errors.iter().filter(|(tag, _)| *tag == "blocked").count();
+            let failed = errors.len() - blocked;
+            let parts: Vec<String> = [(blocked, "blocked"), (failed, "failed")]
+                .into_iter()
+                .filter(|&(n, _)| n > 0)
+                .map(|(n, what)| format!("{n} {what}"))
+                .collect();
+            let ok = total.saturating_sub(errors.len());
+            format!("⚠ Refreshed {ok} of {total} feeds — {}", parts.join(", "))
+        }
+    }
 }
 
 /// Spawn background download + decode for article images not yet cached or pending.
@@ -364,5 +387,21 @@ mod tests {
         let links: Vec<&str> = out.iter().map(|a| a.link.as_str()).collect();
         assert_eq!(links, vec!["recent"]);
         assert!(out[0].is_archived);
+    }
+
+    #[test]
+    fn refresh_summary_counts_blocked_and_failed() {
+        assert_eq!(refresh_summary(3, &[]), "✓ Refreshed 3 feeds");
+        let one = [("blocked", "Feed: HTTP 403".to_string())];
+        assert_eq!(refresh_summary(1, &one), "⚠ Feed: HTTP 403");
+        let many = [
+            ("blocked", String::new()),
+            ("unreachable", String::new()),
+            ("blocked", String::new()),
+        ];
+        assert_eq!(
+            refresh_summary(10, &many),
+            "⚠ Refreshed 7 of 10 feeds — 2 blocked, 1 failed"
+        );
     }
 }

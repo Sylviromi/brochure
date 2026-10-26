@@ -338,6 +338,9 @@ pub struct UserData {
     /// FreshRSS server connection (no secrets — see `sync::secret`). None = local-only mode.
     #[serde(default)]
     pub freshrss: Option<FreshRssConfig>,
+    /// Toast notification preferences.
+    #[serde(default)]
+    pub toasts: super::ToastSettings,
 }
 
 impl Default for UserData {

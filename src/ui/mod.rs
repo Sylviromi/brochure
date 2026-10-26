@@ -14,6 +14,7 @@ mod selection;
 mod settings;
 pub(crate) mod theme;
 mod theme_editor;
+mod toast;
 
 pub(crate) use changelog::changelog_entry_count;
 
@@ -244,6 +245,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if app.help_open {
         help::draw_help_popup(f, app);
     }
+    toast::draw_toasts(f, app);
 }
 
 /// Draw everything for the current state (tabs, panels, popups).

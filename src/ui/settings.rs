@@ -75,6 +75,7 @@ fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
     let save = app.user_data.cache_full_articles;
     let rounded = app.user_data.border_rounded;
     let scroll_loop = app.user_data.scroll_loop;
+    let toasts = &app.user_data.toasts;
     let cache_label = format_cache_size(app.article_cache_size);
     let rows = [
         Row::SectionHeader {
@@ -148,6 +149,35 @@ fn draw_settings(f: &mut Frame, app: &mut App, area: Rect) {
             label: "[ FreshRSS Sync ]",
             in_last: false,
             value: app.freshrss_status(),
+        },
+        Row::Spacer,
+        Row::SectionHeader {
+            label: " Notifications",
+            is_last: false,
+        },
+        Row::Cycle {
+            item: SettingsItem::ToastPosition,
+            label: "[ Position ]",
+            in_last: false,
+            value: toasts.position.label().to_string(),
+        },
+        Row::Cycle {
+            item: SettingsItem::ToastDuration,
+            label: "[ Duration ]",
+            in_last: false,
+            value: format!("{}s", toasts.seconds),
+        },
+        Row::Cycle {
+            item: SettingsItem::ToastCount,
+            label: "[ Max Shown ]",
+            in_last: false,
+            value: toasts.max_visible.to_string(),
+        },
+        Row::Toggle {
+            item: SettingsItem::ToastProgress,
+            label: "[ Refresh Progress ]",
+            in_last: false,
+            on: toasts.refresh_progress,
         },
         Row::Spacer,
         Row::SectionHeader {

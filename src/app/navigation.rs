@@ -262,7 +262,7 @@ impl App {
                         {
                             let msg = format!("{}: {err}", feed.title);
                             self.selected_feed = *feeds_idx;
-                            self.set_status(msg);
+                            self.notify(msg);
                             return;
                         }
                         self.selected_feed = *feeds_idx;

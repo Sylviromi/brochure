@@ -464,10 +464,11 @@ pub fn finish_selection_copy(app: &mut App) {
         return;
     }
     let chars = text.chars().count();
-    match super::article::copy_to_clipboard(&text) {
-        None => app.set_status(format!("Copied {chars} characters")),
-        Some(_) => app.set_status("⚠ Copy failed: no clipboard tool available"),
-    }
+    let msg = match super::article::copy_to_clipboard(&text) {
+        None => format!("✓ Copied {chars} characters"),
+        Some(_) => "⚠ Copy failed: no clipboard tool available".to_string(),
+    };
+    app.notify(msg);
 }
 
 // ── Feed editor drag-and-drop ────────────────────────────────────────────────
@@ -690,11 +691,11 @@ fn link_at(app: &App, col: u16, row: u16) -> Option<String> {
         .map(|(_, url)| url.clone())
 }
 
-/// Open `url` in the default browser and report it in the status bar.
+/// Open `url` in the default browser and report it in a toast.
 fn open_link(app: &mut App, url: &str) {
     match open::that(url) {
-        Ok(()) => app.set_status(format!("Opened: {url}")),
-        Err(e) => app.set_status(format!("⚠ Could not open link: {e}")),
+        Ok(()) => app.notify(format!("Opened: {url}")),
+        Err(e) => app.notify(format!("⚠ Could not open link: {e}")),
     }
 }
 

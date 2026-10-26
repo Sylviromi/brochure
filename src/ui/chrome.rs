@@ -1,4 +1,4 @@
-//! Shared chrome rendering: the tab bar (tabs, `?` hint, status message or totals)
+//! Shared chrome rendering: the tab bar (tabs, `?` hint, totals)
 //! and the fetch progress bar.
 
 use crate::{
@@ -46,19 +46,13 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &mut App, area: Rect) {
         tab_spans.push(Span::raw("  "));
     }
     tab_spans.push(HELP_HINT.fg(app.theme.border));
-    let tabs_width = Line::from(tab_spans.clone()).width() as u16;
 
     let block = content_block("", false, app.user_data.border_rounded, &app.theme);
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Right side: the latest status message while it's fresh, otherwise totals.
-    let right = if status_is_fresh(app) {
-        let width = inner.width.saturating_sub(tabs_width + 2) as usize;
-        status_line(app, width)
-    } else {
-        stats_line(app)
-    };
+    // Right side: totals (messages appear as toasts).
+    let right = stats_line(app);
     let right_width = right.width() as u16;
     let cols = Layout::default()
         .direction(Direction::Horizontal)
@@ -87,13 +81,6 @@ pub(super) fn draw_tab_bar(f: &mut Frame, app: &mut App, area: Rect) {
 /// Tab-bar hint that opens the keybindings popup (also clickable).
 const HELP_HINT: &str = "[?] keys";
 
-/// How long (in ~250 ms ticks) a status message stays in the tab bar.
-const STATUS_TICKS: usize = 40;
-
-fn status_is_fresh(app: &App) -> bool {
-    !app.status_msg.is_empty() && app.tick.saturating_sub(app.status_msg_start_tick) < STATUS_TICKS
-}
-
 /// `Feeds: N  Total: N  Unread: N` totals.
 fn stats_line(app: &App) -> Line<'static> {
     let theme = &app.theme;
@@ -109,31 +96,6 @@ fn stats_line(app: &App) -> Line<'static> {
         total_unread.to_string().fg(theme.warning),
         Span::raw(" "),
     ])
-}
-
-/// The status message fitted to `width` columns. Text after the first `": "` scrolls
-/// one character per tick when too long; the prefix (e.g. a feed name) stays put.
-fn status_line(app: &App, width: usize) -> Line<'static> {
-    let msg = &app.status_msg;
-    let (prefix, body) = match msg.find(": ") {
-        Some(pos) => msg.split_at(pos + 2),
-        None => ("", msg.as_str()),
-    };
-    let color = if msg.starts_with('⚠') {
-        app.theme.warning
-    } else {
-        app.theme.success
-    };
-    let prefix: String = prefix.chars().take(width.saturating_sub(4)).collect();
-    let viewport = width.saturating_sub(prefix.chars().count() + 1);
-    let body_chars: Vec<char> = body.chars().collect();
-    let max_offset = body_chars.len().saturating_sub(viewport);
-    let start = app
-        .tick
-        .saturating_sub(app.status_msg_start_tick)
-        .min(max_offset);
-    let visible: String = body_chars[start..].iter().take(viewport).collect();
-    Line::from(format!("{prefix}{visible} ").fg(color))
 }
 
 /// Renders a progress bar showing feed fetch completion (done/total).

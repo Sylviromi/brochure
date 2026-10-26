@@ -151,7 +151,7 @@ impl App {
         self.freshrss_auth = None;
         let _ = save_user_data(&self.user_data);
         let _ = save_feeds(&self.feeds);
-        self.set_status("FreshRSS disconnected — feeds kept as local.");
+        self.notify("FreshRSS disconnected — feeds kept as local.");
     }
 
     /// One-line FreshRSS status for the settings row.
@@ -232,7 +232,6 @@ impl App {
         }
         self.feeds_pending += 1;
         self.feeds_total += 1;
-        self.set_status("Syncing FreshRSS...");
         let tx = tx.clone();
         tokio::spawn(async move {
             let result = client::sync_all(&creds.base_url, &creds.username, &creds.password).await;

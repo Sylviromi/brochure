@@ -22,23 +22,23 @@ use crate::{
     ui::theme::ColorTheme,
 };
 
-/// Toggle a boolean field in `app.user_data`, persist, and show status.
+/// Toggle a boolean field in `app.user_data`, persist, and notify.
 macro_rules! toggle_setting {
     ($app:expr, $field:expr, $label:expr) => {{
         $field = !$field;
         let _ = save_user_data(&$app.user_data);
         let state = if $field { "ON" } else { "OFF" };
-        $app.set_status(format!("{}: {state}", $label));
+        $app.notify(format!("{}: {state}", $label));
     }};
 }
 
-/// Set a boolean field in `app.user_data` to a fixed value, persist, and show status.
+/// Set a boolean field in `app.user_data` to a fixed value, persist, and notify.
 macro_rules! set_setting {
     ($app:expr, $field:expr, $value:expr, $label:expr) => {{
         $field = $value;
         let _ = save_user_data(&$app.user_data);
         let state = if $field { "ON" } else { "OFF" };
-        $app.set_status(format!("{}: {state}", $label));
+        $app.notify(format!("{}: {state}", $label));
     }};
 }
 
@@ -137,11 +137,61 @@ fn apply_settings_action(app: &mut App, dir: SettingDir, tx: &UnboundedSender<Ap
             app.state = AppState::ThemeEditor;
         }
 
+        // ── Notifications ──────────────────────────────────────────────────
+        (SettingsItem::ToastProgress, SettingDir::Enter) => {
+            toggle_setting!(
+                app,
+                app.user_data.toasts.refresh_progress,
+                "Refresh Progress"
+            );
+        }
+        (SettingsItem::ToastProgress, SettingDir::Left) => {
+            set_setting!(
+                app,
+                app.user_data.toasts.refresh_progress,
+                false,
+                "Refresh Progress"
+            );
+        }
+        (SettingsItem::ToastProgress, SettingDir::Right) => {
+            set_setting!(
+                app,
+                app.user_data.toasts.refresh_progress,
+                true,
+                "Refresh Progress"
+            );
+        }
+        (
+            item @ (SettingsItem::ToastPosition
+            | SettingsItem::ToastDuration
+            | SettingsItem::ToastCount),
+            dir,
+        ) => {
+            let forward = !matches!(dir, SettingDir::Left);
+            let t = &mut app.user_data.toasts;
+            let msg = match item {
+                SettingsItem::ToastPosition => {
+                    t.position = t.position.cycle(forward);
+                    format!("Notifications: {}", t.position.label())
+                }
+                SettingsItem::ToastDuration => {
+                    t.cycle_seconds(forward);
+                    format!("Notifications stay {}s", t.seconds)
+                }
+                _ => {
+                    t.cycle_max_visible(forward);
+                    format!("Notifications shown at once: {}", t.max_visible)
+                }
+            };
+            let _ = save_user_data(&app.user_data);
+            app.notify(msg);
+        }
+
         // ── Cycleable enums ────────────────────────────────────────────────
         (SettingsItem::ArchivePolicy, SettingDir::Left) => {
             app.user_data.archive_policy = app.user_data.archive_policy.prev();
             let _ = save_user_data(&app.user_data);
-            app.set_status(format!(
+            app.notify(format!(
                 "Archive Policy: {}",
                 app.user_data.archive_policy.label()
             ));
@@ -149,7 +199,7 @@ fn apply_settings_action(app: &mut App, dir: SettingDir, tx: &UnboundedSender<Ap
         (SettingsItem::ArchivePolicy, _) => {
             app.user_data.archive_policy = app.user_data.archive_policy.next();
             let _ = save_user_data(&app.user_data);
-            app.set_status(format!(
+            app.notify(format!(
                 "Archive Policy: {}",
                 app.user_data.archive_policy.label()
             ));
@@ -157,7 +207,7 @@ fn apply_settings_action(app: &mut App, dir: SettingDir, tx: &UnboundedSender<Ap
         (SettingsItem::AutoFetchOnStart, SettingDir::Left) => {
             app.user_data.fetch_policy = app.user_data.fetch_policy.prev();
             let _ = save_user_data(&app.user_data);
-            app.set_status(format!(
+            app.notify(format!(
                 "Fetch Policy: {}",
                 app.user_data.fetch_policy.label()
             ));
@@ -165,7 +215,7 @@ fn apply_settings_action(app: &mut App, dir: SettingDir, tx: &UnboundedSender<Ap
         (SettingsItem::AutoFetchOnStart, _) => {
             app.user_data.fetch_policy = app.user_data.fetch_policy.next();
             let _ = save_user_data(&app.user_data);
-            app.set_status(format!(
+            app.notify(format!(
                 "Fetch Policy: {}",
                 app.user_data.fetch_policy.label()
             ));
@@ -219,25 +269,25 @@ fn apply_settings_action(app: &mut App, dir: SettingDir, tx: &UnboundedSender<Ap
             app.cycle_alignment_prev();
             app.user_data.body_alignment = app.alignment_label().to_lowercase().to_string();
             let _ = save_user_data(&app.user_data);
-            app.set_status(format!("Body Alignment: {}", app.alignment_label()));
+            app.notify(format!("Body Alignment: {}", app.alignment_label()));
         }
         (SettingsItem::BodyAlignment, _) => {
             app.cycle_alignment_next();
             app.user_data.body_alignment = app.alignment_label().to_lowercase().to_string();
             let _ = save_user_data(&app.user_data);
-            app.set_status(format!("Body Alignment: {}", app.alignment_label()));
+            app.notify(format!("Body Alignment: {}", app.alignment_label()));
         }
         (SettingsItem::ZenWidth, SettingDir::Left) => {
             app.cycle_zen_width_prev();
             app.user_data.zen_width = app.zen_width;
             let _ = save_user_data(&app.user_data);
-            app.set_status(format!("Zen Width: {}%", app.zen_width));
+            app.notify(format!("Zen Width: {}%", app.zen_width));
         }
         (SettingsItem::ZenWidth, _) => {
             app.cycle_zen_width_next();
             app.user_data.zen_width = app.zen_width;
             let _ = save_user_data(&app.user_data);
-            app.set_status(format!("Zen Width: {}%", app.zen_width));
+            app.notify(format!("Zen Width: {}%", app.zen_width));
         }
         _ => {}
     }
@@ -277,7 +327,7 @@ pub(super) fn handle_add_feed(app: &mut App, key: KeyEvent, tx: &UnboundedSender
                     match app.add_feed.fetched_title.clone() {
                         Some(t) if !t.is_empty() => t,
                         _ => {
-                            app.set_status("Title is required.".to_string());
+                            app.notify("Title is required.".to_string());
                             return;
                         }
                     }
@@ -304,7 +354,7 @@ pub(super) fn handle_add_feed(app: &mut App, key: KeyEvent, tx: &UnboundedSender
                     next_order,
                 ));
                 let _ = save_feeds(&app.feeds);
-                app.set_status(format!("Feed '{title}' added!"));
+                app.notify(format!("Feed '{title}' added!"));
                 let tx2 = tx.clone();
                 let idx = app.feeds.len() - 1;
                 tokio::spawn(async move {
@@ -347,7 +397,7 @@ pub(super) fn handle_confirm_delete_all(app: &mut App, key: KeyEvent) {
         app.selected_article = 0;
         app.sidebar_cursor = 0;
         let _ = clear_all_data();
-        app.set_status("All data cleared.".to_string());
+        app.notify("All data cleared.".to_string());
     });
 }
 
@@ -365,7 +415,7 @@ pub(super) fn handle_confirm_clear_cache(app: &mut App, key: KeyEvent) {
         }
         app.user_data.read_links.clear();
         let _ = save_user_data(&app.user_data);
-        app.set_status("Article cache cleared.".to_string());
+        app.notify("Article cache cleared.".to_string());
     });
 }
 
@@ -394,7 +444,7 @@ pub(super) fn handle_file_prompt(app: &mut App, key: KeyEvent, tx: &UnboundedSen
         KeyCode::Enter => {
             let raw = app.file_prompt.path_input.text.trim().to_string();
             if raw.is_empty() {
-                app.set_status("Path cannot be empty.".to_string());
+                app.notify("Path cannot be empty.".to_string());
                 return;
             }
             let path = expand_home_dir(&raw);
@@ -402,15 +452,15 @@ pub(super) fn handle_file_prompt(app: &mut App, key: KeyEvent, tx: &UnboundedSen
             match (app.file_prompt.format, export) {
                 (FileFormat::Opml, true) => {
                     match export_opml_to_path(&path, &app.feeds, &app.categories) {
-                        Ok(()) => app.set_status(format!("Exported to {raw}")),
-                        Err(e) => app.set_status(format!("Export failed: {e}")),
+                        Ok(()) => app.notify(format!("Exported to {raw}")),
+                        Err(e) => app.notify(format!("Export failed: {e}")),
                     }
                 }
                 (FileFormat::Opml, false) => import_opml(app, &path, tx),
                 (FileFormat::Saved, true) => {
                     match saved_io::export_saved(Path::new(&path), &app.user_data, &app.feeds) {
-                        Ok(n) => app.set_status(format!("Exported {n} saved article(s) to {raw}")),
-                        Err(e) => app.set_status(format!("Export failed: {e}")),
+                        Ok(n) => app.notify(format!("Exported {n} saved article(s) to {raw}")),
+                        Err(e) => app.notify(format!("Export failed: {e}")),
                     }
                 }
                 (FileFormat::Saved, false) => import_saved(app, &path),
@@ -427,7 +477,7 @@ pub(super) fn handle_file_prompt(app: &mut App, key: KeyEvent, tx: &UnboundedSen
 fn import_opml(app: &mut App, path: &str, tx: &UnboundedSender<AppEvent>) {
     match import_opml_from_path(path, &app.feeds, &app.categories) {
         Ok((new_feeds, new_cats)) if new_feeds.is_empty() && new_cats.is_empty() => {
-            app.set_status("No new feeds found in OPML file.".to_string());
+            app.notify("No new feeds found in OPML file.".to_string());
         }
         Ok((new_feeds, new_cats)) => {
             let feed_count = new_feeds.len();
@@ -448,11 +498,11 @@ fn import_opml(app: &mut App, path: &str, tx: &UnboundedSender<AppEvent>) {
             app.categories.extend(new_cats);
             let _ = save_feeds(&app.feeds);
             let _ = save_categories(&app.categories);
-            app.set_status(format!(
+            app.notify(format!(
                 "Imported {feed_count} feed(s), {cat_count} category(s)"
             ));
         }
-        Err(e) => app.set_status(format!("Import failed: {e}")),
+        Err(e) => app.notify(format!("Import failed: {e}")),
     }
 }
 
@@ -461,13 +511,13 @@ fn import_saved(app: &mut App, path: &str) {
     let imported = match saved_io::read_saved(Path::new(path)) {
         Ok(imported) => imported,
         Err(e) => {
-            app.set_status(format!("Import failed: {e}"));
+            app.notify(format!("Import failed: {e}"));
             return;
         }
     };
     let (articles, categories) = saved_io::merge_saved(&mut app.user_data, imported);
     if articles == 0 {
-        app.set_status("No new saved articles in that file.".to_string());
+        app.notify("No new saved articles in that file.".to_string());
         return;
     }
     let _ = save_user_data(&app.user_data);
@@ -476,7 +526,7 @@ fn import_saved(app: &mut App, path: &str) {
     for article in app.feeds.iter_mut().flat_map(|f| f.articles.iter_mut()) {
         article.is_saved |= saved.contains(article.link.as_str());
     }
-    app.set_status(format!(
+    app.notify(format!(
         "Imported {articles} saved article(s), {categories} new category(s)"
     ));
 }

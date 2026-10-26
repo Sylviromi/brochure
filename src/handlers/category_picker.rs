@@ -38,7 +38,7 @@ pub(super) fn handle_category_picker(app: &mut App, key: KeyEvent, tx: &Unbounde
                 if !name.is_empty() {
                     let (target_id, _) = app.user_data.saved_category_for(&name);
                     save_to_category(app, tx, target_id);
-                    app.set_status(format!("Saved to '{name}'!"));
+                    app.notify(format!("Saved to '{name}'!"));
                 }
                 app.category_picker.new_mode = false;
                 app.category_picker.input.clear();
@@ -71,7 +71,7 @@ pub(super) fn handle_category_picker(app: &mut App, key: KeyEvent, tx: &Unbounde
                     .name
                     .clone();
                 save_to_category(app, tx, cat_id);
-                app.set_status(format!("Saved to '{cat_name}'!"));
+                app.notify(format!("Saved to '{cat_name}'!"));
                 app.state = app.category_picker.return_state.clone();
             } else if app.category_picker.cursor == cats_len {
                 app.category_picker.new_mode = true;
@@ -189,7 +189,7 @@ fn unsave_article(app: &mut App, tx: &UnboundedSender<AppEvent>) {
         }
     }
 
-    app.set_status("Article unsaved.");
+    app.notify("Article unsaved.");
     let _ = save_user_data(&app.user_data);
     app.push_star_state(remote_id, false, tx);
 }

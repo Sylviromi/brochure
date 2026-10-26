@@ -57,7 +57,6 @@ pub struct App {
     pub feeds: Vec<Feed>,
     pub selected_feed: usize,
     pub selected_article: usize,
-    pub status_msg: String,
     pub user_data: UserData,
     pub settings_selected: SettingsItem,
     pub article_scroll: TextScroll,
@@ -151,14 +150,12 @@ pub struct App {
     /// Currently selected changelog entry index.
     pub changelog_cursor: usize,
 
-    // ── Status message animation ─────────────────────────────────────────────
+    // ── Update notice ────────────────────────────────────────────────────────
     /// Latest version available on crates.io, if newer than the running version. `None` until the
     /// background check completes or if already up to date.
     pub update_available: Option<UpdateInfo>,
     /// Current scroll offset (in lines) for the update-available popup.
     pub update_popup_scroll: u16,
-    /// Value of `tick` when `status_msg` was last set — used to compute per-message scroll offset.
-    pub status_msg_start_tick: usize,
 
     // ── Article fetching ──────────────────────────────────────────────────────
     /// Links whose full content was fetched (or tried) this session.
@@ -223,6 +220,10 @@ pub struct App {
     pub selection_text: String,
     /// A drag ended: copy `selection_text` after the next draw.
     pub selection_copy_requested: bool,
+    /// Recent toast notifications (see [`App::notify`]).
+    pub toasts: crate::models::Toasts,
+    /// Failed feeds in the current refresh batch: `(error tag, message)`.
+    pub refresh_errors: Vec<(&'static str, String)>,
     /// Scrollbar being dragged by the mouse.
     pub scrollbar_drag: Option<crate::models::ScrollbarDrag>,
     /// Press on a list's rows, until release (drag scrolls, click selects).
@@ -312,7 +313,6 @@ impl App {
             feeds,
             selected_feed,
             selected_article: 0,
-            status_msg: "Fetching feeds...".to_string(),
             user_data,
             settings_selected: SettingsItem::ImportOpml,
             article_scroll: TextScroll::default(),
@@ -355,7 +355,6 @@ impl App {
             full_fetch_pending: HashSet::new(),
             update_available: None,
             update_popup_scroll: 0,
-            status_msg_start_tick: 0,
             image_cache: HashMap::new(),
             image_pending: HashSet::new(),
             protocol_cache: HashMap::new(),
@@ -378,6 +377,8 @@ impl App {
             selection_shown: false,
             selection_text: String::new(),
             selection_copy_requested: false,
+            toasts: Default::default(),
+            refresh_errors: Vec::new(),
             scrollbar_drag: None,
             list_drag: None,
             help_open: false,
@@ -388,10 +389,9 @@ impl App {
         app
     }
 
-    /// Set the status bar message and reset the per-message scroll animation.
-    pub fn set_status(&mut self, msg: impl Into<String>) {
-        self.status_msg = msg.into();
-        self.status_msg_start_tick = self.tick;
+    /// Show `msg` as a toast notification (empty messages are ignored).
+    pub fn notify(&mut self, msg: impl Into<String>) {
+        self.toasts.push(msg.into(), self.tick);
     }
 
     /// Cycle body alignment to the next variant.

@@ -6,7 +6,7 @@
 use crossterm::event::{KeyCode, KeyEvent};
 use tokio::sync::mpsc::UnboundedSender;
 
-/// Copy text to clipboard and show a truncated status message on the app.
+/// Copy text to the clipboard and notify with (a truncated copy of) it.
 pub(crate) fn copy_with_status(app: &mut App, text: &str, label: &str) {
     match copy_to_clipboard(text) {
         None => {
@@ -15,10 +15,10 @@ pub(crate) fn copy_with_status(app: &mut App, text: &str, label: &str) {
                 Some((cut, _)) => format!("{}...", &text[..cut]),
                 None => text.to_string(),
             };
-            app.set_status(format!("{label}: {display}"));
+            app.notify(format!("✓ {label}: {display}"));
         }
         Some(fallback) => {
-            app.set_status(format!("Copy not available — {label}: {fallback}"));
+            app.notify(format!("⚠ Copy not available — {label}: {fallback}"));
         }
     }
 }
@@ -80,12 +80,7 @@ pub(super) async fn handle_article(
     match key.code {
         KeyCode::Char('q') => return true,
         KeyCode::Char('r') if !app.in_saved_context && !app.in_category_context => {
-            let idx = app.selected_feed;
-            if let Some(feed) = app.feeds.get(idx) {
-                let title = feed.title.clone();
-                app.set_status(format!("Refreshing {title}..."));
-                app.refresh_feed_at(idx, tx);
-            }
+            app.refresh_feed_at(app.selected_feed, tx);
         }
         KeyCode::Down => {
             if app.state == AppState::ArticleDetail {

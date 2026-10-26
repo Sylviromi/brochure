@@ -650,6 +650,28 @@ async fn theme_list_rows_skip_headers_and_picker_cancels_outside() {
     assert_eq!(app.state, AppState::ThemeEditor);
 }
 
+#[test]
+fn toasts_stack_up_to_the_limit_and_expire() {
+    let mut app = App::new();
+    app.update_available = None;
+    app.zen_mode = true; // no tab bar: toasts are the only place messages show
+    app.user_data.toasts = Default::default(); // 3 shown, 4 s
+    for n in 1..=4 {
+        app.notify(format!("✓ Copied {n} characters"));
+    }
+    let mut terminal = Terminal::new(TestBackend::new(80, 30)).unwrap();
+    let shown = |terminal: &mut Terminal<TestBackend>, app: &mut App| -> Vec<usize> {
+        let frame = terminal.draw(|f| crate::ui::draw(f, app)).unwrap();
+        let text: String = frame.buffer.content.iter().map(|c| c.symbol()).collect();
+        (1..=4)
+            .filter(|n| text.contains(&format!("Copied {n} characters")))
+            .collect()
+    };
+    assert_eq!(shown(&mut terminal, &mut app), [2, 3, 4], "newest three");
+    app.tick += 16;
+    assert!(shown(&mut terminal, &mut app).is_empty(), "expired");
+}
+
 #[tokio::test]
 async fn selecting_then_opening_a_stub_fetches_it_once() {
     let mut app = App::new();
@@ -713,4 +735,24 @@ async fn loading_skeleton_cannot_be_selected() {
     assert_eq!(app.selection_text.trim(), "");
     let cell = &terminal.backend().buffer()[(x + 1, y)];
     assert!(!cell.modifier.contains(ratatui::style::Modifier::REVERSED));
+}
+
+#[test]
+fn refresh_toast_shows_progress_and_failures() {
+    let mut app = App::new();
+    app.update_available = None;
+    app.zen_mode = true;
+    app.user_data.toasts = Default::default();
+    app.feeds_total = 40;
+    app.feeds_pending = 13;
+    app.refresh_errors = vec![
+        ("blocked", "a".into()),
+        ("blocked", "b".into()),
+        ("error", "c".into()),
+    ];
+    let mut terminal = Terminal::new(TestBackend::new(100, 24)).unwrap();
+    let frame = terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let text: String = frame.buffer.content.iter().map(|c| c.symbol()).collect();
+    assert!(text.contains("27/40"));
+    assert!(text.contains("2 blocked · 1 failed"));
 }

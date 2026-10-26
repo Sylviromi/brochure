@@ -68,7 +68,7 @@ pub(super) fn handle_saved_category_editor_delete_confirm(app: &mut App, key: Ke
                 let new_len = app.user_data.saved_categories.len();
                 app.saved_cat_editor_scroll.clamp(new_len);
                 let _ = save_user_data(&app.user_data);
-                app.set_status(format!(
+                app.notify(format!(
                     "Category deleted. {article_count} article(s) unsaved."
                 ));
             }
@@ -94,9 +94,9 @@ pub(super) fn handle_saved_category_editor_new(app: &mut App, key: KeyEvent) {
                 let (_, created) = app.user_data.saved_category_for(&name);
                 if created {
                     let _ = save_user_data(&app.user_data);
-                    app.set_status(format!("Category '{name}' created."));
+                    app.notify(format!("Category '{name}' created."));
                 } else {
-                    app.set_status(format!("Category '{name}' already exists."));
+                    app.notify(format!("Category '{name}' already exists."));
                 }
             }
             app.feed_editor.input.clear();
@@ -127,7 +127,7 @@ pub(super) fn handle_saved_category_editor_rename(app: &mut App, key: KeyEvent) 
                     cat.name = name;
                 }
                 let _ = save_user_data(&app.user_data);
-                app.set_status("Category renamed.".to_string());
+                app.notify("Category renamed.".to_string());
             }
             app.feed_editor.input.clear();
             app.state = AppState::SavedCategoryEditor;

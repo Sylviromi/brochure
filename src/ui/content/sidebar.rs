@@ -34,16 +34,17 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Split inner area to place progress bar at the bottom when fetching.
-    let (list_area, maybe_progress) = if app.feeds_pending > 0 {
-        let split = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(0), Constraint::Length(1)])
-            .split(inner);
-        (split[0], Some(split[1]))
-    } else {
-        (inner, None)
-    };
+    // Progress bar at the bottom while fetching, unless the refresh toast shows it.
+    let (list_area, maybe_progress) =
+        if app.feeds_pending > 0 && !app.user_data.toasts.refresh_progress {
+            let split = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Min(0), Constraint::Length(1)])
+                .split(inner);
+            (split[0], Some(split[1]))
+        } else {
+            (inner, None)
+        };
 
     let items: Vec<ListItem> = tree
         .iter()

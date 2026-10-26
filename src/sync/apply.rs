@@ -70,7 +70,7 @@ pub fn on_freshrss_synced(app: &mut App, result: Result<SyncBundle, String>) {
                 feed.fetch_error = Some(e.clone());
             }
             finish_fetch(app);
-            app.set_status(format!("⚠ FreshRSS sync failed: {e}"));
+            app.notify(format!("⚠ FreshRSS sync failed: {e}"));
             return;
         }
     };
@@ -121,7 +121,7 @@ pub fn on_freshrss_synced(app: &mut App, result: Result<SyncBundle, String>) {
     // finish_fetch only persists once the whole batch is done; a sync always
     // changes the subscription list, so save it now.
     let _ = storage::save_feeds(&app.feeds);
-    app.set_status(format!(
+    app.notify(format!(
         "FreshRSS sync complete: {added_feeds} new feeds, {new_articles} new articles."
     ));
 }

@@ -220,7 +220,7 @@ async fn handle_event(
         AppEvent::FreshRssSynced(result) => sync::apply::on_freshrss_synced(app, result),
         AppEvent::FreshRssPushDone(result) => {
             if let Err(e) = result {
-                app.set_status(format!("⚠ FreshRSS push failed: {e}"));
+                app.notify(format!("⚠ FreshRSS push failed: {e}"));
             }
         }
         AppEvent::FeedTitleFetched(result) => {
