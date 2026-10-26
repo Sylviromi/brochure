@@ -30,14 +30,15 @@ struct Card {
     color: Color,
 }
 
-pub(super) fn draw_toasts(f: &mut Frame, app: &App) {
+/// Returns the rects of the cards drawn.
+pub(super) fn draw_toasts(f: &mut Frame, app: &App) -> Vec<Rect> {
     let settings = &app.user_data.toasts;
     let screen = f.area();
     let max_width = (screen.width / 2)
         .clamp(28, 64)
         .min(screen.width.saturating_sub(2));
     if max_width <= CHROME + 2 {
-        return;
+        return Vec::new();
     }
     let ttl = usize::from(settings.seconds) * TICKS_PER_SEC;
     let max = usize::from(settings.max_visible);
@@ -79,7 +80,7 @@ pub(super) fn draw_toasts(f: &mut Frame, app: &App) {
         .max()
         .map(|w| w.min(max_width))
     else {
-        return;
+        return Vec::new();
     };
     let mut cards = Vec::new();
     if let Some(refresh) = refresh {
@@ -94,8 +95,9 @@ pub(super) fn draw_toasts(f: &mut Frame, app: &App) {
     let (top, left) = (settings.position.is_top(), settings.position.is_left());
     // Edge the next card stacks against: below the previous one (top corners) or above it.
     // Top cards start below the tab bar; bottom ones keep a row free above the edge.
+    let mut drawn = Vec::new();
     let mut edge = if top {
-        screen.top() + 5
+        screen.top() + 4
     } else {
         screen.bottom().saturating_sub(1)
     };
@@ -128,8 +130,10 @@ pub(super) fn draw_toasts(f: &mut Frame, app: &App) {
                 .block(block),
             rect,
         );
+        drawn.push(rect);
         edge = if top { y + height } else { y };
     }
+    drawn
 }
 
 /// A notification line: icon and colour from its leading `✓`/`⚠` (or its wording).

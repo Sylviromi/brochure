@@ -44,6 +44,8 @@ pub struct HitAreas {
     pub form_fields: Vec<(Rect, usize)>,
     /// Scrollbars drawn this frame, in draw order.
     pub scrollbars: Vec<ScrollbarHit>,
+    /// Toast cards drawn on top of everything.
+    pub toasts: Vec<Rect>,
 }
 
 /// View a scrollbar scrolls.

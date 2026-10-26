@@ -247,7 +247,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         help::draw_help_popup(f, app);
     }
     zoom::draw_zoom(f, app);
-    toast::draw_toasts(f, app);
+    app.hit.toasts = toast::draw_toasts(f, app);
 }
 
 /// Draw everything for the current state (tabs, panels, popups).

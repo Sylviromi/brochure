@@ -177,8 +177,17 @@ async fn run(
     app.picker = Some(detect_image_picker());
     spawn_input_thread(tx.clone(), pixel_reports);
 
+    let mut toast_rects = Vec::new();
     'main: loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;
+        // Terminal images aren't redrawn by the cell diff, so a toast that moved off one
+        // would leave its marks behind: repaint the whole screen.
+        let images_shown = !app.hit.article_images.is_empty() || app.zoom.is_some();
+        if images_shown && toast_rects.iter().any(|r| !app.hit.toasts.contains(r)) {
+            terminal.clear()?;
+            terminal.draw(|f| ui::draw(f, &mut app))?;
+        }
+        toast_rects = std::mem::take(&mut app.hit.toasts);
         handlers::mouse::finish_selection_copy(&mut app);
 
         let Some(event) = rx.recv().await else { break };
