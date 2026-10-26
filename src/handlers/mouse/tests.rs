@@ -1,6 +1,6 @@
 //! Mouse handling tests (headless draws via `TestBackend`).
 
-use super::*;
+use super::{editor_drag::unpreview, *};
 use crate::models::{SettingsItem, Tab};
 use crossterm::event::KeyModifiers;
 use ratatui::{Terminal, backend::TestBackend};
