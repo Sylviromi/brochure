@@ -174,5 +174,17 @@
       "Install a prebuilt binary with cargo binstall",
       "Fixes for nested lists, quotes, and code blocks"
     ]
+  },
+  {
+    "version": "0.13.0",
+    "date": "2026-10-26",
+    "summary": "Full mouse support, notification cards, and a full-screen image viewer.",
+    "highlights": [
+      "Drag scrollbars and lists with the mouse",
+      "Notification cards with live refresh progress",
+      "Click an article image to view it full screen",
+      "Popups and dialogs work with the mouse",
+      "Text selection follows scrolling and copies fully"
+    ]
   }
 ]
