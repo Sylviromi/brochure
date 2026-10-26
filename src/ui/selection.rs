@@ -6,7 +6,8 @@ use ratatui::{buffer::Buffer, layout::Rect, style::Modifier, text::Span};
 use crate::{app::App, models::SelectionView};
 
 /// Highlight the selection if it belongs to `view`, drawn in `area` showing document
-/// rows from `scroll` (cells inside `exclude`, e.g. a loading skeleton, stay plain).
+/// rows from `scroll` (cells inside `exclude`, e.g. a loading skeleton, and drawn
+/// images stay plain).
 /// Returns the selected document rows `(first, last)`; the caller renders them with
 /// [`capture`] so the text can be copied.
 pub(crate) fn highlight(
@@ -20,13 +21,19 @@ pub(crate) fn highlight(
     let sel = app.selection.as_mut().filter(|s| &s.view == view)?;
     app.selection_shown = true;
     sel.bounds = area;
+    let images = &app.hit.article_images;
+    // Image cells hold pixels (or the escape sequence drawing them), not text.
+    let plain = |x: u16, y: u16| {
+        let pos = (x, y).into();
+        exclude.contains(pos) || images.iter().any(|(r, _)| r.contains(pos))
+    };
     for y in area.top()..area.bottom() {
         let Some((from, to)) = sel.columns_on(scroll + usize::from(y - area.y)) else {
             continue;
         };
         // Snap to the text drawn on the row: blank margins and line ends stay plain.
         let to = to.min(area.right().saturating_sub(1));
-        let has_text = |x: &u16| !buf[(*x, y)].symbol().trim().is_empty();
+        let has_text = |x: &u16| !plain(*x, y) && !buf[(*x, y)].symbol().trim().is_empty();
         let Some(from) = (from..=to).find(has_text) else {
             continue;
         };
@@ -35,7 +42,7 @@ pub(crate) fn highlight(
         let last_width = Span::raw(buf[(last, y)].symbol()).width() as u16;
         let to = (last + last_width.saturating_sub(1)).min(to);
         for x in from..=to {
-            if !exclude.contains((x, y).into()) {
+            if !plain(x, y) {
                 buf[(x, y)].modifier.insert(Modifier::REVERSED);
             }
         }
