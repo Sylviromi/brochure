@@ -138,33 +138,11 @@ fn apply_settings_action(app: &mut App, dir: SettingDir, tx: &UnboundedSender<Ap
         }
 
         // ── Notifications ──────────────────────────────────────────────────
-        (SettingsItem::ToastProgress, SettingDir::Enter) => {
-            toggle_setting!(
-                app,
-                app.user_data.toasts.refresh_progress,
-                "Refresh Progress"
-            );
-        }
-        (SettingsItem::ToastProgress, SettingDir::Left) => {
-            set_setting!(
-                app,
-                app.user_data.toasts.refresh_progress,
-                false,
-                "Refresh Progress"
-            );
-        }
-        (SettingsItem::ToastProgress, SettingDir::Right) => {
-            set_setting!(
-                app,
-                app.user_data.toasts.refresh_progress,
-                true,
-                "Refresh Progress"
-            );
-        }
         (
             item @ (SettingsItem::ToastPosition
             | SettingsItem::ToastDuration
-            | SettingsItem::ToastCount),
+            | SettingsItem::ToastCount
+            | SettingsItem::ToastProgress),
             dir,
         ) => {
             let forward = !matches!(dir, SettingDir::Left);
@@ -178,13 +156,23 @@ fn apply_settings_action(app: &mut App, dir: SettingDir, tx: &UnboundedSender<Ap
                     t.cycle_seconds(forward);
                     format!("Notifications stay {}s", t.seconds)
                 }
-                _ => {
+                SettingsItem::ToastCount => {
                     t.cycle_max_visible(forward);
                     format!("Notifications shown at once: {}", t.max_visible)
                 }
+                _ => {
+                    t.refresh_progress = match dir {
+                        SettingDir::Enter => !t.refresh_progress,
+                        SettingDir::Left => false,
+                        SettingDir::Right => true,
+                    };
+                    let state = if t.refresh_progress { "ON" } else { "OFF" };
+                    format!("Refresh progress card: {state}")
+                }
             };
             let _ = save_user_data(&app.user_data);
-            app.notify(msg);
+            // Show a full stack of sample toasts so the change can be seen.
+            app.preview_toasts(msg);
         }
 
         // ── Cycleable enums ────────────────────────────────────────────────

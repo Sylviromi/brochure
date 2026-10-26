@@ -232,6 +232,8 @@ pub struct App {
     pub selection_copy_requested: bool,
     /// Recent toast notifications (see [`App::notify`]).
     pub toasts: crate::models::Toasts,
+    /// When a notification settings preview started (shows a mock refresh card).
+    pub toast_preview_tick: Option<usize>,
     /// Failed feeds in the current refresh batch: `(error tag, message)`.
     pub refresh_errors: Vec<(&'static str, String)>,
     /// Scrollbar being dragged by the mouse.
@@ -389,6 +391,7 @@ impl App {
             selection_text: String::new(),
             selection_copy_requested: false,
             toasts: Default::default(),
+            toast_preview_tick: None,
             refresh_errors: Vec::new(),
             scrollbar_drag: None,
             list_drag: None,
@@ -403,6 +406,24 @@ impl App {
     /// Show `msg` as a toast notification (empty messages are ignored).
     pub fn notify(&mut self, msg: impl Into<String>) {
         self.toasts.push(msg.into(), self.tick);
+    }
+
+    /// Replace the toasts with a full stack of samples (newest: `msg`) and a mock
+    /// refresh card, so a notification settings change shows how toasts look.
+    pub fn preview_toasts(&mut self, msg: String) {
+        const SAMPLES: [&str; 4] = [
+            "Example: theme changed",
+            "⚠ Example: a feed couldn't be reached",
+            "✓ Example: article saved",
+            "✓ Example: copied 42 characters",
+        ];
+        self.toasts = Default::default();
+        let extra = usize::from(self.user_data.toasts.max_visible.saturating_sub(1));
+        for sample in SAMPLES.iter().take(extra) {
+            self.notify(*sample);
+        }
+        self.notify(msg);
+        self.toast_preview_tick = Some(self.tick);
     }
 
     /// Cycle body alignment to the next variant.

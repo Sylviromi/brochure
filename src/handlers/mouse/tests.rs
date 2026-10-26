@@ -841,3 +841,24 @@ async fn popup_fields_and_hints_are_clickable() {
     tap(&mut app, cancel.x + 1, cancel.y, &tx).await;
     assert_eq!(app.state, AppState::SettingsList);
 }
+
+#[test]
+fn notification_settings_preview_a_full_stack() {
+    let mut app = App::new();
+    app.update_available = None;
+    app.zen_mode = true;
+    app.user_data.toasts = Default::default();
+    app.user_data.toasts.max_visible = 4;
+    app.preview_toasts("Notifications shown at once: 4".into());
+    let mut terminal = Terminal::new(TestBackend::new(100, 40)).unwrap();
+    let frame = terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let text: String = frame.buffer.content.iter().map(|c| c.symbol()).collect();
+    assert!(text.contains("Notifications shown at once: 4"));
+    assert_eq!(text.matches("Example:").count(), 3, "fills up to the max");
+    assert!(text.contains("27/40"), "mock refresh card");
+    // The mock card goes away with the samples.
+    app.tick += 16;
+    let frame = terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let text: String = frame.buffer.content.iter().map(|c| c.symbol()).collect();
+    assert!(!text.contains("27/40"));
+}

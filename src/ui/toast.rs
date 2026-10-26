@@ -46,7 +46,31 @@ pub(super) fn draw_toasts(f: &mut Frame, app: &App) {
         .visible(app.tick, ttl, max)
         .map(|t| styled_message(app, &t.msg))
         .collect();
-    let progress = settings.refresh_progress && app.feeds_total > 0;
+    let previewing = app
+        .toast_preview_tick
+        .is_some_and(|t| app.tick.saturating_sub(t) < ttl);
+    let refresh = if app.feeds_total > 0 {
+        let blocked = app
+            .refresh_errors
+            .iter()
+            .filter(|(tag, _)| *tag == "blocked")
+            .count();
+        Some(Refresh {
+            done: app.feeds_total.saturating_sub(app.feeds_pending),
+            total: app.feeds_total,
+            blocked,
+            failed: app.refresh_errors.len() - blocked,
+        })
+    } else {
+        previewing.then_some(Refresh {
+            done: 27,
+            total: 40,
+            blocked: 2,
+            failed: 1,
+        })
+    };
+    let refresh = refresh.filter(|_| settings.refresh_progress);
+    let progress = refresh.is_some();
     // One width for the whole stack (the widest card), so the edges line up.
     let Some(width) = messages
         .iter()
@@ -58,8 +82,8 @@ pub(super) fn draw_toasts(f: &mut Frame, app: &App) {
         return;
     };
     let mut cards = Vec::new();
-    if progress {
-        cards.push(progress_card(app, width));
+    if let Some(refresh) = refresh {
+        cards.push(progress_card(app, refresh, width));
     }
     cards.extend(
         messages
@@ -69,17 +93,19 @@ pub(super) fn draw_toasts(f: &mut Frame, app: &App) {
 
     let (top, left) = (settings.position.is_top(), settings.position.is_left());
     // Edge the next card stacks against: below the previous one (top corners) or above it.
+    // Top cards start below the tab bar; bottom ones keep a row free above the edge.
     let mut edge = if top {
-        screen.top() + 2
+        screen.top() + 5
     } else {
-        screen.bottom()
+        screen.bottom().saturating_sub(1)
     };
     for card in cards {
         let height = card.rows + 2;
+        // Two columns in from the side, clear of the panel borders.
         let x = if left {
-            screen.left() + 1
+            screen.left() + 2
         } else {
-            screen.right().saturating_sub(card.width + 1)
+            screen.right().saturating_sub(card.width + 2)
         };
         let y = if top {
             edge
@@ -153,11 +179,24 @@ fn message_card(mut line: Line<'static>, color: Color, width: u16) -> Card {
     }
 }
 
+/// Feed refresh counts shown on the refresh card.
+#[derive(Clone, Copy)]
+struct Refresh {
+    done: usize,
+    total: usize,
+    blocked: usize,
+    failed: usize,
+}
+
 /// The live refresh card: spinner and count, a progress bar, and failures so far.
-fn progress_card(app: &App, width: u16) -> Card {
+fn progress_card(app: &App, refresh: Refresh, width: u16) -> Card {
     let theme = &app.theme;
-    let total = app.feeds_total;
-    let done = total.saturating_sub(app.feeds_pending);
+    let Refresh {
+        done,
+        total,
+        blocked,
+        failed,
+    } = refresh;
     let inner = usize::from(width - CHROME);
     let spinner = SPINNER_FRAMES[app.tick % SPINNER_FRAMES.len()];
     let count = format!("{done}/{total}");
@@ -180,12 +219,6 @@ fn progress_card(app: &App, width: u16) -> Card {
             ),
         ]),
     ];
-    let blocked = app
-        .refresh_errors
-        .iter()
-        .filter(|(tag, _)| *tag == "blocked")
-        .count();
-    let failed = app.refresh_errors.len() - blocked;
     if blocked + failed > 0 {
         let parts: Vec<String> = [(blocked, "blocked"), (failed, "failed")]
             .into_iter()
