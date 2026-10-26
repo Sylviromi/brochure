@@ -227,7 +227,7 @@ pub enum EditorPanel {
 }
 
 /// Which step the FreshRSS setup wizard is on.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FreshRssStep {
     /// User is typing the server address.
     Server,
@@ -238,7 +238,7 @@ pub enum FreshRssStep {
 }
 
 /// Which step the multi-step AddFeed flow is on.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AddFeedStep {
     /// User is typing the feed URL.
     Url,

@@ -38,6 +38,10 @@ pub struct HitAreas {
     pub rows: Vec<(Rect, usize)>,
     /// Outline of the open picker popup (clicks outside it cancel).
     pub popup: Rect,
+    /// Popup hint entries (`[Enter] Save`…): clicking one presses its key.
+    pub buttons: Vec<(Rect, crossterm::event::KeyEvent)>,
+    /// Input boxes of the open form popup, with their field index.
+    pub form_fields: Vec<(Rect, usize)>,
     /// Scrollbars drawn this frame, in draw order.
     pub scrollbars: Vec<ScrollbarHit>,
 }

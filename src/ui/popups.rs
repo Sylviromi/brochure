@@ -6,15 +6,16 @@
 
 use crate::{
     app::App,
-    models::{AddFeedStep, AppState, CategoryId, FreshRssStep, ScrollTarget},
+    models::{AddFeedStep, AppState, CategoryId, FreshRssStep, HitAreas, ScrollTarget},
     ui::{content::utils::split_cursor, theme::ColorTheme},
 };
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Constraint::{Fill, Length, Min};
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
     prelude::Stylize,
-    style::Style,
+    style::{Color, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Padding, Paragraph},
 };
@@ -76,19 +77,59 @@ fn cursor_line(text: &str, cursor: usize, theme: &ColorTheme) -> Line<'static> {
     ])
 }
 
-/// `[Enter] action  [Esc] action` hint line shown at the bottom of a form.
-fn key_hint(enter: &str, esc: &str, theme: &ColorTheme) -> Line<'static> {
-    Line::from(vec![
-        " [Enter] ".fg(theme.accent).bold(),
-        format!("{enter}   ").fg(theme.muted),
-        "[Esc] ".fg(theme.accent).bold(),
-        esc.to_string().fg(theme.muted),
-    ])
+/// A `[key] action` entry in a popup's hint row; clicking it presses the key.
+struct Hint {
+    label: &'static str,
+    key: KeyEvent,
+    action: &'static str,
+    color: Color,
+}
+
+impl Hint {
+    fn new(label: &'static str, code: KeyCode, action: &'static str, color: Color) -> Self {
+        Self {
+            label,
+            key: KeyEvent::new(code, KeyModifiers::NONE),
+            action,
+            color,
+        }
+    }
+}
+
+/// The usual `[Enter] … [Esc] …` pair.
+fn enter_esc(enter: &'static str, esc: &'static str, theme: &ColorTheme) -> Vec<Hint> {
+    vec![
+        Hint::new("Enter", KeyCode::Enter, enter, theme.accent),
+        Hint::new("Esc", KeyCode::Esc, esc, theme.accent),
+    ]
+}
+
+/// Draw `hints` on the row `area` and record each one as a mouse button.
+fn draw_hints(f: &mut Frame, hit: &mut HitAreas, area: Rect, hints: &[Hint], text: Color) {
+    let mut spans = vec![Span::raw(" ")];
+    let mut x = area.x + 1;
+    for h in hints {
+        let key = format!("[{}] ", h.label);
+        let width = (key.chars().count() + h.action.chars().count()) as u16;
+        hit.buttons
+            .push((Rect::new(x, area.y, width, 1).intersection(area), h.key));
+        spans.push(key.fg(h.color).bold());
+        spans.push(h.action.fg(text));
+        spans.push(Span::raw("   "));
+        x = x.saturating_add(width + 3);
+    }
+    f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 /// Renders a centered, framed form: `fields` stacked as input boxes with a key
 /// hint underneath, all on one solid background so nothing behind shows through.
-fn draw_form_popup(f: &mut Frame, app: &App, title: &str, fields: &[FormField], hint: Line) {
+fn draw_form_popup(
+    f: &mut Frame,
+    app: &mut App,
+    title: &str,
+    fields: &[FormField],
+    hints: &[Hint],
+) {
     let theme = &app.theme;
     let rounded = app.user_data.border_rounded;
     // Border + top padding + 3 rows per field + gaps + padding + hint + border.
@@ -133,12 +174,19 @@ fn draw_form_popup(f: &mut Frame, app: &App, title: &str, fields: &[FormField], 
             Paragraph::new(field.content.clone()).block(block),
             rows[1 + i * 2],
         );
+        app.hit.form_fields.push((rows[1 + i * 2], i));
     }
-    f.render_widget(Paragraph::new(hint), rows[rows.len() - 1]);
+    draw_hints(
+        f,
+        &mut app.hit,
+        rows[rows.len() - 1],
+        hints,
+        app.theme.muted,
+    );
 }
 
 /// Renders the add-feed popup with URL and title input fields.
-pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
+pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &mut App) {
     let theme = &app.theme;
     let state = &app.add_feed;
     let on_url = state.step == AddFeedStep::Url;
@@ -176,12 +224,12 @@ pub(super) fn draw_add_feed_popup(f: &mut Frame, app: &App) {
             active: !on_url,
         },
     ];
-    let hint = key_hint(if on_url { "Next" } else { "Add feed" }, "Cancel", theme);
-    draw_form_popup(f, app, " Add Feed ", &fields, hint);
+    let hints = enter_esc(if on_url { "Next" } else { "Add feed" }, "Cancel", theme);
+    draw_form_popup(f, app, " Add Feed ", &fields, &hints);
 }
 
 /// Renders the FreshRSS setup wizard: server, username, and masked API password fields.
-pub(super) fn draw_freshrss_setup_popup(f: &mut Frame, app: &App) {
+pub(super) fn draw_freshrss_setup_popup(f: &mut Frame, app: &mut App) {
     let theme = &app.theme;
     let setup = &app.freshrss_setup;
     let field = |label, input: &crate::models::TextInput, step, masked: bool| {
@@ -238,12 +286,21 @@ pub(super) fn draw_freshrss_setup_popup(f: &mut Frame, app: &App) {
     } else {
         " Connect to FreshRSS "
     };
-    draw_form_popup(f, app, title, &fields, key_hint(enter, esc, theme));
+    let mut hints = enter_esc(enter, esc, theme);
+    if editing {
+        hints.push(Hint {
+            label: "Ctrl+D",
+            key: KeyEvent::new(KeyCode::Char('d'), KeyModifiers::CONTROL),
+            action: "Disconnect",
+            color: theme.error,
+        });
+    }
+    draw_form_popup(f, app, title, &fields, &hints);
 }
 
 /// Renders a centered confirmation dialog with a red bordered block.
 /// `horiz_pct` is the percentage width for the center column (60 or 70).
-fn draw_confirm_dialog(f: &mut Frame, app: &App, title: &str, body: String, horiz_pct: u16) {
+fn draw_confirm_dialog(f: &mut Frame, app: &mut App, title: &str, body: String, horiz_pct: u16) {
     let area = f.area();
     let vertical = Layout::default()
         .direction(Direction::Vertical)
@@ -273,22 +330,24 @@ fn draw_confirm_dialog(f: &mut Frame, app: &App, title: &str, body: String, hori
             title.to_string(),
             Style::default().fg(app.theme.error).bold(),
         ));
-    let text = vec![
-        Line::from(""),
-        Line::from(body.fg(app.theme.text)),
-        Line::from(""),
-        Line::from(vec![
-            "  [Enter] ".fg(app.theme.error).bold(),
-            "Confirm   ".fg(app.theme.text),
-            "[Esc] ".fg(app.theme.success).bold(),
-            "Cancel".fg(app.theme.text),
-        ]),
-    ];
+    let inner = block.inner(center);
+    let text = vec![Line::from(""), Line::from(body.fg(app.theme.text))];
     f.render_widget(Paragraph::new(text).block(block), center);
+    let hints = [
+        Hint::new("Enter", KeyCode::Enter, "Confirm", app.theme.error),
+        Hint::new("Esc", KeyCode::Esc, "Cancel", app.theme.success),
+    ];
+    let row = Rect {
+        y: inner.y + 3,
+        height: 1,
+        x: inner.x + 1,
+        width: inner.width.saturating_sub(1),
+    };
+    draw_hints(f, &mut app.hit, row, &hints, app.theme.text);
 }
 
 /// Renders the confirmation dialog for deleting all feeds.
-pub(super) fn draw_confirm_delete_all(f: &mut Frame, app: &App) {
+pub(super) fn draw_confirm_delete_all(f: &mut Frame, app: &mut App) {
     draw_confirm_dialog(
         f,
         app,
@@ -299,7 +358,7 @@ pub(super) fn draw_confirm_delete_all(f: &mut Frame, app: &App) {
 }
 
 /// Renders the confirmation dialog for clearing the article cache.
-pub(super) fn draw_confirm_clear_cache(f: &mut Frame, app: &App) {
+pub(super) fn draw_confirm_clear_cache(f: &mut Frame, app: &mut App) {
     draw_confirm_dialog(
         f,
         app,
@@ -312,7 +371,7 @@ pub(super) fn draw_confirm_clear_cache(f: &mut Frame, app: &App) {
 /// Renders the confirmation dialog for deleting a category and its feeds.
 pub(super) fn draw_confirm_delete_cat(
     f: &mut Frame,
-    app: &App,
+    app: &mut App,
     cat_id: CategoryId,
     feed_count: usize,
 ) {
@@ -331,7 +390,7 @@ pub(super) fn draw_confirm_delete_cat(
 }
 
 /// Renders the import/export file path input popup.
-pub(super) fn draw_file_path_popup(f: &mut Frame, app: &App) {
+pub(super) fn draw_file_path_popup(f: &mut Frame, app: &mut App) {
     let what = app.file_prompt.format.label();
     let title = if app.state == AppState::ExportPath {
         format!(" Export {what} — destination path ")
@@ -373,6 +432,20 @@ pub(super) fn draw_file_path_popup(f: &mut Frame, app: &App) {
     );
 
     f.render_widget(Paragraph::new(content).block(block), center);
+    let row = Rect {
+        y: center.bottom(),
+        height: 1,
+        ..center
+    };
+    f.render_widget(Clear, row);
+    let verb = if app.state == AppState::ExportPath {
+        "Export"
+    } else {
+        "Import"
+    };
+    let hints = enter_esc(verb, "Cancel", &app.theme);
+    f.render_widget(Block::default().bg(app.theme.bg), row);
+    draw_hints(f, &mut app.hit, row, &hints, app.theme.muted);
 }
 
 /// Renders the category picker popup for saving an article to a custom category.
@@ -522,7 +595,7 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &mut App) {
 }
 
 /// Renders the confirmation dialog for deleting a saved category.
-pub(super) fn draw_confirm_delete_saved_cat(f: &mut Frame, app: &App) {
+pub(super) fn draw_confirm_delete_saved_cat(f: &mut Frame, app: &mut App) {
     let cursor = app.saved_cat_editor_scroll.cursor;
     let cat = app.user_data.saved_categories.get(cursor);
     let Some(cat) = cat else { return };

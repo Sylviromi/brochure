@@ -329,6 +329,13 @@ async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>
         // Clicking anywhere dismisses the update notice, like Esc.
         return press(app, KeyCode::Esc, tx).await;
     }
+    // Popup hint entries and form fields (only drawn while their popup is open).
+    if let Some(&(_, key)) = app.hit.buttons.iter().find(|(r, _)| hits(*r, col, row)) {
+        return super::handle_key(app, key, tx).await;
+    }
+    if let Some(&(_, field)) = app.hit.form_fields.iter().find(|(r, _)| hits(*r, col, row)) {
+        return focus_form_field(app, field, tx).await;
+    }
     let article_interactive = app.zen_mode || panels_interactive(app);
     if article_interactive
         && let Some((_, url)) = app
@@ -436,6 +443,40 @@ async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>
             app.feed_editor.cat_cursor = i;
             // A re-click toggles collapse on release, unless it turns into a drag.
             arm_drag(app, EditorPanel::Categories, col, row, reclick);
+        }
+    }
+    false
+}
+
+/// Field index of the open form popup, and whether Esc steps back (rather than
+/// closing the popup).
+fn form_step(app: &App) -> Option<(usize, bool)> {
+    match app.state {
+        AppState::FreshRssSetup => Some((app.freshrss_setup.step as usize, true)),
+        AppState::AddFeed => Some((app.add_feed.step as usize, false)),
+        _ => None,
+    }
+}
+
+/// Move a form popup to `field` the way the keyboard does: Enter steps forward
+/// (validating each field on the way), Esc steps back.
+async fn focus_form_field(app: &mut App, field: usize, tx: &UnboundedSender<AppEvent>) -> bool {
+    while let Some((step, can_go_back)) = form_step(app)
+        && step != field
+    {
+        if step > field && !can_go_back {
+            break;
+        }
+        let code = if step < field {
+            KeyCode::Enter
+        } else {
+            KeyCode::Esc
+        };
+        if press(app, code, tx).await {
+            return true;
+        }
+        if form_step(app).map(|(s, _)| s) == Some(step) {
+            break; // the field refused (e.g. still empty)
         }
     }
     false

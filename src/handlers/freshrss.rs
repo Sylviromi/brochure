@@ -4,7 +4,7 @@
 //! persisted, the secret goes to the secret store (never `user_data.json`),
 //! and a full sync is kicked off.
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
@@ -26,6 +26,15 @@ pub(super) fn handle_freshrss_setup(app: &mut App, key: KeyEvent, tx: &Unbounded
             FreshRssStep::Password => app.freshrss_setup.step = FreshRssStep::Username,
         },
         KeyCode::Enter => advance(app, tx),
+        // Ctrl+D removes an existing connection (feeds stay, as local ones).
+        KeyCode::Char('d')
+            if key.modifiers.contains(KeyModifiers::CONTROL)
+                && app.freshrss_setup.editing_username.is_some() =>
+        {
+            app.freshrss_setup.clear_secret();
+            app.disconnect_freshrss();
+            app.state = AppState::SettingsList;
+        }
         _ => match app.freshrss_setup.step {
             FreshRssStep::Server => app.freshrss_setup.server_input.handle_key(key.code, None),
             FreshRssStep::Username => app.freshrss_setup.username_input.handle_key(key.code, None),

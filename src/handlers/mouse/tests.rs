@@ -796,3 +796,48 @@ async fn clicking_an_image_zooms_it_until_a_key_or_click() {
     assert!(app.zoom.is_none());
     assert_eq!(app.article_scroll.get("https://example.test/0"), 0);
 }
+
+#[tokio::test]
+async fn popup_fields_and_hints_are_clickable() {
+    let mut app = App::new();
+    app.update_available = None;
+    let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+    app.select_tab(Tab::Settings);
+    app.freshrss_setup.open(None, None);
+    app.state = AppState::FreshRssSetup;
+    draw(&mut app);
+    let field = |app: &App, i: usize| {
+        let (r, _) = app.hit.form_fields[i];
+        (r.x + 2, r.y + 1)
+    };
+    // An empty server field refuses to advance, like Enter does.
+    app.freshrss_setup.server_input.text.clear();
+    let (x, y) = field(&app, 1);
+    tap(&mut app, x, y, &tx).await;
+    assert_eq!(app.freshrss_setup.step, crate::models::FreshRssStep::Server);
+    app.freshrss_setup.server_input.text = "https://rss.example.test".into();
+    tap(&mut app, x, y, &tx).await;
+    assert_eq!(
+        app.freshrss_setup.step,
+        crate::models::FreshRssStep::Username
+    );
+    draw(&mut app);
+    let (x, y) = field(&app, 0);
+    tap(&mut app, x, y, &tx).await;
+    assert_eq!(app.freshrss_setup.step, crate::models::FreshRssStep::Server);
+
+    // The [Esc] hint cancels; a new connection offers no Disconnect.
+    draw(&mut app);
+    assert_eq!(app.hit.buttons.len(), 2);
+    let (esc, _) = app.hit.buttons[1];
+    tap(&mut app, esc.x + 1, esc.y, &tx).await;
+    assert_eq!(app.state, AppState::SettingsList);
+
+    // Confirm dialogs: the Cancel button backs out (Confirm is never clicked here).
+    app.state = AppState::ClearData;
+    draw(&mut app);
+    let (cancel, key) = app.hit.buttons[1];
+    assert_eq!(key.code, KeyCode::Esc);
+    tap(&mut app, cancel.x + 1, cancel.y, &tx).await;
+    assert_eq!(app.state, AppState::SettingsList);
+}
