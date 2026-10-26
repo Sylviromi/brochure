@@ -219,6 +219,10 @@ pub struct App {
     pub selection_text: String,
     /// A drag ended: copy `selection_text` after the next draw.
     pub selection_copy_requested: bool,
+    /// Scrollbar being dragged by the mouse.
+    pub scrollbar_drag: Option<crate::models::ScrollbarDrag>,
+    /// Press on a list's rows, until release (drag scrolls, click selects).
+    pub list_drag: Option<crate::models::ListDrag>,
 
     // ── Help popup ───────────────────────────────────────────────────────
     /// Keybindings popup (`?`) is open.
@@ -368,6 +372,8 @@ impl App {
             selection: None,
             selection_text: String::new(),
             selection_copy_requested: false,
+            scrollbar_drag: None,
+            list_drag: None,
             help_open: false,
             help_scroll: 0,
         };

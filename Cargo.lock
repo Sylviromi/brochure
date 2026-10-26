@@ -4066,6 +4066,7 @@ version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a79f1c518c67acc6fffef76871a240b27a104c1fa7f1ef3ee64360b17e13e9ad"
 dependencies = [
+ "crossterm",
  "document-features",
  "ratatui-core",
 ]

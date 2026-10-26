@@ -18,7 +18,7 @@ pub(crate) use changelog::changelog_entry_count;
 
 use crate::{
     app::App,
-    models::{AppState, FeedTreeItem, Tab},
+    models::{AppState, FeedTreeItem, HitAreas, ScrollTarget, ScrollbarHit, Tab},
     ui::theme::ColorTheme,
 };
 
@@ -68,9 +68,11 @@ pub(crate) fn sync_list_view(
     height: u16,
 ) {
     if detached {
+        // `select(None)` also zeroes the offset, so restore it afterwards.
+        let offset = state.offset();
         state.select(None);
         let max = len.saturating_sub(height as usize);
-        *state.offset_mut() = state.offset().min(max);
+        *state.offset_mut() = offset.min(max);
     } else {
         state.select(Some(cursor));
     }
@@ -87,6 +89,7 @@ pub(crate) fn render_scrollable_list<'a>(
     inner: Rect,
     list_state: &mut ListState,
     theme: &ColorTheme,
+    track: Option<(&mut HitAreas, ScrollTarget)>,
 ) {
     let total = items.len();
     let has_scrollbar = total > inner.height as usize;
@@ -113,6 +116,7 @@ pub(crate) fn render_scrollable_list<'a>(
             inner.height as usize,
             list_state.offset(),
             theme,
+            track,
         );
     }
 }
@@ -179,7 +183,8 @@ where
 /// Renders a themed vertical scrollbar into `area`.
 ///
 /// Applies the standard arrow, thumb, and track styling from the active theme.
-/// Call this whenever `content_len > viewport_len` to show a scrollbar.
+/// Call this whenever `content_len > viewport_len` to show a scrollbar. With `track`,
+/// the bar is recorded in the hit areas so the mouse can drag it.
 pub(crate) fn render_scrollbar(
     f: &mut Frame,
     area: ratatui::layout::Rect,
@@ -187,20 +192,39 @@ pub(crate) fn render_scrollbar(
     viewport_len: usize,
     offset: usize,
     theme: &ColorTheme,
+    track: Option<(&mut HitAreas, ScrollTarget)>,
 ) {
-    use tui_scrollbar::{ScrollBar, ScrollBarArrows, ScrollLengths};
     f.render_widget(
-        &ScrollBar::vertical(ScrollLengths {
-            content_len,
-            viewport_len,
-        })
-        .arrows(ScrollBarArrows::Both)
-        .arrow_style(Style::default().fg(theme.bg_dark).bg(theme.bg))
-        .thumb_style(Style::default().fg(theme.border).bg(theme.bg_dark))
-        .track_style(Style::default().bg(theme.bg_dark))
-        .offset(offset),
+        &scrollbar_widget(content_len, viewport_len, offset)
+            .arrow_style(Style::default().fg(theme.bg_dark).bg(theme.bg))
+            .thumb_style(Style::default().fg(theme.border).bg(theme.bg_dark))
+            .track_style(Style::default().bg(theme.bg_dark)),
         area,
     );
+    if let Some((hit, target)) = track {
+        hit.scrollbars.push(ScrollbarHit {
+            area,
+            target,
+            content_len,
+            viewport_len,
+            offset,
+        });
+    }
+}
+
+/// Unstyled scrollbar geometry, shared by drawing and mouse hit-testing.
+pub(crate) fn scrollbar_widget(
+    content_len: usize,
+    viewport_len: usize,
+    offset: usize,
+) -> tui_scrollbar::ScrollBar {
+    use tui_scrollbar::{ScrollBar, ScrollBarArrows, ScrollLengths};
+    ScrollBar::vertical(ScrollLengths {
+        content_len,
+        viewport_len,
+    })
+    .arrows(ScrollBarArrows::Both)
+    .offset(offset)
 }
 
 /// Top-level draw dispatcher that renders the entire UI frame.
@@ -375,6 +399,7 @@ fn draw_zen_mode(f: &mut Frame, app: &mut App) {
             app.content_area_height as usize,
             app.article_scroll_offset as usize,
             &app.theme,
+            Some((&mut app.hit, ScrollTarget::Article)),
         );
     }
 }

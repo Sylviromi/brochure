@@ -6,7 +6,7 @@
 
 use crate::{
     app::App,
-    models::{AddFeedStep, AppState, CategoryId, FreshRssStep},
+    models::{AddFeedStep, AppState, CategoryId, FreshRssStep, ScrollTarget},
     ui::{content::utils::split_cursor, theme::ColorTheme},
 };
 use ratatui::layout::Constraint::{Fill, Length, Min};
@@ -516,6 +516,7 @@ pub(super) fn draw_category_picker(f: &mut Frame, app: &mut App) {
             inner.height as usize,
             app.category_picker.cursor.min(cats_len.saturating_sub(1)),
             &app.theme,
+            None,
         );
     }
 }
@@ -656,6 +657,7 @@ pub(super) fn draw_update_popup(f: &mut Frame, app: &mut App) {
             visible_h as usize,
             scroll as usize,
             &app.theme,
+            Some((&mut app.hit, ScrollTarget::UpdatePopup)),
         );
     }
 

@@ -3,7 +3,7 @@
 use crate::{
     app::{App, sidebar_tree_items},
     fetch::feed_error_tag,
-    models::{AppState, FeedTreeItem},
+    models::{AppState, FeedTreeItem, ScrollTarget},
 };
 use ratatui::{
     Frame,
@@ -177,7 +177,14 @@ pub(super) fn draw_sidebar(f: &mut Frame, app: &mut App, area: Rect) {
         len,
         list_area.height,
     );
-    render_scrollable_list(f, items, list_area, &mut app.sidebar_list_state, &app.theme);
+    render_scrollable_list(
+        f,
+        items,
+        list_area,
+        &mut app.sidebar_list_state,
+        &app.theme,
+        Some((&mut app.hit, ScrollTarget::Sidebar)),
+    );
     app.hit.sidebar = list_area;
 
     if let Some(pb) = maybe_progress {

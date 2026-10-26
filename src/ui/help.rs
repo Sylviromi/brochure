@@ -7,7 +7,7 @@
 
 use crate::{
     app::App,
-    models::{AppState, EditorPanel, FeedEditorMode},
+    models::{AppState, EditorPanel, FeedEditorMode, ScrollTarget},
 };
 use ratatui::{
     Frame,
@@ -166,6 +166,8 @@ const MOUSE: Keys = &[
     ("Click a link", "Open it in the browser"),
     ("Drag over text", "Select and copy to clipboard"),
     ("Drag in editor", "Move feeds / categories"),
+    ("Drag a list", "Scroll it line by line"),
+    ("Drag scrollbar", "Scroll; click its track to page"),
 ];
 
 /// `(title, bindings)` for the screen the user is on.
@@ -268,6 +270,7 @@ pub(super) fn draw_help_popup(f: &mut Frame, app: &mut App) {
             inner.height as usize,
             app.help_scroll as usize,
             &app.theme,
+            Some((&mut app.hit, ScrollTarget::Help)),
         );
     }
 }

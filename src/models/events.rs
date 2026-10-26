@@ -9,8 +9,9 @@ use crate::sync::freshrss::ImportedArticle;
 pub enum AppEvent {
     /// A key input from the user.
     Input(crossterm::event::KeyEvent),
-    /// A mouse click or wheel event from the user.
-    Mouse(crossterm::event::MouseEvent),
+    /// A mouse event in cells, plus the pointer's fractional row when the terminal
+    /// reports pixel positions.
+    Mouse(crossterm::event::MouseEvent, Option<f32>),
     /// Periodic tick for UI updates and animations.
     Tick,
     /// Result of a background feed fetch: (feed_idx, Result<(articles, xml_updated_secs), error>).

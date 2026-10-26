@@ -85,6 +85,7 @@ pub(super) fn draw_saved_category_editor(f: &mut Frame, app: &mut App, area: Rec
         inner,
         &mut app.saved_cat_editor_scroll.list_state,
         &app.theme,
+        None,
     );
     let offset = app.saved_cat_editor_scroll.list_state.offset();
     app.hit.record_rows(inner, offset, len, Some);

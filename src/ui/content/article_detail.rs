@@ -847,6 +847,7 @@ pub(crate) fn render_article_content(
             content_area.height as usize,
             scroll_offset as usize,
             &app.theme,
+            Some((&mut app.hit, crate::models::ScrollTarget::Article)),
         );
     }
 }

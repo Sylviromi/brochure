@@ -256,6 +256,7 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
             viewport_height,
             app.changelog_scroll as usize,
             &app.theme,
+            Some((&mut app.hit, crate::models::ScrollTarget::Changelog)),
         );
     }
 }

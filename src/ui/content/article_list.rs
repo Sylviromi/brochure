@@ -3,7 +3,7 @@
 use crate::{
     app::App,
     fetch::feed_error_tag,
-    models::{AppState, Article, Tab},
+    models::{AppState, Article, ScrollTarget, Tab},
 };
 use ratatui::{
     Frame,
@@ -173,7 +173,14 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
             items.len(),
             inner.height,
         );
-        render_scrollable_list(f, items, inner, &mut app.article_list_state, &app.theme);
+        render_scrollable_list(
+            f,
+            items,
+            inner,
+            &mut app.article_list_state,
+            &app.theme,
+            Some((&mut app.hit, ScrollTarget::ArticleList)),
+        );
         if show_footer {
             draw_article_footer(f, app, footer_area, false);
         }
@@ -348,7 +355,14 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
         items.len(),
         list_area.height,
     );
-    render_scrollable_list(f, items, list_area, &mut app.article_list_state, &app.theme);
+    render_scrollable_list(
+        f,
+        items,
+        list_area,
+        &mut app.article_list_state,
+        &app.theme,
+        Some((&mut app.hit, ScrollTarget::ArticleList)),
+    );
 
     if show_footer {
         draw_article_footer(f, app, footer_area, false);

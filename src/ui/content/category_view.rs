@@ -104,6 +104,7 @@ pub(super) fn draw_category_article_list(f: &mut Frame, app: &mut App, area: Rec
             inner.height as usize,
             offset,
             &app.theme,
+            Some((&mut app.hit, crate::models::ScrollTarget::ArticleList)),
         );
     }
 

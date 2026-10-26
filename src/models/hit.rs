@@ -36,6 +36,52 @@ pub struct HitAreas {
     pub rows: Vec<(Rect, usize)>,
     /// Outline of the open picker popup (clicks outside it cancel).
     pub popup: Rect,
+    /// Scrollbars drawn this frame, in draw order.
+    pub scrollbars: Vec<ScrollbarHit>,
+}
+
+/// View a scrollbar scrolls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScrollTarget {
+    Sidebar,
+    SavedSidebar,
+    ArticleList,
+    Article,
+    Changelog,
+    Help,
+    UpdatePopup,
+}
+
+/// A drawn scrollbar: where it is and the lengths it was drawn with.
+#[derive(Debug, Clone, Copy)]
+pub struct ScrollbarHit {
+    pub area: Rect,
+    pub target: ScrollTarget,
+    pub content_len: usize,
+    pub viewport_len: usize,
+    pub offset: usize,
+}
+
+/// Scrollbar held by the mouse.
+#[derive(Debug, Clone, Copy)]
+pub struct ScrollbarDrag {
+    pub target: ScrollTarget,
+    pub interaction: tui_scrollbar::ScrollBarInteraction,
+    /// Where the thumb was grabbed, in cells below its top edge, when the terminal
+    /// reports pixel positions (the drag then follows the pointer smoothly).
+    pub fine_grab: Option<f32>,
+}
+
+/// A press on a list's rows: dragging scrolls the list with the pointer, line by
+/// line; releasing without moving selects the row that was pressed.
+#[derive(Debug, Clone, Copy)]
+pub struct ListDrag {
+    pub target: ScrollTarget,
+    pub col: u16,
+    pub row: u16,
+    /// Pointer row as of the last drag event.
+    pub last_row: u16,
+    pub moved: bool,
 }
 
 impl HitAreas {
