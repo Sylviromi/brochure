@@ -24,8 +24,9 @@ pub enum AppEvent {
     FreshRssPushDone(Result<(), String>),
     /// Result of background feed-title fetch during the AddFeed flow.
     FeedTitleFetched(Result<String, String>),
-    /// Result of fetching the full article content: (source, article_idx, Result<content, error>).
-    FullArticleFetched(FeedSource, usize, Result<String, String>),
+    /// Result of fetching the full article content: (source, article_idx, link,
+    /// Result<content, error>).
+    FullArticleFetched(FeedSource, usize, String, Result<String, String>),
     /// A newer version of brochure is available on crates.io.
     UpdateAvailable(UpdateInfo),
     /// An article image was downloaded and decoded off the UI thread (`None` = unusable).

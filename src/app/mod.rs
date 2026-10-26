@@ -161,8 +161,10 @@ pub struct App {
     pub status_msg_start_tick: usize,
 
     // ── Article fetching ──────────────────────────────────────────────────────
-    /// Whether a full-article readability fetch is in flight.
-    pub article_fetching: bool,
+    /// Links whose full content was fetched (or tried) this session.
+    pub full_fetch_tried: HashSet<String>,
+    /// Links whose full-content fetch is in flight (their body shows a skeleton).
+    pub full_fetch_pending: HashSet<String>,
 
     // ── Image cache ──────────────────────────────────────────────────────────
     /// Decoded image pixel data keyed by URL.
@@ -213,8 +215,10 @@ pub struct App {
     pub hit: HitAreas,
     /// Lists scrolled by the wheel independently of their cursor.
     pub detached: DetachedViews,
-    /// Mouse text selection in progress or just made (highlighted until the next input).
+    /// Mouse text selection, highlighted while its article or panel stays on screen.
     pub selection: Option<TextSelection>,
+    /// Whether the last frame drew the selection's view (otherwise it is dropped).
+    pub selection_shown: bool,
     /// Text under `selection` as of the last frame (what a release copies).
     pub selection_text: String,
     /// A drag ended: copy `selection_text` after the next draw.
@@ -347,7 +351,8 @@ impl App {
             changelog_scroll: 0,
             changelog_collapsed: initial_changelog_collapsed,
             changelog_cursor: 0,
-            article_fetching: false,
+            full_fetch_tried: HashSet::new(),
+            full_fetch_pending: HashSet::new(),
             update_available: None,
             update_popup_scroll: 0,
             status_msg_start_tick: 0,
@@ -370,6 +375,7 @@ impl App {
             hit: HitAreas::default(),
             detached: DetachedViews::default(),
             selection: None,
+            selection_shown: false,
             selection_text: String::new(),
             selection_copy_requested: false,
             scrollbar_drag: None,

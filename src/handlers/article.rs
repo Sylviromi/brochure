@@ -156,7 +156,7 @@ fn open_article(app: &mut App, tx: &UnboundedSender<AppEvent>) {
     let article = get_selected_article(app);
     let Some(article) = article else { return };
     mark_article_as_read(app, tx, &article);
-    fetch_full_article_if_stub(app, tx, &article);
+    prefetch_article_if_stub(app, tx);
     app.select();
 }
 
@@ -310,7 +310,9 @@ fn resolve_article_source(app: &App) -> Option<(FeedSource, usize, String)> {
     }
 }
 
-/// Proactively fetches full article content when the cursor lands on a stub-length article.
+/// Fetch the full content of the selected article when the feed only gave a stub —
+/// once per article per session, never while a fetch for it is already running.
+/// Used both when the cursor lands on an article and when it is opened.
 pub(crate) fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>) {
     let Some((source, art_idx, link)) = resolve_article_source(app) else {
         return;
@@ -320,70 +322,19 @@ pub(crate) fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEv
             .feeds
             .get(fi)
             .and_then(|f| f.articles.get(art_idx))
-            .is_some_and(|a| a.content.len() < CONTENT_STUB_MAX_LEN && a.error.is_none()),
+            .is_some_and(|a| a.content.len() < CONTENT_STUB_MAX_LEN),
         FeedSource::Saved => app
             .saved_view_articles
             .get(art_idx)
-            .is_some_and(|a| a.content.len() < CONTENT_STUB_MAX_LEN && a.error.is_none()),
+            .is_some_and(|a| a.content.len() < CONTENT_STUB_MAX_LEN),
     };
-    if is_stub {
-        spawn_full_article_fetch(app, source, art_idx, link, tx);
+    if !is_stub || !app.full_fetch_tried.insert(link.clone()) {
+        return;
     }
-}
-
-/// Fetch readable content for one article in the background; the result arrives as
-/// `AppEvent::FullArticleFetched` (already converted to markdown).
-fn spawn_full_article_fetch(
-    app: &mut App,
-    source: FeedSource,
-    art_idx: usize,
-    link: String,
-    tx: &UnboundedSender<AppEvent>,
-) {
-    app.article_fetching = true;
+    app.full_fetch_pending.insert(link.clone());
     let tx = tx.clone();
     tokio::spawn(async move {
         let result = fetch_readable_content(&link).await;
-        let _ = tx.send(AppEvent::FullArticleFetched(source, art_idx, result));
+        let _ = tx.send(AppEvent::FullArticleFetched(source, art_idx, link, result));
     });
-}
-
-/// Spawns a background task to fetch readable content for the article if it is still a stub.
-///
-/// Sets a loading placeholder in the article content and flips `article_fetching` while the
-/// request is in flight.  Does nothing when content is already at full length.
-fn fetch_full_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEvent>, article: &Article) {
-    if article.content.len() >= CONTENT_STUB_MAX_LEN {
-        return;
-    }
-
-    app.set_status("Fetching full article...".to_string());
-    update_article_content(app, "⏳ Fetching full article, please wait...".to_string());
-
-    let Some((source, art_idx, _link)) = resolve_article_source(app) else {
-        return;
-    };
-    spawn_full_article_fetch(app, source, art_idx, article.link.clone(), tx);
-}
-
-/// Replaces the in-memory content field of the currently selected article.
-///
-/// Writes to the correct backing store depending on the active view context.
-fn update_article_content(app: &mut App, content: String) {
-    if app.in_category_context {
-        if let Some(&(fi, ai)) = app.category_view_articles.get(app.selected_article)
-            && let Some(feed) = app.feeds.get_mut(fi)
-            && let Some(a) = feed.articles.get_mut(ai)
-        {
-            a.content = content;
-        }
-    } else if app.in_saved_context {
-        if let Some(a) = app.saved_view_articles.get_mut(app.selected_article) {
-            a.content = content;
-        }
-    } else if let Some(feed) = app.feeds.get_mut(app.selected_feed)
-        && let Some(a) = feed.articles.get_mut(app.selected_article)
-    {
-        a.content = content;
-    }
 }

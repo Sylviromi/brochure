@@ -10,6 +10,7 @@ mod feed_editor;
 mod help;
 mod popups;
 mod saved_category_editor;
+mod selection;
 mod settings;
 pub(crate) mod theme;
 mod theme_editor;
@@ -233,43 +234,16 @@ pub(crate) fn scrollbar_widget(
 /// (add-feed wizard, OPML paths, confirm dialogs, category picker, saved category editor).
 pub fn draw(f: &mut Frame, app: &mut App) {
     app.hit.clear();
+    app.selection_shown = false;
+    app.selection_text.clear();
     draw_screen(f, app);
+    if !app.selection_shown {
+        // Its article or panel is no longer on screen.
+        app.selection = None;
+    }
     if app.help_open {
         help::draw_help_popup(f, app);
     }
-    apply_selection(f, app);
-}
-
-/// Highlight the mouse text selection and capture its text for copying on release.
-fn apply_selection(f: &mut Frame, app: &mut App) {
-    app.selection_text.clear();
-    let Some(sel) = &app.selection else {
-        return;
-    };
-    let buf = f.buffer_mut();
-    let area = buf.area;
-    let mut rows = Vec::new();
-    for row in sel.bounds.top()..sel.bounds.bottom().min(area.bottom()) {
-        let Some((from, to)) = sel.columns_on(row) else {
-            continue;
-        };
-        let mut text = String::new();
-        let mut filler = 0;
-        for col in from..=to.min(area.right().saturating_sub(1)) {
-            let cell = &mut buf[(col, row)];
-            cell.modifier.insert(ratatui::style::Modifier::REVERSED);
-            // A wide grapheme's trailing cells hold filler, not text.
-            if filler > 0 {
-                filler -= 1;
-                continue;
-            }
-            let symbol = cell.symbol();
-            filler = ratatui::text::Span::raw(symbol).width().saturating_sub(1);
-            text.push_str(symbol);
-        }
-        rows.push(text.trim_end().to_string());
-    }
-    app.selection_text = rows.join("\n");
 }
 
 /// Draw everything for the current state (tabs, panels, popups).

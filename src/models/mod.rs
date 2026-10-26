@@ -14,7 +14,7 @@ pub use core_types::*;
 pub use events::*;
 pub use hit::{
     DetachedViews, HitAreas, ListDrag, PendingClick, ScrollTarget, ScrollbarDrag, ScrollbarHit,
-    TextSelection, hits, list_row,
+    SelectionView, TextSelection, hits, list_row,
 };
 pub use navigation::*;
 pub use scroll::{ListScroll, TextScroll};

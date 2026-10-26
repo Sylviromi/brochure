@@ -13,7 +13,7 @@ use ratatui::{
     widgets::Paragraph,
 };
 
-use super::{content_block, render_scrollbar};
+use super::{content_block, render_scrollbar, selection};
 
 const CHANGELOG_JSON: &str = include_str!("../../changelog.json");
 
@@ -235,13 +235,36 @@ fn draw_changelog_block(f: &mut Frame, app: &mut App, area: Rect) {
         inner
     };
 
+    let scroll = app.changelog_scroll as usize;
     let visible: Vec<Line> = full_lines
-        .into_iter()
-        .skip(app.changelog_scroll as usize)
+        .iter()
+        .skip(scroll)
         .take(viewport_height)
+        .cloned()
         .collect();
 
     f.render_widget(Paragraph::new(visible).bg(app.theme.bg), text_area);
+
+    // Lines are pre-wrapped (one per row), so the selection copies straight from them.
+    let view = crate::models::SelectionView::Changelog;
+    if let Some((first, last)) = selection::highlight(
+        f.buffer_mut(),
+        app,
+        &view,
+        text_area,
+        scroll,
+        Rect::default(),
+    ) {
+        let height = selection::row_count(first, last);
+        let mut doc = ratatui::buffer::Buffer::empty(Rect {
+            y: 0,
+            height,
+            ..text_area
+        });
+        let lines: Vec<Line> = full_lines.into_iter().skip(first).collect();
+        ratatui::widgets::Widget::render(Paragraph::new(lines), doc.area, &mut doc);
+        selection::capture(app, &doc, first);
+    }
 
     if has_scrollbar {
         let bar_area = Rect {

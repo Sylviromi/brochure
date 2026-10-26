@@ -103,15 +103,25 @@ pub enum PendingClick {
     ChangelogEntry(usize),
 }
 
-/// A mouse text selection, in screen cells, confined to the panel it started in.
+/// View a text selection belongs to.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SelectionView {
+    /// The article with this link (detail, preview or zen).
+    Article(String),
+    Changelog,
+}
+
+/// A mouse text selection in document rows, so it scrolls with the text. Columns are
+/// screen columns within the panel.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextSelection {
-    /// Panel the selection is clipped to.
+    pub view: SelectionView,
+    /// Panel the selection is clipped to, as of the last frame.
     pub bounds: Rect,
-    /// Cell where the button went down.
-    pub anchor: (u16, u16),
-    /// Cell under the pointer now.
-    pub cursor: (u16, u16),
+    /// `(col, row)` where the button went down.
+    pub anchor: (u16, usize),
+    /// `(col, row)` under the pointer now.
+    pub cursor: (u16, usize),
     /// True once the pointer moved (a plain click selects nothing).
     pub moved: bool,
     /// What a plain click (no drag) at the anchor should do on release.
@@ -120,7 +130,7 @@ pub struct TextSelection {
 
 impl TextSelection {
     /// `(start, end)` in reading order as `(col, row)` pairs.
-    pub fn ordered(&self) -> ((u16, u16), (u16, u16)) {
+    pub fn ordered(&self) -> ((u16, usize), (u16, usize)) {
         let (a, b) = (self.anchor, self.cursor);
         if (a.1, a.0) <= (b.1, b.0) {
             (a, b)
@@ -129,8 +139,8 @@ impl TextSelection {
         }
     }
 
-    /// Column span `[from, to]` selected on `row`, if any.
-    pub fn columns_on(&self, row: u16) -> Option<(u16, u16)> {
+    /// Column span `[from, to]` selected on document row `row`, if any.
+    pub fn columns_on(&self, row: usize) -> Option<(u16, u16)> {
         let ((c0, r0), (c1, r1)) = self.ordered();
         if !self.moved || row < r0 || row > r1 {
             return None;

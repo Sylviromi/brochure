@@ -3,7 +3,7 @@
 //! The header (title, date, description, hero image) and body are combined into a
 //! single markdown document so that everything scrolls together.
 
-use crate::{app::App, handlers::article::get_selected_article, models::CONTENT_STUB_MAX_LEN};
+use crate::{app::App, handlers::article::get_selected_article};
 use limner::{
     Alignment, MarkdownStyle,
     render_image::{ImagePlacement, SignedPosition, SlicedImage, prepare_inline_images},
@@ -17,7 +17,7 @@ use ratatui::{
     widgets::{Paragraph, Wrap},
 };
 
-use super::super::{content_block, render_scrollbar};
+use super::super::{content_block, render_scrollbar, selection};
 use super::{footer::draw_article_info, utils::format_pub_date};
 use tui_skeleton::{AnimationMode, SkeletonBlock};
 
@@ -328,6 +328,26 @@ struct ArticleLayout {
 impl ArticleLayout {
     fn line_count(&self) -> usize {
         self.row_starts.last().copied().unwrap_or(0).max(1)
+    }
+
+    /// The lines covering rows `scroll..scroll + height`, and how many rows of the
+    /// first one lie above `scroll`. Rendering just these keeps frame cost flat.
+    fn window(&self, scroll: usize, height: usize) -> (&[ratatui::text::Line<'static>], u16) {
+        let starts = &self.row_starts;
+        let first = starts.partition_point(|&r| r <= scroll).saturating_sub(1);
+        let end = starts[..self.lines.len()]
+            .partition_point(|&r| r < scroll + height)
+            .max(first);
+        let skip_rows = (scroll - starts[first].min(scroll)) as u16;
+        (&self.lines[first..end], skip_rows)
+    }
+
+    /// Rows `first..first + height` wrapped at `area`'s width, as `Paragraph` draws them.
+    fn paragraph(&self, first: usize, height: usize) -> Paragraph<'static> {
+        let (lines, skip_rows) = self.window(first, height);
+        Paragraph::new(lines.to_vec())
+            .wrap(Wrap { trim: false })
+            .scroll((skip_rows, 0))
     }
 
     /// Positions (relative to the content area) of images intersecting the viewport.
@@ -702,8 +722,12 @@ pub(crate) fn render_article_content(
 
     let preview_hint_mode =
         is_preview && article.content.is_empty() && article.error.is_none() && !feed_refreshing;
-    let fetching_stub = app.article_fetching && article.content.len() < CONTENT_STUB_MAX_LEN;
-    let loading = fetching_stub || feed_refreshing;
+    let loading = app.full_fetch_pending.contains(&article.link) || feed_refreshing;
+    // A failed fetch keeps the feed's content; the error only shows when there is none.
+    let error = article
+        .error
+        .as_ref()
+        .filter(|_| article.content.is_empty());
 
     // Build separate header and body markdown (only needed when the cache misses).
     let build_md = || {
@@ -712,7 +736,7 @@ pub(crate) fn render_article_content(
             String::from("*Full article not fetched. Press Enter to focus and read.*\n")
         } else if loading {
             String::new() // skeleton widget renders in place of body text
-        } else if let Some(err) = &article.error {
+        } else if let Some(err) = error {
             format!("*{err}*\n")
         } else {
             build_body_markdown(article, header_image_url.as_deref(), &body_images)
@@ -721,7 +745,7 @@ pub(crate) fn render_article_content(
     };
 
     // Simple-body messages (hint/spinner) get centered styling and layout.
-    let simple_body = preview_hint_mode || loading || article.error.is_some();
+    let simple_body = preview_hint_mode || loading || error.is_some();
 
     // Markdown rendering is the expensive part of a frame: reuse it until any input changes.
     let key = render_key(
@@ -759,15 +783,7 @@ pub(crate) fn render_article_content(
     let scroll_offset = app.article_scroll.scroll_by(&article.link, 0, max_scroll);
     let scroll = scroll_offset as usize;
 
-    // Only the lines intersecting the viewport are handed to ratatui, so frame cost
-    // no longer grows with article length.
-    let starts = &layout.row_starts;
-    let first = starts.partition_point(|&r| r <= scroll).saturating_sub(1);
-    let end = starts[..layout.lines.len()]
-        .partition_point(|&r| r < scroll + content_area.height as usize)
-        .max(first);
-    let skip_rows = (scroll - starts[first].min(scroll)) as u16;
-    let visible = layout.lines[first..end].to_vec();
+    let paragraph = layout.paragraph(scroll, content_area.height as usize);
     let image_positions = layout.image_positions(scroll, render_width, content_area.height);
     let header_visual = layout.header_rows;
     let images = layout.images.clone();
@@ -789,9 +805,6 @@ pub(crate) fn render_article_content(
         }
     }
 
-    let paragraph = Paragraph::new(visible)
-        .wrap(Wrap { trim: false })
-        .scroll((skip_rows, 0));
     let has_scrollbar = line_count > content_area.height as usize;
     let para_render_area = Rect {
         width: render_width,
@@ -809,29 +822,52 @@ pub(crate) fn render_article_content(
     }
 
     // ── Skeleton placeholder while article body is fetching ──
+    let mut skeleton = Rect::default();
     if loading {
-        let content_top = content_area.y as i32;
-        let content_bottom = (content_area.y + content_area.height) as i32;
         let header_visible = header_visual.saturating_sub(scroll_offset as usize);
-        let body_y = content_top + header_visible as i32;
-        if body_y < content_bottom {
-            let body_height = (content_bottom - body_y) as u16;
+        let body_y = content_area
+            .y
+            .saturating_add(header_visible.min(u16::MAX as usize) as u16);
+        if body_y < content_area.bottom() {
+            skeleton = Rect {
+                y: body_y,
+                height: content_area.bottom() - body_y,
+                ..content_area
+            };
             let elapsed_ms = app.tick as u64 * 250;
             let block = SkeletonBlock::new(elapsed_ms)
                 .mode(AnimationMode::Noise)
                 .braille(true)
                 .base(to_skeleton_color(app.theme.bg_dark))
                 .highlight(to_skeleton_color(app.theme.sky));
-            f.render_widget(
-                block,
-                Rect {
-                    x: content_area.x,
-                    y: body_y as u16,
-                    width: content_area.width,
-                    height: body_height,
-                },
-            );
+            f.render_widget(block, skeleton);
         }
+    }
+
+    // Selected text comes from the article's own lines (never the skeleton), so the
+    // selection follows scrolling and may extend beyond the viewport.
+    let view = crate::models::SelectionView::Article(article.link.clone());
+    if let Some((first, last)) = selection::highlight(
+        f.buffer_mut(),
+        app,
+        &view,
+        para_render_area,
+        scroll,
+        skeleton,
+    ) && let Some(layout) = app.article_render.as_ref().and_then(|r| r.layout.as_ref())
+    {
+        let height = selection::row_count(first, last);
+        let mut doc = ratatui::buffer::Buffer::empty(Rect {
+            y: 0,
+            height,
+            ..para_render_area
+        });
+        ratatui::widgets::Widget::render(
+            layout.paragraph(first, height as usize),
+            doc.area,
+            &mut doc,
+        );
+        selection::capture(app, &doc, first);
     }
 
     if has_scrollbar && !hide_scrollbar {

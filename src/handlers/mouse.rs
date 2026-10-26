@@ -26,7 +26,7 @@ use crate::{
     app::{App, visible_cat_only_items},
     models::{
         AppEvent, AppState, EditorPanel, FeedEditorMode, FeedTreeItem, ListDrag, PendingClick,
-        ScrollTarget, ScrollbarDrag, TextSelection, hits, list_row,
+        ScrollTarget, ScrollbarDrag, SelectionView, TextSelection, hits, list_row,
     },
     state::EditorDrag,
     ui::content::helpers::split_articles,
@@ -45,13 +45,6 @@ pub async fn handle_mouse(
     tx: &UnboundedSender<AppEvent>,
 ) -> bool {
     let (col, row) = (ev.column, ev.row);
-    if matches!(
-        ev.kind,
-        MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
-    ) {
-        // The selection is in screen cells, so it would no longer match scrolled text.
-        app.selection = None;
-    }
     if scrollbar_mouse(app, ev, fine_row) {
         return false;
     }
@@ -336,7 +329,10 @@ async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>
             (!app.zen_mode && app.state == AppState::ArticleList)
                 .then_some(PendingClick::OpenArticle)
         });
-        start_selection(app, app.hit.article_detail, col, row, pending);
+        if let Some(link) = app.selected_article().map(|a| a.link.clone()) {
+            let view = SelectionView::Article(link);
+            start_selection(app, view, app.hit.article_detail, col, row, pending);
+        }
         return false;
     }
     if app.zen_mode || !panels_interactive(app) {
@@ -365,7 +361,8 @@ async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>
             .iter()
             .position(|&(first, last)| (first..=last).contains(&line));
         let pending = entry.map(PendingClick::ChangelogEntry);
-        start_selection(app, app.hit.changelog, col, row, pending);
+        let view = SelectionView::Changelog;
+        start_selection(app, view, app.hit.changelog, col, row, pending);
         return false;
     }
 
@@ -428,15 +425,32 @@ async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>
 
 // ── Text selection ────────────────────────────────────────────────────────────
 
-/// Begin a (potential) text selection at `(col, row)` within `bounds`.
-fn start_selection(app: &mut App, bounds: Rect, col: u16, row: u16, pending: Option<PendingClick>) {
+/// Begin a (potential) text selection in `view` at screen cell `(col, row)` of `bounds`.
+fn start_selection(
+    app: &mut App,
+    view: SelectionView,
+    bounds: Rect,
+    col: u16,
+    row: u16,
+    pending: Option<PendingClick>,
+) {
+    let at = (col, view_scroll(app, &view) + usize::from(row - bounds.y));
     app.selection = Some(TextSelection {
+        view,
         bounds,
-        anchor: (col, row),
-        cursor: (col, row),
+        anchor: at,
+        cursor: at,
         moved: false,
         pending,
     });
+}
+
+/// First document row on screen in `view`.
+fn view_scroll(app: &App, view: &SelectionView) -> usize {
+    match view {
+        SelectionView::Article(_) => usize::from(app.article_scroll_offset),
+        SelectionView::Changelog => usize::from(app.changelog_scroll),
+    }
 }
 
 /// Copy the selected text if a release asked for it. Called after each draw, when
@@ -481,12 +495,12 @@ async fn drag(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>)
         scroll_list(app, target, rows);
         return false;
     }
-    if let Some(sel) = app.selection.as_mut() {
+    if let Some(sel) = &app.selection {
         let b = sel.bounds;
-        sel.cursor = (
-            col.clamp(b.left(), b.right().saturating_sub(1)),
-            row.clamp(b.top(), b.bottom().saturating_sub(1)),
-        );
+        let screen_row = row.clamp(b.top(), b.bottom().saturating_sub(1)) - b.y;
+        let doc_row = view_scroll(app, &sel.view) + usize::from(screen_row);
+        let sel = app.selection.as_mut().expect("checked above");
+        sel.cursor = (col.clamp(b.left(), b.right().saturating_sub(1)), doc_row);
         sel.moved |= sel.cursor != sel.anchor;
         return false;
     }

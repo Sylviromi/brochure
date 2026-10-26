@@ -495,8 +495,9 @@ async fn dragging_over_article_text_selects_it() {
     app.update_available = None;
     with_test_feeds(&mut app);
     app.feeds[0].articles[0].content = format!(
-        "Alpha beta gamma delta.\n\nSecond paragraph here.\n\n{}",
-        "x".repeat(crate::models::CONTENT_STUB_MAX_LEN)
+        "Alpha beta gamma delta.\n\nSecond paragraph here.\n\n{}{}",
+        "x".repeat(crate::models::CONTENT_STUB_MAX_LEN),
+        "\n\nFiller paragraph.".repeat(60)
     );
     app.selected_feed = 0;
     app.selected_article = 0;
@@ -533,8 +534,25 @@ async fn dragging_over_article_text_selects_it() {
     assert!(app.selection_copy_requested, "release asks for a copy");
     assert_eq!(app.state, AppState::ArticleDetail);
 
-    // Any key dismisses the highlight.
-    press(&mut app, KeyCode::Up, &tx).await;
+    // The selection belongs to the text: scrolling carries the highlight along.
+    let link = "https://example.test/0";
+    let before = app.article_scroll.get(link);
+    press(&mut app, KeyCode::Down, &tx).await;
+    terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let moved = app.article_scroll.get(link) - before;
+    assert!(moved > 0, "the article scrolled");
+    assert_eq!(app.selection_text, "Alpha beta");
+    let reversed = |terminal: &Terminal<TestBackend>, y: u16| {
+        terminal.backend().buffer()[(x, y)]
+            .modifier
+            .contains(ratatui::style::Modifier::REVERSED)
+    };
+    assert!(reversed(&terminal, y - moved));
+    assert!(!reversed(&terminal, y));
+
+    // Showing another article drops it.
+    app.selected_article = 1;
+    terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
     assert!(app.selection.is_none());
 }
 
@@ -633,15 +651,66 @@ async fn theme_list_rows_skip_headers_and_picker_cancels_outside() {
 }
 
 #[tokio::test]
-async fn wheel_clears_text_selection() {
+async fn selecting_then_opening_a_stub_fetches_it_once() {
     let mut app = App::new();
     app.update_available = None;
     with_test_feeds(&mut app);
+    for a in &mut app.feeds[1].articles {
+        a.content = "short feed summary".into();
+        a.is_read = true; // opening an unread article saves to the real data dir
+    }
     let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
     draw(&mut app);
+    let sidebar = app.hit.sidebar;
+    tap(&mut app, sidebar.x + 2, sidebar.y + 2, &tx).await; // select Feed 1
+    tap(&mut app, sidebar.x + 2, sidebar.y + 2, &tx).await; // focus its articles
+    draw(&mut app);
+    let list = app.hit.article_list;
+    tap(&mut app, list.x + 2, list.y + 1, &tx).await; // select (fetch starts)
+    tap(&mut app, list.x + 2, list.y + 1, &tx).await; // open (no second fetch)
+    assert_eq!(app.state, AppState::ArticleDetail);
+    let link = app.selected_article().unwrap().link.clone();
+    assert_eq!(app.full_fetch_tried.len(), 1);
+    assert!(app.full_fetch_pending.contains(&link));
+
+    // A failed fetch keeps the feed's content rather than blanking the article.
+    let source = crate::models::FeedSource::Feed(app.selected_feed);
+    let idx = app.selected_article;
+    crate::events::on_full_article_fetched(&mut app, source, idx, &link, Err("boom".into()));
+    assert!(app.full_fetch_pending.is_empty());
+    assert_eq!(
+        app.selected_article().unwrap().content,
+        "short feed summary"
+    );
+    // Going back to the list and re-selecting doesn't fetch again.
+    tap(&mut app, list.x + 2, list.y + 1, &tx).await;
+    assert!(app.full_fetch_pending.is_empty());
+}
+
+#[tokio::test]
+async fn loading_skeleton_cannot_be_selected() {
+    let mut app = App::new();
+    app.update_available = None;
+    with_test_feeds(&mut app);
+    app.feeds[0].articles[0].content = "stub".into();
+    app.full_fetch_pending
+        .insert("https://example.test/0".into());
+    app.selected_feed = 0;
+    app.selected_article = 0;
+    app.clear_category_view();
+    app.state = AppState::ArticleDetail;
+    let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+    let mut terminal = Terminal::new(TestBackend::new(140, 40)).unwrap();
+    terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    // The bottom rows of the panel are skeleton noise.
     let area = app.hit.article_detail;
-    start_selection(&mut app, area, area.x, area.y, None);
-    let wheel = mouse(MouseEventKind::ScrollDown, area.x + 1, area.y + 1);
-    handle_mouse(&mut app, wheel, &tx).await;
-    assert!(app.selection.is_none());
+    let (x, y) = (area.x + 2, area.bottom() - 3);
+    handle_mouse(&mut app, left_click(x, y), &tx).await;
+    let drag = mouse(MouseEventKind::Drag(MouseButton::Left), x + 20, y + 1);
+    handle_mouse(&mut app, drag, &tx).await;
+    terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    assert!(app.selection.is_some());
+    assert_eq!(app.selection_text.trim(), "");
+    let cell = &terminal.backend().buffer()[(x + 1, y)];
+    assert!(!cell.modifier.contains(ratatui::style::Modifier::REVERSED));
 }

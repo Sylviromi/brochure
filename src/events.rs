@@ -219,10 +219,11 @@ pub fn on_full_article_fetched(
     app: &mut App,
     source: FeedSource,
     art_idx: usize,
+    link: &str,
     result: Result<String, String>,
 ) {
-    app.article_fetching = false;
-    let selected_link = app.selected_article().map(|a| a.link.clone());
+    app.full_fetch_pending.remove(link);
+    let selected = app.selected_article().is_some_and(|a| a.link == link);
     let article = match source {
         FeedSource::Saved => app.saved_view_articles.get_mut(art_idx),
         FeedSource::Feed(fi) => app
@@ -230,8 +231,8 @@ pub fn on_full_article_fetched(
             .get_mut(fi)
             .and_then(|f| f.articles.get_mut(art_idx)),
     };
-    let Some(article) = article else {
-        app.set_status("Unknown article.");
+    // The list may have changed while fetching (e.g. a refresh reordered it).
+    let Some(article) = article.filter(|a| a.link == link) else {
         return;
     };
     let msg = match result {
@@ -241,13 +242,13 @@ pub fn on_full_article_fetched(
             "Article loaded.".to_string()
         }
         Err(e) => {
+            // Keep the feed's own content (and its images) to read instead.
             let msg = format!("Extraction failed: {e}");
             article.error = Some(e);
-            article.content.clear();
             msg
         }
     };
-    if selected_link.as_deref() == Some(article.link.as_str()) {
+    if selected {
         app.content_line_count = article.content.lines().count().max(1);
     }
     app.set_status(msg);

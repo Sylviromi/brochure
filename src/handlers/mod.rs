@@ -73,10 +73,9 @@ fn handle_help(app: &mut App, key: KeyEvent) {
 
 /// Route a key event to the correct handler based on the current app state.
 pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEvent>) -> bool {
-    // Keyboard navigation always brings wheel-scrolled lists back to their cursor
-    // and dismisses any mouse text selection.
+    // Keyboard navigation always brings wheel-scrolled lists back to their cursor. A
+    // text selection survives (it scrolls with its text) until its view goes away.
     app.detached = Default::default();
-    app.selection = None;
 
     // Outside text fields, j/k always mean ↓/↑ so every list and view agrees.
     let mut key = key;
