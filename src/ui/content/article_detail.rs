@@ -802,6 +802,19 @@ pub(crate) fn render_article_content(
     for (url, position) in image_positions {
         if let Some(sliced) = app.protocol_cache.get(&url) {
             f.render_widget(SlicedImage::new(sliced, position), content_area);
+            // Clickable (to zoom) where it shows; it may hang off the top edge.
+            let size = sliced.size();
+            let top = i32::from(content_area.y) + i32::from(position.y);
+            let bottom = (top + i32::from(size.height)).max(0) as u16;
+            let y = top.max(i32::from(content_area.y)) as u16;
+            let rect = Rect::new(
+                content_area.x + position.x.max(0) as u16,
+                y,
+                size.width,
+                bottom.saturating_sub(y),
+            )
+            .intersection(content_area);
+            app.hit.article_images.push((rect, url));
         }
     }
 

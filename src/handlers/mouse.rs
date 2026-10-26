@@ -45,6 +45,13 @@ pub async fn handle_mouse(
     tx: &UnboundedSender<AppEvent>,
 ) -> bool {
     let (col, row) = (ev.column, ev.row);
+    if app.zoom.is_some() {
+        // The zoomed image covers everything: a click closes it.
+        if matches!(ev.kind, MouseEventKind::Down(_)) {
+            app.zoom = None;
+        }
+        return false;
+    }
     if scrollbar_mouse(app, ev, fine_row) {
         return false;
     }
@@ -322,9 +329,20 @@ async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>
         // Clicking anywhere dismisses the update notice, like Esc.
         return press(app, KeyCode::Esc, tx).await;
     }
+    let article_interactive = app.zen_mode || panels_interactive(app);
+    if article_interactive
+        && let Some((_, url)) = app
+            .hit
+            .article_images
+            .iter()
+            .find(|(r, _)| hits(*r, col, row))
+    {
+        open_zoom(app, url.clone(), tx);
+        return false;
+    }
     // Article text: a press may start a text selection, so its click action (open a
     // link / open the previewed article) waits for a release without dragging.
-    if hits(app.hit.article_detail, col, row) && (app.zen_mode || panels_interactive(app)) {
+    if hits(app.hit.article_detail, col, row) && article_interactive {
         let pending = link_at(app, col, row).map(PendingClick::Link).or_else(|| {
             (!app.zen_mode && app.state == AppState::ArticleList)
                 .then_some(PendingClick::OpenArticle)
@@ -689,6 +707,16 @@ fn link_at(app: &App, col: u16, row: u16) -> Option<String> {
         .iter()
         .find(|(r, _)| hits(*r, col, row))
         .map(|(_, url)| url.clone())
+}
+
+/// Show image `url` full screen, downloading it again at full resolution.
+fn open_zoom(app: &mut App, url: String, tx: &UnboundedSender<AppEvent>) {
+    crate::events::spawn_image_fetch(url.clone(), tx, AppEvent::ZoomImageDecoded);
+    app.zoom = Some(crate::app::ImageZoom {
+        url,
+        image: None,
+        failed: false,
+    });
 }
 
 /// Open `url` in the default browser and report it in a toast.

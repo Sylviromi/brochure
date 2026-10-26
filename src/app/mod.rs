@@ -51,6 +51,14 @@ pub(crate) fn resolve_theme(user_data: &UserData) -> ColorTheme {
     ColorTheme::catppuccin_mocha()
 }
 
+/// An article image shown full screen, re-downloaded at full resolution.
+pub struct ImageZoom {
+    pub url: String,
+    /// Resizes itself to the screen when drawn; `None` while downloading.
+    pub image: Option<ratatui_image::protocol::StatefulProtocol>,
+    pub failed: bool,
+}
+
 /// Central application state passed to every frame draw and event handler.
 pub struct App {
     pub state: AppState,
@@ -174,6 +182,8 @@ pub struct App {
     pub protocol_cache: HashMap<String, SlicedProtocol>,
     /// Image picker (terminal protocol detection) — initialized in [`run()`].
     pub picker: Option<limner::render_image::Picker>,
+    /// Image open full screen (clicked in an article), if any.
+    pub zoom: Option<ImageZoom>,
     /// Image metadata from the latest markdown render.
     pub article_images: Vec<limner::ImageInfo>,
     /// Cached markdown render of the article on screen (see `ArticleRender`).
@@ -358,6 +368,7 @@ impl App {
             image_cache: HashMap::new(),
             image_pending: HashSet::new(),
             protocol_cache: HashMap::new(),
+            zoom: None,
             picker: None,
             article_images: Vec::new(),
             article_render: None,

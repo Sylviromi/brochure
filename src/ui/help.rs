@@ -164,6 +164,7 @@ const MOUSE: Keys = &[
     ("Click again", "Open it (categories expand / collapse)"),
     ("Wheel", "Scroll the panel under the pointer"),
     ("Click a link", "Open it in the browser"),
+    ("Click an image", "View it full screen"),
     ("Drag over text", "Select and copy to clipboard"),
     ("Drag in editor", "Move feeds / categories"),
     ("Drag a list", "Scroll it line by line"),

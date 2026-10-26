@@ -76,6 +76,9 @@ pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEv
     // Keyboard navigation always brings wheel-scrolled lists back to their cursor. A
     // text selection survives (it scrolls with its text) until its view goes away.
     app.detached = Default::default();
+    if app.zoom.take().is_some() {
+        return false; // any key closes the zoomed image
+    }
 
     // Outside text fields, j/k always mean ↓/↑ so every list and view agrees.
     let mut key = key;

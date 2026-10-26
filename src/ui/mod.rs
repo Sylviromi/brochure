@@ -15,6 +15,7 @@ mod settings;
 pub(crate) mod theme;
 mod theme_editor;
 mod toast;
+mod zoom;
 
 pub(crate) use changelog::changelog_entry_count;
 
@@ -245,6 +246,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     if app.help_open {
         help::draw_help_popup(f, app);
     }
+    zoom::draw_zoom(f, app);
     toast::draw_toasts(f, app);
 }
 

@@ -756,3 +756,43 @@ fn refresh_toast_shows_progress_and_failures() {
     assert!(text.contains("27/40"));
     assert!(text.contains("2 blocked · 1 failed"));
 }
+
+#[tokio::test]
+async fn clicking_an_image_zooms_it_until_a_key_or_click() {
+    let mut app = App::new();
+    app.update_available = None;
+    with_test_feeds(&mut app);
+    app.state = AppState::ArticleDetail;
+    app.picker = Some(limner::render_image::halfblock_picker());
+    let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let url = "https://example.test/pic.png".to_string();
+    let area = app.hit.article_detail;
+    app.hit.article_images = vec![(Rect::new(area.x, area.y, 10, 4), url.clone())];
+    handle_mouse(&mut app, left_click(area.x + 3, area.y + 1), &tx).await;
+    assert_eq!(
+        app.zoom.as_ref().map(|z| z.url.as_str()),
+        Some(url.as_str())
+    );
+    assert!(
+        app.selection.is_none(),
+        "an image click is not a text selection"
+    );
+
+    // A failed download says so; a decoded one fills the screen.
+    crate::events::on_zoom_image(&mut app, url.clone(), None);
+    let frame = terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let text: String = frame.buffer.content.iter().map(|c| c.symbol()).collect();
+    assert!(text.contains("Couldn't load this image"));
+    app.zoom.as_mut().unwrap().failed = false;
+    let image = limner::render_image::img_crate::DynamicImage::new_rgb8(40, 20);
+    crate::events::on_zoom_image(&mut app, url, Some(image));
+    terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    assert!(app.zoom.as_ref().unwrap().image.is_some());
+
+    // Any key closes it without acting on the article underneath.
+    press(&mut app, KeyCode::Down, &tx).await;
+    assert!(app.zoom.is_none());
+    assert_eq!(app.article_scroll.get("https://example.test/0"), 0);
+}

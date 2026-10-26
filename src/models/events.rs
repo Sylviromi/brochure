@@ -27,6 +27,11 @@ pub enum AppEvent {
     /// Result of fetching the full article content: (source, article_idx, link,
     /// Result<content, error>).
     FullArticleFetched(FeedSource, usize, String, Result<String, String>),
+    /// A full-resolution image for the zoom view finished downloading (`None` = failed).
+    ZoomImageDecoded(
+        String,
+        Option<limner::render_image::img_crate::DynamicImage>,
+    ),
     /// A newer version of brochure is available on crates.io.
     UpdateAvailable(UpdateInfo),
     /// An article image was downloaded and decoded off the UI thread (`None` = unusable).

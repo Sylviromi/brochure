@@ -283,21 +283,40 @@ pub fn spawn_article_image_downloads(app: &mut App, tx: &UnboundedSender<AppEven
         if app.image_cache.contains_key(&img.url) || !app.image_pending.insert(img.url.clone()) {
             continue;
         }
-        let tx = tx.clone();
-        let url = img.url.clone();
-        tokio::spawn(async move {
-            let decoded = match crate::fetch::fetch_image(&url).await {
-                Ok(bytes) => {
-                    let url = url.clone();
-                    tokio::task::spawn_blocking(move || decode_image(&bytes, &url))
-                        .await
-                        .ok()
-                        .flatten()
-                }
-                Err(_) => None,
-            };
-            let _ = tx.send(AppEvent::ImageDecoded(url, decoded));
-        });
+        spawn_image_fetch(img.url.clone(), tx, AppEvent::ImageDecoded);
+    }
+}
+
+/// Download and decode `url` in the background; the result arrives as `event`.
+pub fn spawn_image_fetch(
+    url: String,
+    tx: &UnboundedSender<AppEvent>,
+    event: fn(String, Option<DynamicImage>) -> AppEvent,
+) {
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        let decoded = match crate::fetch::fetch_image(&url).await {
+            Ok(bytes) => {
+                let url = url.clone();
+                tokio::task::spawn_blocking(move || decode_image(&bytes, &url))
+                    .await
+                    .ok()
+                    .flatten()
+            }
+            Err(_) => None,
+        };
+        let _ = tx.send(event(url, decoded));
+    });
+}
+
+/// Show a decoded zoom image, if that image is still the one being zoomed.
+pub fn on_zoom_image(app: &mut App, url: String, image: Option<DynamicImage>) {
+    let Some(zoom) = app.zoom.as_mut().filter(|z| z.url == url) else {
+        return;
+    };
+    match (image, &app.picker) {
+        (Some(image), Some(picker)) => zoom.image = Some(picker.new_resize_protocol(image)),
+        _ => zoom.failed = true,
     }
 }
 

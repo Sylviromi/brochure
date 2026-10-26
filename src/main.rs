@@ -233,6 +233,7 @@ async fn handle_event(
             app.update_available = Some(info);
         }
         AppEvent::ImageDecoded(url, image) => events::on_image_decoded(app, url, image),
+        AppEvent::ZoomImageDecoded(url, image) => events::on_zoom_image(app, url, image),
         AppEvent::FullArticleFetched(source, art_idx, link, result) => {
             events::on_full_article_fetched(app, source, art_idx, &link, result);
         }

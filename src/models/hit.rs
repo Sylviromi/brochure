@@ -21,6 +21,8 @@ pub struct HitAreas {
     pub article_detail: Rect,
     /// Links drawn in the article text, with their URLs.
     pub article_links: Vec<(Rect, String)>,
+    /// Images drawn in the article, with their URLs (a click zooms them).
+    pub article_images: Vec<(Rect, String)>,
     /// One rect per selectable settings row.
     pub settings: Vec<(Rect, SettingsItem)>,
     /// Changelog panel.
