@@ -550,6 +550,17 @@ async fn dragging_over_article_text_selects_it() {
     assert!(reversed(&terminal, y - moved));
     assert!(!reversed(&terminal, y));
 
+    // Dragging past the end of the line highlights only up to the text.
+    let row = y - moved;
+    let end = x + "Alpha beta gamma delta.".len() as u16;
+    handle_mouse(&mut app, left_click(x, row), &tx).await;
+    let drag = mouse(MouseEventKind::Drag(MouseButton::Left), end + 5, row);
+    handle_mouse(&mut app, drag, &tx).await;
+    terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let cell = |x: u16| terminal.backend().buffer()[(x, row)].modifier;
+    assert!(cell(end - 1).contains(ratatui::style::Modifier::REVERSED));
+    assert!(!cell(end).contains(ratatui::style::Modifier::REVERSED));
+
     // Showing another article drops it.
     app.selected_article = 1;
     terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();

@@ -24,7 +24,17 @@ pub(crate) fn highlight(
         let Some((from, to)) = sel.columns_on(scroll + usize::from(y - area.y)) else {
             continue;
         };
-        for x in from..=to.min(area.right().saturating_sub(1)) {
+        // Snap to the text drawn on the row: blank margins and line ends stay plain.
+        let to = to.min(area.right().saturating_sub(1));
+        let has_text = |x: &u16| !buf[(*x, y)].symbol().trim().is_empty();
+        let Some(from) = (from..=to).find(has_text) else {
+            continue;
+        };
+        let last = (from..=to).rfind(has_text).unwrap_or(from);
+        // Cover a wide grapheme's trailing cells too.
+        let last_width = Span::raw(buf[(last, y)].symbol()).width() as u16;
+        let to = (last + last_width.saturating_sub(1)).min(to);
+        for x in from..=to {
             if !exclude.contains((x, y).into()) {
                 buf[(x, y)].modifier.insert(Modifier::REVERSED);
             }
