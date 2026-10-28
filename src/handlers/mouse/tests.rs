@@ -97,6 +97,8 @@ fn with_test_feeds(app: &mut App) {
     };
     app.categories.clear();
     app.sidebar_collapsed.clear();
+    // `App::new` loads the real data dir, where the user may have hidden read articles.
+    app.user_data.hide_read = false;
     app.feeds = (0..2)
         .map(|f| {
             let mut feed = Feed::new_local(format!("Feed {f}"), format!("f{f}"), None, f);
