@@ -12,13 +12,14 @@ optional FreshRSS sync. Single binary crate; no workspace.
 | `src/main.rs` | Terminal setup/restore (incl. panic hook), input thread, event loop |
 | `src/events.rs` | Applies background results (feed fetch, article body, images) to `App`; startup cache load + initial fetch |
 | `src/app/` | `App` state. `navigation` (tabs, cursors, views), `editor` (feed editor ops), `tree` (category/feed tree flattening), `freshrss` (refresh routing, sync, push) |
-| `src/handlers/` | Input → state changes. One module per screen; `mouse.rs` maps clicks/wheel onto the key handlers |
+| `src/handlers/` | Input → state changes. One module per screen; `mouse.rs` maps clicks/wheel onto the key handlers (`mouse/editor_drag.rs`: feed editor drag-and-drop) |
 | `src/ui/` | Rendering only. `content/` holds the Feeds/Saved tab panels |
 | `src/models/` | Plain data types, enums, `AppEvent`, `HitAreas` |
 | `src/state/` | Per-screen sub-state structs owned by `App` |
 | `src/sync/` | FreshRSS: `freshrss` (pure GReader parsing/mapping/category placement), `client` (HTTP), `apply` (results → `App`), `secret` (credential store) |
 | `src/storage.rs` | JSON persistence in the platform data dir, OPML import/export |
 | `src/saved_io.rs` | Saved-articles import/export as Google Reader starred JSON (interoperable with other readers) |
+| `src/pixel_mouse.rs` | Pixel-precise mouse reports → cells (+ fractional row) |
 | `src/fetch.rs` | Shared HTTP client, feed parsing, article extraction (`dom_smoothie`), update check |
 
 Key patterns:
@@ -39,6 +40,13 @@ Key patterns:
 - **Pixel mouse.** Where the terminal supports it, pointer reports arrive in pixels
   (`pixel_mouse.rs`); the input thread converts them to cells and passes the
   fractional row along for smooth scrollbar drags. Handlers only ever see cells.
+- **Images vs overlays.** Terminal images (`SlicedImage`) keep their escape sequence in
+  each image row's first cell: never draw on an image's cells. Anything drawn over the
+  article (toasts, link hints) pushes its rect to `app.hit.overlays`, so `main.rs`
+  repaints the images under it once it goes.
+- **Link hints** (`f` / `F`) label whatever is in `app.hit.article_links` /
+  `article_images` and act like the mouse click. New clickable article targets should
+  be recorded there to get hints too.
 - **Keys.** `handlers::handle_key` maps `j`/`k` to `↓`/`↑` everywhere except text
   inputs (`is_text_input`), so handlers only match arrows. The `?` popup's tables
   live in `ui/help.rs` — update them whenever a handler's keys change.

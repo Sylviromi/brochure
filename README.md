@@ -24,18 +24,18 @@ Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 ligh
 - **Zen mode** — distraction-free full-screen reading view that hides all chrome, configurable content width
 - **Inline images** — PNG, JPEG, and SVG images rendered directly in article content
 - **Categories** — organise feeds into collapsible groups (state remembered across restarts)
-- **Saved articles** — star any article and group saves by source
+- **Saved articles** — save any article into categories of your own
 - **OPML import/export** — bring your existing subscriptions in, or take them out
 - **Saved articles import/export** — starred-items JSON, the format FreshRSS, Inoreader and other readers use for their starred exports
 - **FreshRSS sync** — sync subscriptions, articles, and read/starred state with a FreshRSS server (grouped under a FreshRSS category)
 - **Mouse support** — click tabs, feeds, articles, settings, and links; scroll with the wheel; drag to copy text; drag and drop in the feed editor
+- **Link hints** — press `f` to label every link and image in an article, then type a label to open it (`F` copies it)
 - **Keybindings popup** — press `?` on any screen to see its keys
 - **Readability fetch** — pulls full article body when the feed only provides a summary
 - **Fetch policy** — choose when brochure refreshes: on start, every hour, every day, or never
 - **Feed editor** — rename, move, and delete feeds and categories without leaving the TUI
 - **Clipboard copy** — copy article or feed URLs with a single keypress
 - **Changelog viewer** — browse release notes from within the app
-- **Skeleton animation** — noise-pattern placeholder while articles and feeds load
 
 ## Keybindings
 
@@ -64,14 +64,15 @@ Built with [Ratatui](https://ratatui.rs) · 24 built-in themes (17 dark + 7 ligh
 | `z` | Zen mode — full-screen, distraction-free reading |
 | `O` | Open article in browser |
 | `C` | Copy article link (feed URL from the article list) |
+| `f` / `F` | Link hints: type a label to open / copy a link or image |
 | `n` / `p` | Next / previous article (zen mode) |
 | `PgDn` / `PgUp`, `Home` / `End` | Scroll the article |
 
 **Mouse:** click a tab, feed, category, article, or setting to select it; click the
 selected one again to open it (categories expand/collapse). The wheel scrolls whichever
 panel is under the pointer without moving focus, so you can scroll the sidebar while
-reading. Click a link in an article to open it in your browser, or drag over article text
-to copy it to the clipboard. In the feed editor, drag feeds and categories to move them
+reading. Click a link in an article to open it in your browser, click an image to view it full
+screen, or drag over article text to copy it to the clipboard. In the feed editor, drag feeds and categories to move them
 (drag a category sideways to change its nesting); release outside the panel to cancel.
 
 ## Installation
@@ -174,7 +175,11 @@ You can have any number of custom themes.
 
 Bug reports and feature requests are welcome — [open an issue](https://github.com/Sylviromi/brochure/issues/new).
 
-Pull requests are also welcome. Please run `cargo fmt && cargo clippy` before submitting.
+Pull requests are also welcome. Please run the same checks as CI before submitting:
+
+```bash
+cargo fmt && cargo clippy --all-features -- -D warnings && cargo test --all-features
+```
 
 ## License
 
