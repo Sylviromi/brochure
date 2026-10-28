@@ -308,6 +308,9 @@ pub struct UserData {
     /// Whether list navigation wraps around at the top/bottom (scrollbar loop).
     #[serde(default = "default_true")]
     pub scroll_loop: bool,
+    /// Whether lists leave out articles that are already read (applied when a list is built).
+    #[serde(default)]
+    pub hide_read: bool,
     /// Which category ids are collapsed in the sidebar (persisted).
     #[serde(default)]
     pub sidebar_collapsed: Vec<u64>,

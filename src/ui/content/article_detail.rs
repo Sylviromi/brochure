@@ -668,7 +668,7 @@ pub(super) fn draw_article_detail(
 
     // Determine if the current feed is being refreshed (shown as skeleton overlay).
     let feed_refreshing = !app.in_saved_context
-        && !app.in_category_context
+        && (!app.in_category_context || app.in_feed_view)
         && app.feeds.get(app.selected_feed).is_some_and(|f| !f.fetched);
 
     let block = content_block("", !is_preview, app.user_data.border_rounded, &app.theme);

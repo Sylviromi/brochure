@@ -56,8 +56,12 @@ impl App {
             Some(FeedTreeItem::AllFeeds) => self.populate_all_feeds_view(),
             Some(FeedTreeItem::Category { id, .. }) => self.populate_category_view(*id),
             Some(FeedTreeItem::Feed { feeds_idx, .. }) => {
-                self.selected_feed = *feeds_idx;
+                let feed_idx = *feeds_idx;
+                self.selected_feed = feed_idx;
                 self.clear_category_view();
+                if self.user_data.hide_read {
+                    self.populate_feed_view(feed_idx);
+                }
             }
             None => {}
         }
@@ -68,6 +72,59 @@ impl App {
         sidebar_tree_items(&self.categories, &self.feeds, &self.sidebar_collapsed)
     }
 
+    /// Turn "hide read articles" on or off and rebuild the list that is on screen. The
+    /// cursor stays on the same article when it is still listed.
+    pub fn toggle_hide_read(&mut self) {
+        self.user_data.hide_read = !self.user_data.hide_read;
+        let _ = save_user_data(&self.user_data);
+        let link = self.selected_article().map(|a| a.link.clone());
+        if !self.in_saved_context && self.selected_tab == Tab::Feeds {
+            match self.state {
+                AppState::ArticleList | AppState::ArticleDetail => {
+                    if self.in_category_context || self.selected_sidebar_category.is_some() {
+                        self.refresh_article_views();
+                    } else if self.user_data.hide_read {
+                        self.populate_feed_view(self.selected_feed);
+                    }
+                }
+                _ => self.sync_sidebar_preview(),
+            }
+        }
+        if let Some(link) = link
+            && let Some(idx) = self.article_position(&link)
+        {
+            self.selected_article = idx;
+        }
+        self.selected_article = self
+            .selected_article
+            .min(self.article_count().saturating_sub(1));
+        self.notify(if self.user_data.hide_read {
+            "Hiding read articles"
+        } else {
+            "Showing read articles"
+        });
+    }
+
+    /// Position of the article with this link in whichever list is active.
+    fn article_position(&self, link: &str) -> Option<usize> {
+        if self.in_category_context {
+            self.category_view_articles.iter().position(|&(fi, ai)| {
+                self.feeds
+                    .get(fi)
+                    .and_then(|f| f.articles.get(ai))
+                    .is_some_and(|a| a.link == link)
+            })
+        } else if self.in_saved_context {
+            self.saved_view_articles.iter().position(|a| a.link == link)
+        } else {
+            self.feeds
+                .get(self.selected_feed)?
+                .articles
+                .iter()
+                .position(|a| a.link == link)
+        }
+    }
+
     /// Re-derive the category / all-feeds article list after feed contents changed,
     /// so stale `(feed_idx, article_idx)` pairs never survive to a render frame.
     pub(crate) fn refresh_article_views(&mut self) {
@@ -75,6 +132,8 @@ impl App {
             self.populate_all_feeds_view();
         } else if let Some(cat_id) = self.selected_sidebar_category {
             self.populate_category_view(cat_id);
+        } else if self.in_feed_view {
+            self.populate_feed_view(self.selected_feed);
         }
     }
 
@@ -265,7 +324,15 @@ impl App {
                             self.notify(msg);
                             return;
                         }
-                        self.selected_feed = *feeds_idx;
+                        let feed_idx = *feeds_idx;
+                        self.selected_feed = feed_idx;
+                        if self.user_data.hide_read {
+                            self.populate_feed_view(feed_idx);
+                            if self.category_view_articles.is_empty() {
+                                self.notify("No unread articles in this feed");
+                                return;
+                            }
+                        }
                         self.state = AppState::ArticleList;
                         self.selected_article = 0;
                     }
@@ -304,6 +371,7 @@ impl App {
         self.category_view_articles.clear();
         self.in_category_context = false;
         self.in_all_feeds_context = false;
+        self.in_feed_view = false;
     }
 
     /// Populate `category_view_articles` with every article across all non-favorites feeds,
@@ -318,13 +386,36 @@ impl App {
         self.in_category_context = true;
     }
 
-    /// Fill `category_view_articles` with every article of `feed_indices`, newest first
-    /// (undated articles last), and clamp the article cursor to the new length.
+    /// Show a single feed through `category_view_articles`, so the list can leave out
+    /// read articles. Sets `in_category_context` and `in_feed_view`.
+    pub fn populate_feed_view(&mut self, feed_idx: usize) {
+        self.selected_sidebar_category = None;
+        self.in_all_feeds_context = false;
+        self.selected_feed = feed_idx;
+        self.in_feed_view = true;
+        self.set_category_view(vec![feed_idx]);
+        self.in_category_context = true;
+    }
+
+    /// Fill `category_view_articles` with every article of `feed_indices` (only the unread
+    /// ones while `hide_read` is on), newest first (undated articles last), and clamp the
+    /// article cursor to the new length.
+    ///
+    /// The list is a snapshot: an article marked read stays in it until the next rebuild
+    /// (a refresh, re-entering the list, or toggling `hide_read`).
     fn set_category_view(&mut self, feed_indices: Vec<usize>) {
         let feeds = &self.feeds;
+        let hide_read = self.user_data.hide_read;
         let mut pairs: Vec<(usize, usize)> = feed_indices
             .into_iter()
-            .flat_map(|fi| (0..feeds[fi].articles.len()).map(move |ai| (fi, ai)))
+            .flat_map(|fi| {
+                feeds[fi]
+                    .articles
+                    .iter()
+                    .enumerate()
+                    .filter(move |(_, a)| !(hide_read && a.is_read))
+                    .map(move |(ai, _)| (fi, ai))
+            })
             .collect();
         // `Reverse(Option)` puts `None` first, so sort on (has_date, date) descending.
         pairs.sort_by_key(|&(fi, ai)| {
