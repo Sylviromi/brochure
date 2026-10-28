@@ -152,11 +152,7 @@ pub async fn set_read(base_url: &str, auth: &str, item_id: &str, read: bool) -> 
 }
 
 /// Mark many items read with one write token, a batch of ids per request.
-pub async fn set_read_many(
-    base_url: &str,
-    auth: &str,
-    item_ids: &[String],
-) -> Result<(), String> {
+pub async fn set_read_many(base_url: &str, auth: &str, item_ids: &[String]) -> Result<(), String> {
     let token = fetch_token(base_url, auth).await?;
     for chunk in item_ids.chunks(EDIT_TAG_BATCH) {
         post_edit_tag(base_url, auth, &token, chunk, LABEL_READ, true).await?;
