@@ -10,7 +10,7 @@ repository = "https://github.com/Sylviromi/brochure"
 readme = "README.md"
 keywords = ["rss", "tui", "terminal", "reader", "atom"]
 categories = ["command-line-utilities"]
-exclude = ["CLAUDE.md"]
+exclude = ["AGENTS.md", "ARCHITECTURE.md"]
 
 [[bin]]
 name = "brochure"
