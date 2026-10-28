@@ -284,7 +284,7 @@ async fn article_render_is_cached_and_links_are_clickable() {
     app.update_available = None;
     with_test_feeds(&mut app);
     app.feeds[0].articles[0].content = format!(
-        "Read [the docs](https://docs.test) now.\n\n{}",
+        "Read [the docs](https://docs.test) now, by [me](#me).\n\n{}",
         "x".repeat(crate::models::CONTENT_STUB_MAX_LEN)
     );
     app.selected_feed = 0;
@@ -310,6 +310,13 @@ async fn article_render_is_cached_and_links_are_clickable() {
 
     let (rect, url) = app.hit.article_links.first().cloned().expect("link region");
     assert_eq!(url, "https://docs.test");
+    let anchor = &app.hit.article_links.last().expect("anchor region").1;
+    let page = &app.feeds[0].articles[0].link;
+    assert_eq!(
+        *anchor,
+        format!("{page}#me"),
+        "in-page anchor points at the article"
+    );
     assert_eq!(
         link_at(&app, rect.x, rect.y).as_deref(),
         Some("https://docs.test")
@@ -872,4 +879,41 @@ fn notification_settings_preview_a_full_stack() {
     let frame = terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
     let text: String = frame.buffer.content.iter().map(|c| c.symbol()).collect();
     assert!(!text.contains("27/40"));
+}
+
+#[tokio::test]
+async fn link_hints_badge_links_and_cancel_on_a_typo() {
+    use crossterm::event::{KeyCode, KeyEvent};
+    let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+    let key = |c| KeyEvent::new(KeyCode::Char(c), KeyModifiers::NONE);
+    let mut app = App::new();
+    app.update_available = None;
+    with_test_feeds(&mut app);
+    app.feeds[0].articles[0].content = format!(
+        "Read [the docs](https://docs.test) now.\n\n{}",
+        "x".repeat(crate::models::CONTENT_STUB_MAX_LEN)
+    );
+    app.clear_category_view();
+    app.state = AppState::ArticleList;
+    draw(&mut app);
+
+    crate::handlers::handle_key(&mut app, key('f'), &tx).await;
+    assert!(app.link_hints.is_some());
+    // Holding `f` repeats it; the repeats must not toggle or pick anything.
+    crate::handlers::handle_key(&mut app, key('f'), &tx).await;
+    assert!(app.link_hints.is_some(), "key repeat closed the hints");
+    let mut terminal = Terminal::new(TestBackend::new(140, 40)).unwrap();
+    terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+    let rect = app.hit.article_links[0].0;
+    let buf = terminal.backend().buffer();
+    assert_eq!(
+        buf[(rect.x - 1, rect.y)].symbol(),
+        "A",
+        "badge just before the link"
+    );
+    assert!(app.hit.overlays.len() >= 2, "badge and key bar recorded");
+
+    // `j` is a label letter here (no target has it), so it cancels instead of scrolling.
+    crate::handlers::handle_key(&mut app, key('j'), &tx).await;
+    assert!(app.link_hints.is_none());
 }

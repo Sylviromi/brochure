@@ -8,6 +8,7 @@ mod chrome;
 pub(crate) mod content;
 mod feed_editor;
 mod help;
+mod link_hints;
 mod popups;
 mod saved_category_editor;
 mod selection;
@@ -247,7 +248,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         help::draw_help_popup(f, app);
     }
     zoom::draw_zoom(f, app);
-    app.hit.toasts = toast::draw_toasts(f, app);
+    let toasts = toast::draw_toasts(f, app);
+    app.hit.overlays.extend(toasts);
 }
 
 /// Draw everything for the current state (tabs, panels, popups).

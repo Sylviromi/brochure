@@ -32,6 +32,8 @@ pub enum AppEvent {
         String,
         Option<limner::render_image::img_crate::DynamicImage>,
     ),
+    /// A background task's outcome to show as a toast.
+    Notify(String),
     /// A newer version of brochure is available on crates.io.
     UpdateAvailable(UpdateInfo),
     /// An article image was downloaded and decoded off the UI thread (`None` = unusable).

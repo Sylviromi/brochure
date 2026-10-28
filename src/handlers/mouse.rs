@@ -326,6 +326,7 @@ fn scroll_list(app: &mut App, target: ScrollTarget, rows: i32) {
 
 async fn click(app: &mut App, col: u16, row: u16, tx: &UnboundedSender<AppEvent>) -> bool {
     app.selection = None;
+    app.link_hints = None;
     if app.update_available.is_some() {
         // Clicking anywhere dismisses the update notice, like Esc.
         return press(app, KeyCode::Esc, tx).await;
@@ -605,7 +606,7 @@ fn link_at(app: &App, col: u16, row: u16) -> Option<String> {
 }
 
 /// Show image `url` full screen, downloading it again at full resolution.
-fn open_zoom(app: &mut App, url: String, tx: &UnboundedSender<AppEvent>) {
+pub(super) fn open_zoom(app: &mut App, url: String, tx: &UnboundedSender<AppEvent>) {
     crate::events::spawn_image_fetch(url.clone(), tx, AppEvent::ZoomImageDecoded);
     app.zoom = Some(crate::app::ImageZoom {
         url,
@@ -615,7 +616,7 @@ fn open_zoom(app: &mut App, url: String, tx: &UnboundedSender<AppEvent>) {
 }
 
 /// Open `url` in the default browser and report it in a toast.
-fn open_link(app: &mut App, url: &str) {
+pub(super) fn open_link(app: &mut App, url: &str) {
     match open::that(url) {
         Ok(()) => app.notify(format!("Opened: {url}")),
         Err(e) => app.notify(format!("⚠ Could not open link: {e}")),

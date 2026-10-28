@@ -34,22 +34,8 @@ pub(crate) fn copy_to_clipboard(text: &str) -> Option<&str> {
         ("tmux", &["load-buffer", "-"]),
         ("pbcopy", &[]),
     ];
-    for (prog, args) in &tools {
-        let Ok(mut child) = std::process::Command::new(*prog)
-            .args(*args)
-            .stdin(std::process::Stdio::piped())
-            .spawn()
-        else {
-            continue;
-        };
-        if let Some(mut stdin) = child.stdin.take() {
-            use std::io::Write;
-            let _ = stdin.write_all(text.as_bytes());
-        }
-        // stdin is dropped here, closing the pipe so the child can exit.
-        if child.wait().is_ok() {
-            return None;
-        }
+    if pipe_to_clipboard_tool(&tools, text.as_bytes()) {
+        return None;
     }
     // Last resort: arboard (fails in most non-graphical environments).
     if let Ok(mut c) = arboard::Clipboard::new()
@@ -58,6 +44,57 @@ pub(crate) fn copy_to_clipboard(text: &str) -> Option<&str> {
         return None;
     }
     Some(text)
+}
+
+/// Copy an image to the clipboard as PNG. Blocking (encodes and spawns processes).
+pub(crate) fn copy_image_to_clipboard(
+    image: &limner::render_image::img_crate::DynamicImage,
+) -> Result<(), String> {
+    use limner::render_image::img_crate::ImageFormat;
+    let mut png = std::io::Cursor::new(Vec::new());
+    image
+        .write_to(&mut png, ImageFormat::Png)
+        .map_err(|e| e.to_string())?;
+    let tools: [(&str, &[&str]); 2] = [
+        ("wl-copy", &["--type", "image/png"]),
+        ("xclip", &["-selection", "clipboard", "-t", "image/png"]),
+    ];
+    if pipe_to_clipboard_tool(&tools, png.get_ref()) {
+        return Ok(());
+    }
+    let rgba = image.to_rgba8();
+    arboard::Clipboard::new()
+        .and_then(|mut c| {
+            c.set_image(arboard::ImageData {
+                width: rgba.width() as usize,
+                height: rgba.height() as usize,
+                bytes: rgba.as_raw().into(),
+            })
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// Feed `data` to the first clipboard tool that is installed and succeeds.
+fn pipe_to_clipboard_tool(tools: &[(&str, &[&str])], data: &[u8]) -> bool {
+    for (prog, args) in tools {
+        let Ok(mut child) = std::process::Command::new(prog)
+            .args(*args)
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+        else {
+            continue;
+        };
+        if let Some(mut stdin) = child.stdin.take() {
+            use std::io::Write;
+            let _ = stdin.write_all(data);
+        }
+        // stdin is dropped here, closing the pipe so the child can exit. A tool that
+        // runs but can't reach a clipboard (wl-copy under X11) exits non-zero.
+        if child.wait().is_ok_and(|s| s.success()) {
+            return true;
+        }
+    }
+    false
 }
 
 use crate::{

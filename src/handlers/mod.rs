@@ -8,6 +8,7 @@ mod changelog;
 mod feed_editor;
 mod feed_list;
 mod freshrss;
+mod link_hints;
 pub(crate) mod mouse;
 mod saved_category_editor;
 mod settings;
@@ -79,6 +80,11 @@ pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEv
     if app.zoom.take().is_some() {
         return false; // any key closes the zoomed image
     }
+    // Before the j/k remap: they are label letters here.
+    if app.link_hints.is_some() {
+        link_hints::handle_key(app, key, tx);
+        return false;
+    }
 
     // Outside text fields, j/k always mean ↓/↑ so every list and view agrees.
     let mut key = key;
@@ -93,14 +99,20 @@ pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEv
         handle_help(app, key);
         return false;
     }
-    if key.code == KeyCode::Char('?')
-        && !is_text_input(app)
+    let global_keys = !is_text_input(app)
         && app.update_available.is_none()
-        && app.feed_editor.delete_cat.is_none()
-    {
-        app.help_open = true;
-        app.help_scroll = 0;
-        return false;
+        && app.feed_editor.delete_cat.is_none();
+    match key.code {
+        KeyCode::Char('?') if global_keys => {
+            app.help_open = true;
+            app.help_scroll = 0;
+            return false;
+        }
+        KeyCode::Char(c @ ('f' | 'F')) if global_keys => {
+            link_hints::start(app, c == 'F');
+            return false;
+        }
+        _ => {}
     }
     if app.zen_mode {
         return handle_zen_mode(app, key);

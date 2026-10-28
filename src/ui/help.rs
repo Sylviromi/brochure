@@ -1,5 +1,4 @@
-//! Keybindings popup (`?`): the keys for the current screen, then global keys and
-//! mouse actions.
+//! Keybindings popup (`?`): the keys for the current screen, then global keys.
 //!
 //! Keep these tables in sync with `src/handlers/` — they are the user-facing
 //! reference. `j`/`k` are translated to `↓`/`↑` for every non-text-input screen in
@@ -141,8 +140,10 @@ const THEME_COLORS: Keys = &[
 const THEME_NEW: Keys = &[
     ("j/k ↑/↓", "Choose a theme to copy"),
     ("Enter", "Create custom theme from it"),
-    ("Esc", "Cancel"),
+    ("Esc / q", "Cancel"),
 ];
+
+const CONFIRM: Keys = &[("Enter", "Confirm"), ("Esc / q", "Cancel")];
 
 const PICKER: Keys = &[
     ("j/k ↑/↓", "Move selection"),
@@ -155,20 +156,10 @@ const GLOBAL: Keys = &[
         "Tab/Shift+Tab",
         "Switch tabs (from sidebars, Settings, Changelog)",
     ),
+    ("f", "Link hints: open a link / image in the article"),
+    ("F", "Link hints: copy a link / image"),
     ("?", "Show / hide this help"),
     ("q", "Quit (from any list)"),
-];
-
-const MOUSE: Keys = &[
-    ("Click", "Select tab, row, or setting"),
-    ("Click again", "Open it (categories expand / collapse)"),
-    ("Wheel", "Scroll the panel under the pointer"),
-    ("Click a link", "Open it in the browser"),
-    ("Click an image", "View it full screen"),
-    ("Drag over text", "Select and copy to clipboard"),
-    ("Drag in editor", "Move feeds / categories"),
-    ("Drag a list", "Scroll it line by line"),
-    ("Drag scrollbar", "Scroll; click its track to page"),
 ];
 
 /// `(title, bindings)` for the screen the user is on.
@@ -195,16 +186,19 @@ fn screen_keys(app: &App) -> (&'static str, Keys) {
         AppState::ThemeEditorNew => ("New theme", THEME_NEW),
         AppState::ThemeEditorColorEdit => ("Theme colours", THEME_COLORS),
         AppState::CategoryPicker => ("Save article", PICKER),
+        AppState::ClearData
+        | AppState::ClearArticleCache
+        | AppState::SavedCategoryEditorDeleteConfirm => ("Confirm", CONFIRM),
         _ => ("This screen", &[]),
     }
 }
 
-/// All help lines: this screen first, then global keys and mouse.
+/// All help lines: this screen first, then global keys.
 fn help_lines(app: &App) -> Vec<Line<'static>> {
     let theme = &app.theme;
     let (title, keys) = screen_keys(app);
     let mut lines = Vec::new();
-    for (heading, keys) in [(title, keys), ("Everywhere", GLOBAL), ("Mouse", MOUSE)] {
+    for (heading, keys) in [(title, keys), ("Everywhere", GLOBAL)] {
         if keys.is_empty() {
             continue;
         }

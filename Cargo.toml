@@ -36,7 +36,7 @@ ratatui-image = { version = "11", default-features = false, features = ["crosste
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 # No system fonts / text shaping: ~35 fewer crates. SVG <text> is rarely used in feed images.
 resvg = { version = "0.47", default-features = false }
-arboard = { version = "3", default-features = false }
+arboard = { version = "3", default-features = false, features = ["image-data"] }
 tui-scrollbar = { version = "0.2.4", features = ["crossterm"] }
 tui-skeleton = "0.3"
 keyring = { version = "3", optional = true, features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }

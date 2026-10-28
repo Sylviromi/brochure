@@ -310,6 +310,27 @@ pub fn spawn_image_fetch(
     });
 }
 
+/// Download image `url` at full size and put it on the clipboard, reporting in a toast.
+pub fn spawn_image_copy(url: String, tx: &UnboundedSender<AppEvent>) {
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        let msg = match crate::fetch::fetch_image(&url).await {
+            Ok(bytes) => tokio::task::spawn_blocking(move || {
+                let image = decode_image(&bytes, &url).ok_or("unsupported format")?;
+                crate::handlers::article::copy_image_to_clipboard(&image)
+            })
+            .await
+            .map_err(|e| e.to_string())
+            .flatten(),
+            Err(e) => Err(e),
+        };
+        let _ = tx.send(AppEvent::Notify(match msg {
+            Ok(()) => "✓ Copied image".to_string(),
+            Err(e) => format!("⚠ Could not copy image: {e}"),
+        }));
+    });
+}
+
 /// Show a decoded zoom image, if that image is still the one being zoomed.
 pub fn on_zoom_image(app: &mut App, url: String, image: Option<DynamicImage>) {
     let Some(zoom) = app.zoom.as_mut().filter(|z| z.url == url) else {

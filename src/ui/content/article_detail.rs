@@ -825,12 +825,19 @@ pub(crate) fn render_article_content(
     };
     f.render_widget(paragraph, para_render_area);
     if let Some(cached) = &app.article_render {
-        let regions = link_regions(
+        let mut regions = link_regions(
             f.buffer_mut(),
             para_render_area,
             app.theme.link,
             &cached.links,
         );
+        // In-page anchors (`#me`) mean nothing outside the page: point them at the article.
+        let page = article.link.split('#').next().unwrap_or_default();
+        for (_, url) in regions.iter_mut() {
+            if url.starts_with('#') && !page.is_empty() {
+                *url = format!("{page}{url}");
+            }
+        }
         app.hit.article_links = regions;
     }
 
@@ -882,6 +889,7 @@ pub(crate) fn render_article_content(
         );
         selection::capture(app, &doc, first);
     }
+    crate::ui::link_hints::draw(f, app, para_render_area);
 
     if has_scrollbar && !hide_scrollbar {
         let bar_area = Rect {

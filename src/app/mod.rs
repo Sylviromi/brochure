@@ -184,6 +184,8 @@ pub struct App {
     pub picker: Option<limner::render_image::Picker>,
     /// Image open full screen (clicked in an article), if any.
     pub zoom: Option<ImageZoom>,
+    /// Keyboard link hints shown over the article (`f` / `F`), if active.
+    pub link_hints: Option<crate::state::LinkHints>,
     /// Image metadata from the latest markdown render.
     pub article_images: Vec<limner::ImageInfo>,
     /// Cached markdown render of the article on screen (see `ArticleRender`).
@@ -371,6 +373,7 @@ impl App {
             image_pending: HashSet::new(),
             protocol_cache: HashMap::new(),
             zoom: None,
+            link_hints: None,
             picker: None,
             article_images: Vec::new(),
             article_render: None,

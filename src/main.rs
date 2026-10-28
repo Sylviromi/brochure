@@ -177,18 +177,18 @@ async fn run(
     app.picker = Some(detect_image_picker());
     spawn_input_thread(tx.clone(), pixel_reports);
 
-    let mut toast_rects = Vec::new();
+    let mut overlays = Vec::new();
     'main: loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;
-        // Terminal images aren't redrawn by the cell diff, so a toast that moved off one
+        // Terminal images aren't redrawn by the cell diff, so an overlay that moved off one
         // would leave its marks behind. Blanking the last frame makes the next draw resend
         // every cell over the screen as it is (no clear, so no flash).
         let images_shown = !app.hit.article_images.is_empty() || app.zoom.is_some();
-        if images_shown && toast_rects.iter().any(|r| !app.hit.toasts.contains(r)) {
+        if images_shown && overlays.iter().any(|r| !app.hit.overlays.contains(r)) {
             terminal.swap_buffers();
             terminal.draw(|f| ui::draw(f, &mut app))?;
         }
-        toast_rects = std::mem::take(&mut app.hit.toasts);
+        overlays = std::mem::take(&mut app.hit.overlays);
         handlers::mouse::finish_selection_copy(&mut app);
 
         let Some(event) = rx.recv().await else { break };
@@ -244,6 +244,7 @@ async fn handle_event(
         }
         AppEvent::ImageDecoded(url, image) => events::on_image_decoded(app, url, image),
         AppEvent::ZoomImageDecoded(url, image) => events::on_zoom_image(app, url, image),
+        AppEvent::Notify(msg) => app.notify(msg),
         AppEvent::FullArticleFetched(source, art_idx, link, result) => {
             events::on_full_article_fetched(app, source, art_idx, &link, result);
         }
