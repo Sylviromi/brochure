@@ -230,9 +230,9 @@ async fn handle_event(
         AppEvent::Tick => app.tick = app.tick.wrapping_add(1),
         AppEvent::FeedFetched(idx, result) => events::on_feed_fetched(app, idx, result),
         AppEvent::FreshRssFeedPulled(idx, result) => {
-            sync::apply::on_freshrss_feed_pulled(app, idx, result);
+            sync::apply::on_freshrss_feed_pulled(app, idx, result, tx);
         }
-        AppEvent::FreshRssSynced(result) => sync::apply::on_freshrss_synced(app, result),
+        AppEvent::FreshRssSynced(result) => sync::apply::on_freshrss_synced(app, result, tx),
         AppEvent::FreshRssPushDone(result) => {
             if let Err(e) = result {
                 app.notify(format!("⚠ FreshRSS push failed: {e}"));
