@@ -125,7 +125,10 @@ pub(super) async fn handle_article(
                 arm_mark_all_read(app);
             }
         }
-        KeyCode::Char('r') if !app.in_saved_context && !app.in_category_context => {
+        KeyCode::Char('H') if app.state == AppState::ArticleList => app.toggle_hide_read(),
+        KeyCode::Char('r')
+            if !app.in_saved_context && (!app.in_category_context || app.in_feed_view) =>
+        {
             app.refresh_feed_at(app.selected_feed, tx);
         }
         KeyCode::Down => {
@@ -513,5 +516,49 @@ mod tests {
         let mut app = app_with_articles(&[true, true]);
         arm_mark_all_read(&mut app);
         assert!(!app.mark_all_armed);
+    }
+
+    #[test]
+    fn feed_view_leaves_out_read_articles_only_when_hiding() {
+        let mut app = app_with_articles(&[false, true, false]);
+        app.user_data.hide_read = true;
+        app.populate_feed_view(0);
+        assert_eq!(app.category_view_articles, vec![(0, 0), (0, 2)]);
+        app.user_data.hide_read = false;
+        app.populate_feed_view(0);
+        assert_eq!(app.category_view_articles.len(), 3);
+    }
+
+    #[test]
+    fn article_marked_read_stays_listed_until_the_view_is_rebuilt() {
+        let mut app = app_with_articles(&[false, false]);
+        app.user_data.hide_read = true;
+        app.populate_feed_view(0);
+        app.feeds[0].articles[0].is_read = true;
+        assert_eq!(app.category_view_articles.len(), 2);
+        app.refresh_article_views();
+        assert_eq!(app.category_view_articles, vec![(0, 1)]);
+    }
+
+    #[test]
+    fn feed_view_draws_with_its_feed_title() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let mut app = app_with_articles(&[false, true, false]);
+        app.update_available = None;
+        app.user_data.hide_read = true;
+        app.populate_feed_view(0);
+        app.state = AppState::ArticleList;
+        let mut terminal = Terminal::new(TestBackend::new(140, 40)).unwrap();
+        terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();
+        let screen: String = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(|c| c.symbol())
+            .collect();
+        assert!(screen.contains("Articles: Feed"));
+        assert!(screen.contains("Article 0") && screen.contains("Article 2"));
+        assert!(!screen.contains("Article 1"));
     }
 }

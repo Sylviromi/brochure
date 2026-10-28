@@ -143,6 +143,8 @@ pub struct App {
     pub in_category_context: bool,
     /// True when `category_view_articles` holds all-feeds content rather than a real category.
     pub in_all_feeds_context: bool,
+    /// True when `category_view_articles` holds a single feed (used while hiding read articles).
+    pub in_feed_view: bool,
 
     // ── Cache ────────────────────────────────────────────────────────────────
     /// Byte size of articles.json; refreshed at startup and after cache clear.
@@ -360,6 +362,7 @@ impl App {
             category_view_articles: Vec::new(),
             in_category_context: false,
             in_all_feeds_context: false,
+            in_feed_view: false,
             article_cache_size: article_cache_size(),
             feed_editor: FeedEditorState {
                 cursor: initial_editor_cursor,

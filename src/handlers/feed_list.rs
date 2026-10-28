@@ -45,6 +45,7 @@ pub(super) fn handle_feed_list(
         KeyCode::Char('R') if !app.in_saved_context => {
             refresh_all_feeds(app, tx);
         }
+        KeyCode::Char('H') => app.toggle_hide_read(),
         KeyCode::Down => app.next(),
         KeyCode::Up => app.previous(),
         KeyCode::Tab => app.switch_tab_right(),

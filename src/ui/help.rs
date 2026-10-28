@@ -28,6 +28,7 @@ const FEED_LIST: Keys = &[
     ("g", "Jump to top"),
     ("r", "Refresh selection (feed, category, or all)"),
     ("R", "Refresh all feeds (and FreshRSS)"),
+    ("H", "Hide / show read articles"),
     ("y", "Copy feed URL"),
     ("e", "Open feed editor"),
 ];
@@ -37,6 +38,7 @@ const ARTICLE_LIST: Keys = &[
     ("Enter", "Read article"),
     ("m", "Toggle read / unread (next after read)"),
     ("A A", "Mark all articles in the list as read"),
+    ("H", "Hide / show read articles"),
     ("s", "Save to category / unsave"),
     ("O", "Open article in browser"),
     ("C", "Copy feed URL (article link in Saved)"),
