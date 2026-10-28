@@ -105,9 +105,10 @@ pub(super) fn draw_article_list(f: &mut Frame, app: &mut App, area: Rect, show_f
         let cat_name: String = if app.in_all_feeds_context {
             "🞴 All Feeds".to_string()
         } else if app.in_feed_view {
-            app.feeds
-                .get(app.selected_feed)
-                .map_or_else(|| "Articles".to_string(), |f| format!("Articles: {}", f.title))
+            app.feeds.get(app.selected_feed).map_or_else(
+                || "Articles".to_string(),
+                |f| format!("Articles: {}", f.title),
+            )
         } else {
             app.selected_sidebar_category
                 .and_then(|id| app.categories.iter().find(|c| c.id == id))
