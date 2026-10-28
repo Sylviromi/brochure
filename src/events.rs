@@ -92,11 +92,12 @@ pub fn on_feed_fetched(
     let user_data = &app.user_data;
     let saved = saved_links(&user_data.saved_articles);
 
-    // Preserve existing article content across feed refreshes.
+    // Preserve existing article content across feed refreshes, except binary garbage
+    // saved by older versions.
     let preserved: HashMap<&str, &str> = feed
         .articles
         .iter()
-        .filter(|a| !a.content.is_empty())
+        .filter(|a| !a.content.is_empty() && !crate::fetch::looks_binary(&a.content))
         .map(|a| (a.link.as_str(), a.content.as_str()))
         .collect();
     for art in &mut articles {

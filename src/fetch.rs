@@ -45,6 +45,11 @@ const MAX_CONCURRENT_FETCHES: usize = 6;
 /// Shared HTTP GET → bytes helper. Used by all fetch functions to avoid repeating the
 /// send/bytes/error chain.
 async fn http_get_bytes(url: &str) -> Result<Vec<u8>, String> {
+    read_body(http_get(url).await?).await
+}
+
+/// Send a GET, failing on non-success statuses (the body is left unread).
+async fn http_get(url: &str) -> Result<reqwest::Response, String> {
     let resp = http_client()
         .get(url)
         .header("Accept-Language", "en-US,en;q=0.9")
@@ -52,11 +57,25 @@ async fn http_get_bytes(url: &str) -> Result<Vec<u8>, String> {
         .await
         .map_err(|e| format!("Network error: {e}"))?;
     let status = resp.status();
-    let body = resp.bytes().await.map_err(|e| e.to_string())?.to_vec();
     if !status.is_success() {
         return Err(format!("HTTP {status}"));
     }
-    Ok(body)
+    Ok(resp)
+}
+
+async fn read_body(resp: reqwest::Response) -> Result<Vec<u8>, String> {
+    Ok(resp.bytes().await.map_err(|e| e.to_string())?.to_vec())
+}
+
+/// True for text decoded from a binary file (PDF, image…): mostly replacement and
+/// control characters rather than prose.
+pub(crate) fn looks_binary(text: &str) -> bool {
+    let sample: Vec<char> = text.chars().take(2048).collect();
+    let junk = sample
+        .iter()
+        .filter(|&&c| c == '\u{FFFD}' || (c.is_control() && !c.is_whitespace()))
+        .count();
+    junk * 10 > sample.len()
 }
 
 /// Fetch bytes with an RSS-specific Accept header and challenge-page detection,
@@ -373,14 +392,31 @@ pub(crate) fn html_to_markdown(html: &str) -> String {
 ///
 /// Extraction and conversion are CPU-bound, so they run on the blocking pool.
 pub async fn fetch_readable_content(url: &str) -> Result<String, String> {
-    let bytes = http_get_bytes(url).await?;
+    let resp = http_get(url).await?;
+    let kind = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.split(';').next().unwrap_or(v).trim().to_string());
+    if let Some(kind) = kind.filter(|k| !k.contains("html") && !k.is_empty()) {
+        return Err(format!("not a web page ({kind}), press O to open it"));
+    }
+    let bytes = read_body(resp).await?;
     let url = url.to_string();
     tokio::task::spawn_blocking(move || {
         let html = String::from_utf8_lossy(&bytes);
         dom_smoothie::Readability::new(html.as_ref(), Some(&url), None)
             .and_then(|mut r| r.parse())
-            .map(|article| html_to_markdown(&article.content))
             .map_err(|e| format!("Readability error: {e}"))
+            .map(|article| html_to_markdown(&article.content))
+            .and_then(|md| {
+                // A server that mislabels a binary file as HTML.
+                if looks_binary(&md) {
+                    Err("not a web page, press O to open it".to_string())
+                } else {
+                    Ok(md)
+                }
+            })
     })
     .await
     .map_err(|e| format!("Readability error: {e}"))?
@@ -529,4 +565,21 @@ pub async fn fetch_image(url: &str) -> Result<Vec<u8>, String> {
         return Err(format!("skipping non-HTTP URL: {url}"));
     }
     http_get_bytes(&resolved).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::looks_binary;
+
+    #[test]
+    fn binary_text_is_told_apart_from_prose() {
+        let pdf = String::from_utf8_lossy(
+            b"%PDF-1.3\n%\xe2\xe3\xcf\xd3\n\x01\x8f\x9a\x02\xff\xfe stream",
+        );
+        assert!(looks_binary(&pdf));
+        assert!(!looks_binary(
+            "Plain prose with an odd \u{FFFD} in it, and a tab\there."
+        ));
+        assert!(!looks_binary(""));
+    }
 }
