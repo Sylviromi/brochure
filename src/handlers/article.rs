@@ -4,6 +4,7 @@
 //! toggling, star/save, opening in a browser, and the save-to-category flow.
 
 use crossterm::event::{KeyCode, KeyEvent};
+use std::collections::HashSet;
 use tokio::sync::mpsc::UnboundedSender;
 
 /// Copy text to the clipboard and notify with (a truncated copy of) it.
@@ -114,8 +115,16 @@ pub(super) async fn handle_article(
     key: KeyEvent,
     tx: &UnboundedSender<AppEvent>,
 ) -> bool {
+    let mark_all_armed = std::mem::take(&mut app.mark_all_armed);
     match key.code {
         KeyCode::Char('q') => return true,
+        KeyCode::Char('A') if app.state == AppState::ArticleList => {
+            if mark_all_armed {
+                mark_all_read(app, tx);
+            } else {
+                arm_mark_all_read(app);
+            }
+        }
         KeyCode::Char('r') if !app.in_saved_context && !app.in_category_context => {
             app.refresh_feed_at(app.selected_feed, tx);
         }
@@ -249,6 +258,74 @@ fn mark_article_as_read(app: &mut App, tx: &UnboundedSender<AppEvent>, article: 
     }
 }
 
+/// Links of the unread articles in whichever list is active.
+fn unread_links_in_view(app: &App) -> HashSet<String> {
+    let articles: Vec<&Article> = if app.in_category_context {
+        app.category_view_articles
+            .iter()
+            .filter_map(|&(fi, ai)| app.feeds.get(fi)?.articles.get(ai))
+            .collect()
+    } else if app.in_saved_context {
+        app.saved_view_articles.iter().collect()
+    } else {
+        app.feeds
+            .get(app.selected_feed)
+            .map_or_else(Vec::new, |f| f.articles.iter().collect())
+    };
+    articles
+        .into_iter()
+        .filter(|a| !a.is_read)
+        .map(|a| a.link.clone())
+        .collect()
+}
+
+/// First `A`: say how many articles are about to be marked and wait for a second `A`.
+fn arm_mark_all_read(app: &mut App) {
+    let count = unread_links_in_view(app).len();
+    if count == 0 {
+        app.notify("No unread articles in this list");
+        return;
+    }
+    app.mark_all_armed = true;
+    app.notify(format!("Press A again to mark {count} articles as read"));
+}
+
+/// Marks every unread article in the active list as read, persists it, and pushes it to
+/// FreshRSS in one batch.
+fn mark_all_read(app: &mut App, tx: &UnboundedSender<AppEvent>) {
+    let links = unread_links_in_view(app);
+    if links.is_empty() {
+        return;
+    }
+    let mut remote_ids = Vec::new();
+    for feed in app.feeds.iter_mut() {
+        for article in feed.articles.iter_mut().filter(|a| links.contains(&a.link)) {
+            article.is_read = true;
+            remote_ids.extend(article.remote_id.clone());
+        }
+        feed.unread_count = feed.articles.iter().filter(|a| !a.is_read).count();
+    }
+    let in_links = |a: &&mut Article| links.contains(&a.link);
+    for article in app.saved_view_articles.iter_mut().filter(in_links) {
+        article.is_read = true;
+    }
+    for saved in app
+        .user_data
+        .saved_articles
+        .iter_mut()
+        .filter(|s| links.contains(&s.article.link))
+    {
+        saved.article.is_read = true;
+    }
+    let count = links.len();
+    app.user_data.read_links.extend(links);
+    let _ = save_user_data(&app.user_data);
+    remote_ids.sort();
+    remote_ids.dedup();
+    app.push_read_many(remote_ids, tx);
+    app.notify(format!("✓ Marked {count} articles as read"));
+}
+
 /// Toggles the read/unread state of the currently selected article and persists the change.
 ///
 /// Returns the new read state, or `None` when there is no article to toggle.
@@ -366,4 +443,63 @@ pub(crate) fn prefetch_article_if_stub(app: &mut App, tx: &UnboundedSender<AppEv
         let result = fetch_readable_content(&link).await;
         let _ = tx.send(AppEvent::FullArticleFetched(source, art_idx, link, result));
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::Feed;
+
+    /// One local feed with `read` flags per article. Nothing here saves to disk.
+    fn app_with_articles(read: &[bool]) -> App {
+        let mut app = App::new();
+        app.in_category_context = false;
+        app.in_saved_context = false;
+        let mut feed = Feed::new_local("Feed".into(), "f0".into(), None, 0);
+        feed.articles = read
+            .iter()
+            .enumerate()
+            .map(|(n, &is_read)| Article {
+                title: format!("Article {n}"),
+                description: String::new(),
+                link: format!("https://example.test/{n}"),
+                is_read,
+                is_saved: false,
+                content: String::new(),
+                images: vec![],
+                source_feed: String::new(),
+                remote_id: None,
+                published_secs: Some(1_000 - n as i64),
+                is_archived: false,
+                error: None,
+            })
+            .collect();
+        app.feeds = vec![feed];
+        app.selected_feed = 0;
+        app
+    }
+
+    #[test]
+    fn unread_links_skip_read_articles() {
+        let app = app_with_articles(&[false, true, false]);
+        let links = unread_links_in_view(&app);
+        assert_eq!(links.len(), 2);
+        assert!(links.contains("https://example.test/0"));
+        assert!(!links.contains("https://example.test/1"));
+    }
+
+    #[test]
+    fn first_a_only_arms() {
+        let mut app = app_with_articles(&[false, false]);
+        arm_mark_all_read(&mut app);
+        assert!(app.mark_all_armed);
+        assert!(app.feeds[0].articles.iter().all(|a| !a.is_read));
+    }
+
+    #[test]
+    fn nothing_to_arm_when_all_read() {
+        let mut app = app_with_articles(&[true, true]);
+        arm_mark_all_read(&mut app);
+        assert!(!app.mark_all_armed);
+    }
 }

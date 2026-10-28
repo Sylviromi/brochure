@@ -132,6 +132,27 @@ impl App {
         self.spawn_freshrss_push(remote_id, PushKind::Read(is_read), tx);
     }
 
+    /// Push many read changes to FreshRSS with one login and one write token.
+    /// No-op when `remote_ids` is empty or no server is configured.
+    pub fn push_read_many(&self, remote_ids: Vec<String>, tx: &Tx) {
+        if remote_ids.is_empty() {
+            return;
+        }
+        let Some(creds) = self.freshrss_creds() else {
+            return;
+        };
+        let cached = self.freshrss_auth.clone();
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            let result = async {
+                let auth = creds.auth(cached).await?;
+                client::set_read_many(&creds.base_url, &auth, &remote_ids).await
+            }
+            .await;
+            let _ = tx.send(AppEvent::FreshRssPushDone(result));
+        });
+    }
+
     /// Push one star/unstar change to FreshRSS (local saves map to server stars).
     /// No-op for local articles or when no server is configured.
     pub fn push_star_state(&self, remote_id: Option<String>, starred: bool, tx: &Tx) {

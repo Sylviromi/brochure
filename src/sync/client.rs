@@ -16,6 +16,8 @@ const PAGE_SIZE: u32 = 100;
 const MAX_PAGES_PER_FEED: u32 = 5;
 /// Feeds pulled in parallel during a full sync.
 const SYNC_CONCURRENCY: usize = 4;
+/// Items tagged per `edit-tag` request when marking many articles at once.
+const EDIT_TAG_BATCH: usize = 100;
 
 /// Everything pulled by [`sync_all`]: subscriptions plus articles per server feed id.
 #[derive(Debug, Clone)]
@@ -149,6 +151,19 @@ pub async fn set_read(base_url: &str, auth: &str, item_id: &str, read: bool) -> 
     edit_tag(base_url, auth, item_id, LABEL_READ, read).await
 }
 
+/// Mark many items read with one write token, a batch of ids per request.
+pub async fn set_read_many(
+    base_url: &str,
+    auth: &str,
+    item_ids: &[String],
+) -> Result<(), String> {
+    let token = fetch_token(base_url, auth).await?;
+    for chunk in item_ids.chunks(EDIT_TAG_BATCH) {
+        post_edit_tag(base_url, auth, &token, chunk, LABEL_READ, true).await?;
+    }
+    Ok(())
+}
+
 /// Star (`starred == true`) or unstar one item.
 pub async fn set_starred(
     base_url: &str,
@@ -167,14 +182,29 @@ async fn edit_tag(
     add: bool,
 ) -> Result<(), String> {
     let token = fetch_token(base_url, auth).await?;
+    post_edit_tag(base_url, auth, &token, &[item_id.to_string()], label, add).await
+}
+
+/// POST one `edit-tag` request that adds or removes `label` on every id in `item_ids`.
+async fn post_edit_tag(
+    base_url: &str,
+    auth: &str,
+    token: &str,
+    item_ids: &[String],
+    label: &str,
+    add: bool,
+) -> Result<(), String> {
     let op = if add { 'a' } else { 'r' };
-    let body = format!(
-        "i={}&{}={}&T={}",
-        form_encode(item_id),
+    let mut body = String::new();
+    for id in item_ids {
+        body.push_str(&format!("i={}&", form_encode(id)));
+    }
+    body.push_str(&format!(
+        "{}={}&T={}",
         op,
         form_encode(label),
-        form_encode(&token)
-    );
+        form_encode(token)
+    ));
     let url = format!("{base_url}/reader/api/0/edit-tag");
     let resp = http_client()
         .post(&url)
