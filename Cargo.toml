@@ -10,7 +10,7 @@ repository = "https://github.com/Sylviromi/brochure"
 readme = "README.md"
 keywords = ["rss", "tui", "terminal", "reader", "atom"]
 categories = ["command-line-utilities"]
-exclude = ["CLAUDE.md"]
+exclude = ["AGENTS.md", "ARCHITECTURE.md"]
 
 [[bin]]
 name = "brochure"
@@ -31,7 +31,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 toml = "0.8"
 tokio = { version = "1.50.0", features = ["rt-multi-thread", "macros", "sync", "time"] }
-limner = { version = "0.6.1", features = ["image-protocol", "syntax-highlighting"] }
+limner = { version = "0.8.0", features = ["image-protocol", "syntax-highlighting"] }
 ratatui-image = { version = "11", default-features = false, features = ["crossterm"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 # No system fonts / text shaping: ~35 fewer crates. SVG <text> is rarely used in feed images.

@@ -47,6 +47,7 @@ fn base_md_style(theme: &crate::ui::theme::ColorTheme) -> MarkdownStyle {
         table_header: Style::new().fg(theme.accent).bold(),
         link: Style::new().fg(theme.link).underlined(),
         link_prefix: "",
+        link_formatter: None,
         quote: Style::new().fg(theme.muted),
         quote_alignment: Alignment::Left,
         quote_indicator: "▍ ",
@@ -54,6 +55,7 @@ fn base_md_style(theme: &crate::ui::theme::ColorTheme) -> MarkdownStyle {
             .fg(theme.muted)
             .add_modifier(Modifier::ITALIC | Modifier::DIM),
         image_prefix: "📷 ",
+        image_formatter: None,
         list_bullet: "• ",
         ordered_template: "{}. ",
         hr_char: '─',

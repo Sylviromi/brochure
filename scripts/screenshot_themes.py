@@ -16,7 +16,9 @@ Usage (from repo root):
     python3 scripts/screenshot_themes.py [view ...]
 
 Requires: vhs on PATH, a built release binary at target/release/brochure,
-and a populated brochure data dir (~/.local/share/brochure).
+and a populated brochure data dir ($XDG_DATA_HOME/brochure, default
+~/.local/share/brochure). It switches themes and marks articles read, so run it
+on a copy: XDG_DATA_HOME=/tmp/brochure-shots python3 scripts/screenshot_themes.py
 """
 import json
 import os
@@ -33,7 +35,8 @@ if subprocess.run(['which', VHS], capture_output=True).returncode != 0:
             VHS = p
             break
 
-DATA_DIR = os.path.expanduser('~/.local/share/brochure')
+# Same lookup as the app on Linux, so XDG_DATA_HOME can point at a throwaway copy.
+DATA_DIR = os.path.join(os.path.expanduser(os.environ.get('XDG_DATA_HOME', '~/.local/share')), 'brochure')
 USER_DATA = os.path.join(DATA_DIR, 'user_data.json')
 OUT_DIR = 'vhs/screenshots'
 
@@ -57,13 +60,17 @@ Sleep 3s
 Sleep 1s
 """
 
+# Articles to step past before opening one in the main/zen views, so the shot
+# isn't stuck with whatever happens to be newest (e.g. SHOT_ARTICLE=11).
+PICK = 'Down\nSleep 0.3s\n' * int(os.environ.get('SHOT_ARTICLE', '0'))
+
 # (view, theme, key commands, description)
 VIEWS = [
-    ('main', 'catppuccin-mocha', 'Enter\nSleep 1s\nEnter\nSleep 1s\nEnter\nSleep 3s\n',
+    ('main', 'catppuccin-mocha', 'Enter\nSleep 1s\n' + PICK + 'Enter\nSleep 1s\nEnter\nSleep 3s\n',
      'three-pane article view'),
-    ('main', 'tokyo-night', 'Enter\nSleep 1s\nEnter\nSleep 1s\nEnter\nSleep 3s\n',
+    ('main', 'tokyo-night', 'Enter\nSleep 1s\n' + PICK + 'Enter\nSleep 1s\nEnter\nSleep 3s\n',
      'three-pane article view'),
-    ('main', 'solarized-light', 'Enter\nSleep 1s\nEnter\nSleep 1s\nEnter\nSleep 3s\n',
+    ('main', 'solarized-light', 'Enter\nSleep 1s\n' + PICK + 'Enter\nSleep 1s\nEnter\nSleep 3s\n',
      'three-pane article view'),
     ('saved', 'dracula', 'Tab\nSleep 1.5s\nEnter\nSleep 1s\nEnter\nSleep 1s\nEnter\nSleep 3s\n',
      'saved articles'),
@@ -71,7 +78,7 @@ VIEWS = [
      'settings'),
     ('changelog', 'rose-pine', 'Tab\nSleep 1.5s\nTab\nSleep 1.5s\nTab\nSleep 1.5s\nSleep 2s\n',
      'changelog and about'),
-    ('zen', 'catppuccin-latte', 'Enter\nSleep 1s\nEnter\nSleep 1s\nEnter\nSleep 1s\nType "z"\nSleep 3s\n',
+    ('zen', 'catppuccin-latte', 'Enter\nSleep 1s\n' + PICK + 'Enter\nSleep 1s\nEnter\nSleep 1s\nType "z"\nSleep 3s\n',
      'zen reading mode'),
 ]
 
