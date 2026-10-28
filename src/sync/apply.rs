@@ -223,7 +223,12 @@ mod tests {
     fn local_read_the_server_lists_unread_is_returned_for_pushing() {
         let (app, local_reads) = merge(vec![imported("a", false), imported("b", false)]);
         assert_eq!(local_reads, ["id-a"]);
-        assert!(app.feeds[0].articles.iter().any(|x| x.link == "a" && x.is_read));
+        assert!(
+            app.feeds[0]
+                .articles
+                .iter()
+                .any(|x| x.link == "a" && x.is_read)
+        );
     }
 
     #[test]
