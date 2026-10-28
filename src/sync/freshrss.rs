@@ -198,6 +198,30 @@ pub fn parse_stream_contents(json: &str) -> Result<(Vec<ImportedArticle>, Option
     Ok((articles, continuation))
 }
 
+#[derive(Debug, Deserialize)]
+struct ItemIds {
+    #[serde(default, rename = "itemRefs")]
+    item_refs: Vec<ItemRef>,
+    #[serde(default)]
+    continuation: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ItemRef {
+    id: String,
+}
+
+/// Parse `stream/items/ids` JSON into item ids + optional `continuation` cursor.
+pub fn parse_item_ids(json: &str) -> Result<(Vec<String>, Option<String>), String> {
+    let ids: ItemIds =
+        serde_json::from_str(json).map_err(|e| format!("Failed to parse article ids: {e}"))?;
+    let continuation = ids.continuation.filter(|c| !c.is_empty());
+    Ok((
+        ids.item_refs.into_iter().map(|r| r.id).collect(),
+        continuation,
+    ))
+}
+
 fn map_stream_item(item: StreamItem) -> ImportedArticle {
     let link = item
         .canonical
@@ -493,6 +517,18 @@ impl SyncPlacement {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn item_ids_parse_with_and_without_continuation() {
+        let (ids, next) =
+            parse_item_ids(r#"{"itemRefs":[{"id":"483"},{"id":"482"}],"continuation":"3"}"#)
+                .unwrap();
+        assert_eq!(ids, ["483", "482"]);
+        assert_eq!(next.as_deref(), Some("3"));
+        let (ids, next) = parse_item_ids(r#"{"itemRefs":[{"id":"1"}]}"#).unwrap();
+        assert_eq!(ids, ["1"]);
+        assert!(next.is_none());
+    }
 
     #[test]
     fn normalise_base_url_handles_variants() {

@@ -7,7 +7,7 @@
 use crate::fetch::http_client;
 use crate::sync::freshrss::{
     ImportedArticle, ImportedSubscription, LABEL_READ, LABEL_STARRED, parse_client_login,
-    parse_stream_contents, parse_subscriptions,
+    parse_item_ids, parse_stream_contents, parse_subscriptions,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -55,6 +55,30 @@ async fn authed_get(base_url: &str, auth: &str, path: &str) -> Result<String, St
     let resp = http_client()
         .get(&url)
         .header("Authorization", format!("GoogleLogin auth={auth}"))
+        .send()
+        .await
+        .map_err(|e| format!("FreshRSS network error: {e}"))?;
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(auth_error(status));
+    }
+    resp.text()
+        .await
+        .map_err(|e| format!("FreshRSS read error: {e}"))
+}
+
+async fn authed_post_form(
+    base_url: &str,
+    auth: &str,
+    path: &str,
+    body: String,
+) -> Result<String, String> {
+    let url = format!("{base_url}/{path}");
+    let resp = http_client()
+        .post(&url)
+        .header("Authorization", format!("GoogleLogin auth={auth}"))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(body)
         .send()
         .await
         .map_err(|e| format!("FreshRSS network error: {e}"))?;
@@ -123,10 +147,56 @@ pub async fn pull_feed_articles(
             path.push_str(&form_encode(c));
         }
         let json = authed_get(base_url, auth, &path).await?;
+        // Miniflux has no `GET stream/contents` and answers an unknown route with `[]`
+        // instead of a stream object: fetch the ids, then the items by id.
+        if continuation.is_none() && json.trim_start().starts_with('[') {
+            return pull_feed_articles_by_ids(base_url, auth, remote_feed_id).await;
+        }
         let (mut articles, next) = parse_stream_contents(&json)?;
         if articles.is_empty() {
             break;
         }
+        all.append(&mut articles);
+        continuation = next;
+        if continuation.is_none() {
+            break;
+        }
+    }
+    Ok(all)
+}
+
+/// Same result as [`pull_feed_articles`] for servers without `GET stream/contents`
+/// (Miniflux): list the newest item ids of the feed, then fetch those items in one
+/// `stream/items/contents` request per page.
+async fn pull_feed_articles_by_ids(
+    base_url: &str,
+    auth: &str,
+    remote_feed_id: &str,
+) -> Result<Vec<ImportedArticle>, String> {
+    let token = fetch_token(base_url, auth).await?;
+    let mut all = Vec::new();
+    let mut continuation: Option<String> = None;
+    for _ in 0..MAX_PAGES_PER_FEED {
+        let mut path = format!(
+            "reader/api/0/stream/items/ids?output=json&n={PAGE_SIZE}&s={}",
+            form_encode(remote_feed_id)
+        );
+        if let Some(c) = &continuation {
+            path.push_str("&c=");
+            path.push_str(&form_encode(c));
+        }
+        let (ids, next) = parse_item_ids(&authed_get(base_url, auth, &path).await?)?;
+        if ids.is_empty() {
+            break;
+        }
+        let mut body = String::new();
+        for id in &ids {
+            body.push_str(&format!("i={}&", form_encode(id)));
+        }
+        body.push_str(&format!("output=json&T={}", form_encode(&token)));
+        let json =
+            authed_post_form(base_url, auth, "reader/api/0/stream/items/contents", body).await?;
+        let (mut articles, _) = parse_stream_contents(&json)?;
         all.append(&mut articles);
         continuation = next;
         if continuation.is_none() {
