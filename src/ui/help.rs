@@ -35,7 +35,7 @@ const FEED_LIST: Keys = &[
 const ARTICLE_LIST: Keys = &[
     ("j/k ↑/↓", "Move selection"),
     ("Enter", "Read article"),
-    ("m", "Toggle read / unread"),
+    ("m", "Toggle read / unread (next after read)"),
     ("s", "Save to category / unsave"),
     ("O", "Open article in browser"),
     ("C", "Copy feed URL (article link in Saved)"),

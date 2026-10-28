@@ -146,7 +146,19 @@ pub(super) async fn handle_article(
         KeyCode::Enter if app.state == AppState::ArticleList => {
             open_article(app, tx);
         }
-        KeyCode::Char('m') => toggle_read(app, tx),
+        KeyCode::Char('m') => {
+            // Marking an article read in the list moves on to the next one, so a run of
+            // unread items can be cleared with repeated presses. No wrap-around: after
+            // the last article the cursor stays put.
+            let marked_read = toggle_read(app, tx) == Some(true);
+            if marked_read
+                && app.state == AppState::ArticleList
+                && app.selected_article + 1 < app.article_count()
+            {
+                app.next();
+                prefetch_article_if_stub(app, tx);
+            }
+        }
         KeyCode::Char('s') => open_category_picker(app),
         KeyCode::Char('O') => {
             if let Some(article) = app.selected_article() {
@@ -238,20 +250,13 @@ fn mark_article_as_read(app: &mut App, tx: &UnboundedSender<AppEvent>, article: 
 }
 
 /// Toggles the read/unread state of the currently selected article and persists the change.
-fn toggle_read(app: &mut App, tx: &UnboundedSender<AppEvent>) {
+///
+/// Returns the new read state, or `None` when there is no article to toggle.
+fn toggle_read(app: &mut App, tx: &UnboundedSender<AppEvent>) -> Option<bool> {
     let (link, is_read) = if app.in_category_context {
-        let &(fi, ai) = match app.category_view_articles.get(app.selected_article) {
-            Some(v) => v,
-            None => return,
-        };
-        let feed = match app.feeds.get_mut(fi) {
-            Some(v) => v,
-            None => return,
-        };
-        let art = match feed.articles.get_mut(ai) {
-            Some(v) => v,
-            None => return,
-        };
+        let &(fi, ai) = app.category_view_articles.get(app.selected_article)?;
+        let feed = app.feeds.get_mut(fi)?;
+        let art = feed.articles.get_mut(ai)?;
         art.is_read = !art.is_read;
         let link = art.link.clone();
         let is_read = art.is_read;
@@ -259,10 +264,7 @@ fn toggle_read(app: &mut App, tx: &UnboundedSender<AppEvent>) {
         feed.unread_count = feed.articles.iter().filter(|a| !a.is_read).count();
         (link, is_read)
     } else if app.in_saved_context {
-        let art = match app.saved_view_articles.get_mut(app.selected_article) {
-            Some(v) => v,
-            None => return,
-        };
+        let art = app.saved_view_articles.get_mut(app.selected_article)?;
         art.is_read = !art.is_read;
         let link = art.link.clone();
         let is_read = art.is_read;
@@ -275,14 +277,8 @@ fn toggle_read(app: &mut App, tx: &UnboundedSender<AppEvent>) {
         }
         (link, is_read)
     } else {
-        let feed = match app.feeds.get_mut(app.selected_feed) {
-            Some(v) => v,
-            None => return,
-        };
-        let art = match feed.articles.get_mut(app.selected_article) {
-            Some(v) => v,
-            None => return,
-        };
+        let feed = app.feeds.get_mut(app.selected_feed)?;
+        let art = feed.articles.get_mut(app.selected_article)?;
         art.is_read = !art.is_read;
         let link = art.link.clone();
         let is_read = art.is_read;
@@ -312,6 +308,7 @@ fn toggle_read(app: &mut App, tx: &UnboundedSender<AppEvent>) {
         .find(|a| a.link == link)
         .and_then(|a| a.remote_id.clone());
     app.push_read_state(remote_id, is_read, tx);
+    Some(is_read)
 }
 
 /// Resolve the feed source, article index, and link for the currently selected article
