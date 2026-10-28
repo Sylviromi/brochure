@@ -186,5 +186,17 @@
       "Popups and dialogs work with the mouse",
       "Text selection follows scrolling and copies fully"
     ]
+  },
+  {
+    "version": "0.14.0",
+    "date": "2026-10-28",
+    "summary": "Keyboard link hints, a redesigned update popup, and safer full-article fetching.",
+    "highlights": [
+      "Press f to open links and images by keyboard",
+      "Press F to copy a link or image",
+      "Redesigned update popup with clearer release notes",
+      "PDF links no longer show garbage text",
+      "In-page links now open the article page"
+    ]
   }
 ]
