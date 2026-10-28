@@ -77,6 +77,11 @@ pub async fn handle_key(app: &mut App, key: KeyEvent, tx: &UnboundedSender<AppEv
     // Keyboard navigation always brings wheel-scrolled lists back to their cursor. A
     // text selection survives (it scrolls with its text) until its view goes away.
     app.detached = Default::default();
+    // Only an immediate second `A` confirms "mark all as read"; help, link hints and
+    // zoom return before the article handler, so any other key cancels it here.
+    if key.code != KeyCode::Char('A') {
+        app.mark_all_armed = false;
+    }
     if app.zoom.take().is_some() {
         return false; // any key closes the zoomed image
     }

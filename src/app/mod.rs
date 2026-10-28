@@ -97,6 +97,8 @@ pub struct App {
     pub saved_view_articles: Vec<Article>,
     /// True while ArticleList / ArticleDetail is showing saved articles.
     pub in_saved_context: bool,
+    /// Set by a first `A` in the article list; the next key either confirms or cancels.
+    pub mark_all_armed: bool,
     /// None = "All Saved" is selected; Some(id) = a specific category is selected.
     pub selected_saved_category: Option<u32>,
 
@@ -342,6 +344,7 @@ impl App {
             saved_sidebar_cursor: 0,
             saved_view_articles: Vec::new(),
             in_saved_context: false,
+            mark_all_armed: false,
             selected_saved_category: None,
             zen_mode: false,
             category_picker: CategoryPickerState::default(),

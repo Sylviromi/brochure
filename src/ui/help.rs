@@ -36,6 +36,7 @@ const ARTICLE_LIST: Keys = &[
     ("j/k ↑/↓", "Move selection"),
     ("Enter", "Read article"),
     ("m", "Toggle read / unread (next after read)"),
+    ("A A", "Mark all articles in the list as read"),
     ("s", "Save to category / unsave"),
     ("O", "Open article in browser"),
     ("C", "Copy feed URL (article link in Saved)"),

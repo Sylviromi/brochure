@@ -46,6 +46,10 @@ pub async fn handle_mouse(
     tx: &UnboundedSender<AppEvent>,
 ) -> bool {
     let (col, row) = (ev.column, ev.row);
+    // Any real mouse action cancels a pending "press A again" (hovering doesn't).
+    if !matches!(ev.kind, MouseEventKind::Moved) {
+        app.mark_all_armed = false;
+    }
     if app.zoom.is_some() {
         // The zoomed image covers everything: a click closes it.
         if matches!(ev.kind, MouseEventKind::Down(_)) {
