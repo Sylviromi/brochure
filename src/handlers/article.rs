@@ -496,6 +496,18 @@ mod tests {
         assert!(app.feeds[0].articles.iter().all(|a| !a.is_read));
     }
 
+    #[tokio::test]
+    async fn other_keys_cancel_a_pending_mark_all() {
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = app_with_articles(&[false, false]);
+        app.state = AppState::ArticleList;
+        arm_mark_all_read(&mut app);
+        // `?` is handled before the article handler ever sees the key.
+        let help = KeyEvent::new(KeyCode::Char('?'), crossterm::event::KeyModifiers::NONE);
+        crate::handlers::handle_key(&mut app, help, &tx).await;
+        assert!(!app.mark_all_armed);
+    }
+
     #[test]
     fn nothing_to_arm_when_all_read() {
         let mut app = app_with_articles(&[true, true]);
