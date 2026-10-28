@@ -169,7 +169,7 @@ async fn edit_tag(
     let token = fetch_token(base_url, auth).await?;
     let op = if add { 'a' } else { 'r' };
     let body = format!(
-        "s={}&{}={}&T={}",
+        "i={}&{}={}&T={}",
         form_encode(item_id),
         op,
         form_encode(label),
