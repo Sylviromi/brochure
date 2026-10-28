@@ -22,16 +22,12 @@ use ratatui::{
 
 use super::{border_set, content_block, render_scrollbar};
 
-/// Word-wraps `text` with a hanging bullet indent into pre-formatted strings.
-///
-/// The first line gets `"  • "` and continuations get `"    "` (same width),
-/// so wrapped lines visually align with the start of the bullet text rather than column 0.
-fn wrap_bullet(text: &str, total_width: usize) -> Vec<String> {
-    const BULLET: &str = "  • ";
-    const INDENT: &str = "    "; // same display width as BULLET
-    let inner_w = total_width.saturating_sub(4);
+/// Word-wraps `text` to `total_width` into pre-formatted strings: the first line starts
+/// with `first`, continuations with `rest` (same width, so wrapped text stays aligned).
+fn wrap_indented(text: &str, total_width: usize, first: &str, rest: &str) -> Vec<String> {
+    let inner_w = total_width.saturating_sub(first.chars().count());
     if inner_w == 0 {
-        return vec![format!("{BULLET}{text}")];
+        return vec![format!("{first}{text}")];
     }
     let mut segments: Vec<String> = Vec::new();
     let mut current = String::new();
@@ -51,12 +47,12 @@ fn wrap_bullet(text: &str, total_width: usize) -> Vec<String> {
         segments.push(current);
     }
     if segments.is_empty() {
-        return vec![BULLET.to_string()];
+        return vec![first.to_string()];
     }
     segments
         .into_iter()
         .enumerate()
-        .map(|(i, s)| format!("{}{s}", if i == 0 { BULLET } else { INDENT }))
+        .map(|(i, s)| format!("{}{s}", if i == 0 { first } else { rest }))
         .collect()
 }
 
@@ -618,128 +614,100 @@ pub(super) fn draw_confirm_delete_saved_cat(f: &mut Frame, app: &mut App) {
     draw_confirm_dialog(f, app, " ⚠  Delete Saved Category ", body, 70);
 }
 
-/// Renders the update-available popup with scrollable release notes.
+/// Renders the update-available popup: what's new since the running version, newest
+/// release first, and how to update. Sized to its content; scrolls when it doesn't fit.
 pub(super) fn draw_update_popup(f: &mut Frame, app: &mut App) {
-    let Some(ref info) = app.update_available else {
+    let Some(info) = &app.update_available else {
         return;
     };
-    let releases = &info.releases;
-    if releases.is_empty() {
+    let Some(latest) = info.releases.first() else {
         return;
-    }
-
+    };
+    let theme = &app.theme;
     let area = f.area();
-    let latest = &releases[0].version;
-    let count = releases.len();
+    let popup_w = 60.min(area.width);
+    // Borders and a column reserved for the scrollbar, so wrapping never shifts.
+    let text_w = popup_w.saturating_sub(3) as usize;
 
-    // Fixed width 60, height = min(terminal - 6, 22), centered
-    let popup_w: u16 = 60;
-    let popup_h: u16 = (area.height.saturating_sub(6)).clamp(10, 22);
-
-    let vertical = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Fill(1), Length(popup_h), Fill(1)])
-        .split(area);
-    let horizontal = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Fill(1), Length(popup_w), Fill(1)])
-        .split(vertical[1]);
-    let popup_area = horizontal[1];
-
-    f.render_widget(Clear, popup_area);
-
-    // Title shows version count
-    let title = if count == 1 {
-        format!("  Update Available — v{latest} ")
-    } else {
-        format!("  Update Available — v{latest}  ({count} new versions) ")
-    };
-
-    let block = content_block(
-        title.fg(app.theme.header).bold(),
-        true,
-        app.user_data.border_rounded,
-        &app.theme,
-    );
-
-    // Inner area split: scrollable content (top) + dismiss hint (bottom, 1 line)
-    let inner = block.inner(popup_area);
-    f.render_widget(block, popup_area);
-
-    let [content_area, hint_area] = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Min(0), Length(1)])
-        .areas(inner);
-
-    // Always reserve 1 col for the scrollbar so pre-wrapped widths stay stable.
-    let text_w = content_area.width.saturating_sub(1) as usize;
-
-    // Build all content lines (pre-wrapped so total_lines == visual line count).
-    let current = env!("CARGO_PKG_VERSION");
-    let mut lines: Vec<Line> = Vec::new();
-    lines.push(Line::from(""));
-    for (i, release) in releases.iter().enumerate() {
-        // Version header line
-        let header = if release.date.is_empty() {
-            format!("  v{}  →  v{}", current, release.version) // only on first
-        } else if i == 0 {
-            format!(
-                "  v{}  →  v{}    {}",
-                current, release.version, release.date
-            )
-        } else {
-            format!("  v{}    {}", release.version, release.date)
-        };
-        lines.push(Line::from(Span::styled(
-            header,
-            Style::default().fg(app.theme.accent).bold(),
-        )));
-        for h in &release.highlights {
-            for wrapped in wrap_bullet(h, text_w) {
-                lines.push(Line::from(Span::styled(
-                    wrapped,
-                    Style::default().fg(app.theme.text),
-                )));
+    let mut summary = vec![
+        Span::styled("  You have ", theme.muted),
+        Span::styled(format!("v{}", env!("CARGO_PKG_VERSION")), theme.text),
+        Span::styled(" · ", theme.muted),
+        Span::styled(format!("v{}", latest.version), theme.success).bold(),
+        Span::styled(" is out", theme.muted),
+    ];
+    if info.releases.len() > 1 {
+        summary.push(Span::styled(
+            format!(" ({} releases)", info.releases.len()),
+            theme.muted,
+        ));
+    }
+    let mut lines = vec![Line::from(summary)];
+    let how = "To update, re-run the command you installed with, e.g. cargo binstall brochure";
+    for row in wrap_indented(how, text_w, "  ", "  ") {
+        lines.push(Line::styled(row, theme.muted));
+    }
+    for release in &info.releases {
+        lines.push(Line::from(""));
+        let mut header = vec![Span::styled(format!("  v{}", release.version), theme.accent).bold()];
+        if !release.date.is_empty() {
+            header.push(Span::styled(format!("  {}", release.date), theme.muted));
+        }
+        lines.push(Line::from(header));
+        if release.highlights.is_empty() {
+            lines.push(Line::styled("    No release notes", theme.muted).italic());
+        }
+        for highlight in &release.highlights {
+            for row in wrap_indented(highlight, text_w, "  • ", "    ") {
+                lines.push(Line::styled(row, theme.text));
             }
         }
-        lines.push(Line::from("")); // spacer between releases / bottom padding
     }
+    lines.push(Line::from(""));
 
-    // Scroll
-    let total_lines = lines.len() as u16;
-    let visible_h = content_area.height;
-    let max_scroll = total_lines.saturating_sub(visible_h);
-    // Clamp and write back so the handler's value never drifts above the actual limit.
+    // Content plus borders and the key hint row, capped so the screen keeps some margin.
+    let total = lines.len() as u16;
+    let popup_h = (total + 3).min(24).min(area.height.saturating_sub(2));
+    let [popup] = Layout::horizontal([Length(popup_w)])
+        .flex(ratatui::layout::Flex::Center)
+        .areas(area);
+    let [popup] = Layout::vertical([Length(popup_h)])
+        .flex(ratatui::layout::Flex::Center)
+        .areas(popup);
+    f.render_widget(Clear, popup);
+    let block = content_block(
+        " Update available ".fg(theme.header).bold(),
+        true,
+        app.user_data.border_rounded,
+        theme,
+    );
+    let inner = block.inner(popup);
+    f.render_widget(block, popup);
+    let [content, hint] = Layout::vertical([Min(0), Length(1)]).areas(inner);
+    let [text_area, bar_area] = Layout::horizontal([Min(0), Length(1)]).areas(content);
+
+    let max_scroll = total.saturating_sub(content.height);
     app.update_popup_scroll = app.update_popup_scroll.min(max_scroll);
     let scroll = app.update_popup_scroll;
-
-    // Render scrollable content (leave 1 col on right for scrollbar)
-    let [text_area, bar_area] = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Min(0), Length(1)])
-        .areas(content_area);
-
+    let mut keys = vec![
+        "  Enter/Esc/q ".fg(app.theme.accent).bold(),
+        "dismiss".fg(app.theme.text),
+    ];
+    if max_scroll > 0 {
+        keys.push("   j/k ".fg(app.theme.accent).bold());
+        keys.push("scroll".fg(app.theme.text));
+    }
     f.render_widget(Paragraph::new(lines).scroll((scroll, 0)), text_area);
-
-    // Scrollbar
-    if total_lines > visible_h {
+    f.render_widget(Paragraph::new(Line::from(keys)), hint);
+    if max_scroll > 0 {
         render_scrollbar(
             f,
             bar_area,
-            total_lines as usize,
-            visible_h as usize,
+            total as usize,
+            content.height as usize,
             scroll as usize,
             &app.theme,
             Some((&mut app.hit, ScrollTarget::UpdatePopup)),
         );
     }
-
-    // Pinned dismiss hint
-    f.render_widget(
-        Paragraph::new(Line::from(vec![
-            "  [Enter/Esc/q] ".fg(app.theme.accent).bold(),
-            "Dismiss".fg(app.theme.text),
-        ])),
-        hint_area,
-    );
 }

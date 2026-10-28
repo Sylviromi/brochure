@@ -422,14 +422,40 @@ pub async fn fetch_readable_content(url: &str) -> Result<String, String> {
     .map_err(|e| format!("Readability error: {e}"))?
 }
 
-/// Fetch the latest published versions of brochure from crates.io and GitHub releases.
-/// Filters GitHub releases to only those newer than the current version, sorted newest-first.
-/// Returns `Some(UpdateInfo)` if any newer versions exist, `None` if already up to date.
-/// GitHub release fetch failures are graceful — falls back to returning `Some` with empty releases list.
+/// Releases newer than the running version, newest first, or `None` when up to date.
+///
+/// crates.io decides whether there is an update; GitHub releases supply the notes. If
+/// GitHub can't be reached, the update is still reported, without notes.
 pub async fn check_latest_version() -> Option<UpdateInfo> {
-    // Step 1: Crates.io check (early exit if version matches)
+    let current = env!("CARGO_PKG_VERSION");
+    let json = get_json("https://crates.io/api/v1/crates/brochure").await?;
+    let latest = json["crate"]["newest_version"].as_str()?.to_string();
+    if !is_newer_version(&latest, current) {
+        return None;
+    }
+    let mut releases: Vec<ReleaseNote> =
+        get_json("https://api.github.com/repos/Sylviromi/brochure/releases")
+            .await
+            .and_then(|v| v.as_array().cloned())
+            .unwrap_or_default()
+            .iter()
+            .filter_map(release_note)
+            .filter(|r| is_newer_version(&r.version, current))
+            .collect();
+    releases.sort_by_key(|r| std::cmp::Reverse(parse_semver(&r.version)));
+    if releases.is_empty() {
+        releases.push(ReleaseNote {
+            version: latest,
+            date: String::new(),
+            highlights: Vec::new(),
+        });
+    }
+    Some(UpdateInfo { releases })
+}
+
+async fn get_json(url: &str) -> Option<serde_json::Value> {
     let resp = http_client()
-        .get("https://crates.io/api/v1/crates/brochure")
+        .get(url)
         .header(
             "User-Agent",
             concat!("brochure/", env!("CARGO_PKG_VERSION"), " (version-check)"),
@@ -437,97 +463,52 @@ pub async fn check_latest_version() -> Option<UpdateInfo> {
         .send()
         .await
         .ok()?;
-    let text = resp.text().await.ok()?;
-    let json: serde_json::Value = serde_json::from_str(&text).ok()?;
-    let crates_latest = json["crate"]["newest_version"].as_str()?.to_string();
-    let current = env!("CARGO_PKG_VERSION");
-    if crates_latest == current {
-        return None;
-    }
+    serde_json::from_str(&resp.text().await.ok()?).ok()
+}
 
-    // Step 2: GitHub releases fetch (returns array, graceful failure)
-    let releases = if let Ok(gh_resp) = http_client()
-        .get("https://api.github.com/repos/Sylviromi/brochure/releases")
-        .header(
-            "User-Agent",
-            concat!("brochure/", env!("CARGO_PKG_VERSION"), " (version-check)"),
-        )
-        .send()
-        .await
-    {
-        if let Ok(gh_text) = gh_resp.text().await {
-            if let Ok(gh_json) = serde_json::from_str::<serde_json::Value>(&gh_text) {
-                if let Some(releases_array) = gh_json.as_array() {
-                    let mut release_notes = Vec::new();
-
-                    for release in releases_array {
-                        // Parse tag_name and strip leading 'v'
-                        let tag_name = match release["tag_name"].as_str() {
-                            Some(tag) => tag.strip_prefix('v').unwrap_or(tag),
-                            None => continue,
-                        };
-
-                        // Step 3: Version filtering - only keep newer versions
-                        if !is_newer_version(tag_name, current) {
-                            continue;
-                        }
-
-                        // Step 4: Parse release into ReleaseNote
-                        let date = release["published_at"]
-                            .as_str()
-                            .map(|s| s.chars().take(10).collect::<String>())
-                            .unwrap_or_default();
-
-                        let highlights = if let Some(body) = release["body"].as_str() {
-                            let mut highlights_vec = Vec::new();
-                            let mut in_highlights_section = false;
-                            for line in body.lines() {
-                                if line.starts_with("## Highlights") {
-                                    in_highlights_section = true;
-                                } else if line.starts_with("## ") {
-                                    in_highlights_section = false;
-                                } else if in_highlights_section && line.starts_with("- ") {
-                                    highlights_vec.push(line[2..].to_string());
-                                }
-                            }
-                            highlights_vec
-                        } else {
-                            Vec::new()
-                        };
-
-                        release_notes.push(ReleaseNote {
-                            version: tag_name.to_string(),
-                            date,
-                            highlights,
-                        });
-                    }
-
-                    // Step 5: Sort newest-first by semver
-                    release_notes.sort_by(|a, b| {
-                        let a_semver = parse_semver(&a.version);
-                        let b_semver = parse_semver(&b.version);
-                        b_semver.cmp(&a_semver)
-                    });
-
-                    release_notes
-                } else {
-                    Vec::new()
-                }
-            } else {
-                Vec::new()
-            }
-        } else {
-            Vec::new()
+/// A GitHub release: its version, date, and the bullets under `## Highlights`.
+fn release_note(release: &serde_json::Value) -> Option<ReleaseNote> {
+    let tag = release["tag_name"].as_str()?;
+    let mut in_highlights = false;
+    let mut highlights = Vec::new();
+    for line in release["body"].as_str().unwrap_or_default().lines() {
+        if line.starts_with("## ") {
+            in_highlights = line.starts_with("## Highlights");
+        } else if let Some(item) = line.strip_prefix("- ").filter(|_| in_highlights) {
+            highlights.push(item.to_string());
         }
-    } else {
-        Vec::new()
-    };
+    }
+    Some(ReleaseNote {
+        version: tag.strip_prefix('v').unwrap_or(tag).to_string(),
+        date: release["published_at"]
+            .as_str()
+            .map(|d| d.chars().take(10).collect())
+            .unwrap_or_default(),
+        highlights,
+    })
+}
 
-    // Return None if no newer versions, otherwise return Some with releases list
-    if releases.is_empty() {
-        None
-    } else {
-        Some(UpdateInfo { releases })
+/// Sample update for previewing the popup: `BROCHURE_DEMO_UPDATE=1 cargo run`.
+#[cfg(debug_assertions)]
+pub fn demo_update() -> UpdateInfo {
+    let note = |version: &str, date: &str, highlights: &[&str]| ReleaseNote {
+        version: version.into(),
+        date: date.into(),
+        highlights: highlights.iter().map(|h| h.to_string()).collect(),
+    };
+    UpdateInfo {
+        releases: vec![
+            note(
+                "9.2.0",
+                "2026-12-01",
+                &[
+                    "Link hints: press f to label every link and image, then type a label to open it",
+                    "A long highlight that wraps over several lines in the popup, to check the indent",
+                ],
+            ),
+            note("9.1.1", "", &["A release without a date"]),
+            note("9.1.0", "2026-11-10", &[]),
+        ],
     }
 }
 

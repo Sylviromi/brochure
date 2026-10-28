@@ -100,6 +100,8 @@ Testing notes:
   exercise paths that save (marking read, toggling collapse, editing feeds…).
   `handlers/mouse/tests.rs` shows how to swap in in-memory feeds.
 - To run the app without touching your own data: `XDG_DATA_HOME=/tmp/brochure-sandbox cargo run`.
+- To preview the update popup with sample releases (debug builds only):
+  `BROCHURE_DEMO_UPDATE=1 cargo run`.
 - UI behaviour can be tested headlessly with `ratatui::backend::TestBackend` + `ui::draw`.
 
 ---

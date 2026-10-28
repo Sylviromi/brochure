@@ -166,6 +166,11 @@ async fn run(
     {
         let tx = tx.clone();
         tokio::spawn(async move {
+            #[cfg(debug_assertions)]
+            if std::env::var_os("BROCHURE_DEMO_UPDATE").is_some() {
+                let _ = tx.send(AppEvent::UpdateAvailable(fetch::demo_update()));
+                return;
+            }
             if let Some(info) = fetch::check_latest_version().await {
                 let _ = tx.send(AppEvent::UpdateAvailable(info));
             }
