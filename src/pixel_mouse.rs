@@ -34,8 +34,11 @@ impl PixelMouse {
         if !self.confirmed {
             return None;
         }
-        let cell_w = f32::from(width) / f32::from(cols);
-        let cell_h = f32::from(height) / f32::from(rows);
+        // Cells are whole pixels; the window size may include the terminal's padding
+        // (e.g. kitty's `window_padding_width`), which flooring drops.
+        // shortcut: padding wider than one pixel per column/row still skews clicks.
+        let cell_w = f32::from((width / cols).max(1));
+        let cell_h = f32::from((height / rows).max(1));
         let fine_row = f32::from(m.row) / cell_h;
         m.column = ((f32::from(m.column) / cell_w) as u16).min(cols - 1);
         m.row = (fine_row as u16).min(rows - 1);
@@ -73,5 +76,18 @@ mod tests {
         let mut m = at(15, 10);
         assert_eq!(pm.convert(&mut m, grid, px), Some(0.5));
         assert_eq!((m.column, m.row), (1, 0));
+    }
+
+    #[test]
+    fn window_padding_does_not_shift_cells() {
+        // 140×40 grid of 10×20 px cells inside 10 px of padding on every side.
+        let (grid, px) = ((140, 40), (1420, 820));
+        let mut pm = PixelMouse::default();
+        let mut m = at(705, 410);
+        assert_eq!(pm.convert(&mut m, grid, px), Some(20.5));
+        assert_eq!((m.column, m.row), (70, 20));
+        let mut m = at(1395, 0);
+        pm.convert(&mut m, grid, px);
+        assert_eq!(m.column, 139);
     }
 }
