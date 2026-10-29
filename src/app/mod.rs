@@ -28,10 +28,10 @@ use crate::state::{
 use crate::storage::{article_cache_size, load_categories, load_feeds, load_user_data};
 use crate::ui::theme::ColorTheme;
 use limner::Alignment;
-use limner::render_image::SlicedProtocol;
+use limner::render_image::ImageStore;
 use ratatui::layout::Rect;
 use ratatui::widgets::ListState;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 /// Build the active [`ColorTheme`] from persisted user preferences.
 ///
@@ -175,17 +175,10 @@ pub struct App {
     /// Links whose full-content fetch is in flight (their body shows a skeleton).
     pub full_fetch_pending: HashSet<String>,
 
-    // ── Image cache ──────────────────────────────────────────────────────────
-    /// Decoded image pixel data keyed by URL.
-    pub image_cache: HashMap<String, limner::render_image::img_crate::DynamicImage>,
-    /// URLs currently being downloaded.
-    pub image_pending: HashSet<String>,
-
-    // ── Article image rendering ──────────────────────────────────────────────
-    /// Per-URL encoded terminal protocols (Kitty / Sixel / half-block).
-    pub protocol_cache: HashMap<String, SlicedProtocol>,
-    /// Image picker (terminal protocol detection) — initialized in [`run()`].
-    pub picker: Option<limner::render_image::Picker>,
+    // ── Article images ───────────────────────────────────────────────────────
+    /// Article images (loading state, decoded images, terminal protocols); set up
+    /// in [`run()`] once the terminal's image protocol is known.
+    pub image_store: Option<ImageStore>,
     /// Image open full screen (clicked in an article), if any.
     pub zoom: Option<ImageZoom>,
     /// Keyboard link hints shown over the article (`f` / `F`), if active.
@@ -375,12 +368,9 @@ impl App {
             full_fetch_pending: HashSet::new(),
             update_available: None,
             update_popup_scroll: 0,
-            image_cache: HashMap::new(),
-            image_pending: HashSet::new(),
-            protocol_cache: HashMap::new(),
+            image_store: None,
             zoom: None,
             link_hints: None,
-            picker: None,
             article_images: Vec::new(),
             article_render: None,
             article_content_area: Rect::default(),

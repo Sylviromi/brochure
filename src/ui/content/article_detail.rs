@@ -6,7 +6,7 @@
 use crate::{app::App, handlers::article::get_selected_article};
 use limner::{
     Alignment, MarkdownStyle,
-    render_image::{ImagePlacement, SignedPosition, SlicedImage, prepare_inline_images},
+    render_image::{ImagePlacement, ImageStore},
     render_markdown,
 };
 use ratatui::{
@@ -351,65 +351,30 @@ impl ArticleLayout {
             .wrap(Wrap { trim: false })
             .scroll((skip_rows, 0))
     }
-
-    /// Positions (relative to the content area) of images intersecting the viewport.
-    fn image_positions(
-        &self,
-        scroll: usize,
-        width: u16,
-        height: u16,
-    ) -> Vec<(String, SignedPosition)> {
-        use ratatui::layout::Alignment as LineAlign;
-        self.placements
-            .iter()
-            .filter_map(|p| {
-                let row = *self.row_starts.get(p.line_start)? as i64 - scroll as i64;
-                let x = match p.alignment {
-                    Some(LineAlign::Center) => (width as i64 - p.cell_cols as i64) / 2,
-                    Some(LineAlign::Right) => width as i64 - p.cell_cols as i64,
-                    _ => 0,
-                };
-                let visible = row + (p.cell_rows as i64) > 0 && row < height as i64;
-                visible.then(|| {
-                    let position = SignedPosition {
-                        x: x as i16,
-                        y: row.clamp(i16::MIN as i64, i16::MAX as i64) as i16,
-                    };
-                    (p.url.clone(), position)
-                })
-            })
-            .collect()
-    }
 }
 
-/// Rebuild the cached layout when the viewport height changes or images finish loading.
+/// Rebuild the cached layout when the viewport height changes or images load (or,
+/// while some load, the spinner turns).
 fn ensure_layout(app: &mut App, center_simple_body: bool, area: Rect) {
     use std::hash::{Hash, Hasher};
     let App {
         article_render,
-        image_cache,
-        protocol_cache,
-        picker,
+        image_store,
         ..
     } = app;
     let Some(render) = article_render.as_mut() else {
         return;
     };
-    // Decoded images still waiting to become terminal protocols force a rebuild.
-    let pending = render
-        .images
-        .iter()
-        .any(|img| image_cache.contains_key(&img.url));
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    (render.key, area.height, center_simple_body).hash(&mut h);
-    for img in &render.images {
-        protocol_cache
-            .get(&img.url)
-            .map(|p| (p.size().width, p.size().height))
-            .hash(&mut h);
-    }
+    (
+        render.key,
+        area.height,
+        center_simple_body,
+        image_store.as_ref().map(ImageStore::version),
+    )
+        .hash(&mut h);
     let key = h.finish();
-    if !pending && render.layout.as_ref().is_some_and(|l| l.key == key) {
+    if render.layout.as_ref().is_some_and(|l| l.key == key) {
         return;
     }
 
@@ -417,28 +382,19 @@ fn ensure_layout(app: &mut App, center_simple_body: bool, area: Rect) {
     let header_line_count = render.header_line_count;
     let mut lines = render.lines.clone();
     let mut images = render.images.clone();
-    let mut placements = match picker {
-        Some(picker) if !images.is_empty() => prepare_inline_images(
-            &mut lines,
-            &images,
-            image_cache,
-            protocol_cache,
-            picker,
-            &picker.font_size(),
-            width,
-            10,
-        ),
+    let mut placements = match image_store {
+        Some(store) if !images.is_empty() => store.prepare(&mut lines, &images, width, 10),
         _ => Vec::new(),
     };
 
     // Header lines grow by the height of any injected header image.
-    let effective_header_lines = header_line_count
-        + images
-            .iter()
-            .take_while(|img| img.line_index < header_line_count)
-            .filter_map(|img| protocol_cache.get(&img.url))
-            .map(|p| (p.size().height as usize).saturating_sub(1))
-            .sum::<usize>();
+    let mut effective_header_lines = header_line_count;
+    for p in &placements {
+        if p.line_start >= effective_header_lines {
+            break;
+        }
+        effective_header_lines += (p.cell_rows as usize).saturating_sub(1);
+    }
 
     let mut row_starts = row_starts(&lines, width);
     let total = row_starts.last().copied().unwrap_or(0);
@@ -463,6 +419,10 @@ fn ensure_layout(app: &mut App, center_simple_body: bool, area: Rect) {
         }
         row_starts = self::row_starts(&lines, width);
     }
+    // Rows as this layout draws them (padding above may have moved images down).
+    for p in &mut placements {
+        p.row = row_starts[p.line_start];
+    }
 
     let header_rows = row_starts[effective_header_lines.min(lines.len())].max(1);
     render.layout = Some(ArticleLayout {
@@ -482,9 +442,14 @@ fn row_starts(lines: &[ratatui::text::Line<'static>], width: u16) -> Vec<usize> 
     let mut row = 0;
     starts.push(0);
     for line in lines {
-        row += Paragraph::new(line.clone())
-            .wrap(Wrap { trim: false })
-            .line_count(width);
+        // Wrapping costs a clone + word wrap; lines that fit take one row.
+        row += if width > 0 && line.width() <= width as usize {
+            1
+        } else {
+            Paragraph::new(line.clone())
+                .wrap(Wrap { trim: false })
+                .line_count(width)
+        };
         starts.push(row);
     }
     starts
@@ -786,7 +751,6 @@ pub(crate) fn render_article_content(
     let scroll = scroll_offset as usize;
 
     let paragraph = layout.paragraph(scroll, content_area.height as usize);
-    let image_positions = layout.image_positions(scroll, render_width, content_area.height);
     let header_visual = layout.header_rows;
     let images = layout.images.clone();
 
@@ -800,31 +764,25 @@ pub(crate) fn render_article_content(
     // preview and full-detail mode.
     app.article_images = images;
 
-    // Inline images — SlicedImage clips partially off-screen images itself.
-    for (url, position) in image_positions {
-        if let Some(sliced) = app.protocol_cache.get(&url) {
-            f.render_widget(SlicedImage::new(sliced, position), content_area);
-            // Clickable (to zoom) where it shows; it may hang off the top edge.
-            let size = sliced.size();
-            let top = i32::from(content_area.y) + i32::from(position.y);
-            let bottom = (top + i32::from(size.height)).max(0) as u16;
-            let y = top.max(i32::from(content_area.y)) as u16;
-            let rect = Rect::new(
-                content_area.x + position.x.max(0) as u16,
-                y,
-                size.width,
-                bottom.saturating_sub(y),
-            )
-            .intersection(content_area);
-            app.hit.article_images.push((rect, url));
-        }
-    }
-
-    let has_scrollbar = line_count > content_area.height as usize;
     let para_render_area = Rect {
         width: render_width,
         ..content_area
     };
+    // Inline images, clickable (to zoom) where they show; clipped at the edges.
+    let layout = app.article_render.as_ref().and_then(|r| r.layout.as_ref());
+    if let (Some(store), Some(layout)) = (&app.image_store, layout) {
+        let hits = store.render(
+            f.buffer_mut(),
+            para_render_area,
+            &layout.placements,
+            scroll_offset,
+        );
+        app.hit
+            .article_images
+            .extend(hits.into_iter().map(|hit| (hit.area, hit.url)));
+    }
+
+    let has_scrollbar = line_count > content_area.height as usize;
     f.render_widget(paragraph, para_render_area);
     if let Some(cached) = &app.article_render {
         let mut regions = link_regions(
@@ -915,6 +873,25 @@ pub(crate) fn render_article_content(
 mod tests {
     use super::*;
     use ratatui::buffer::Buffer;
+
+    #[test]
+    fn row_starts_match_a_wrapped_paragraph() {
+        use ratatui::text::Line;
+        let lines: Vec<Line<'static>> = ["", "short", "a line long enough to wrap twice", ""]
+            .into_iter()
+            .map(Line::from)
+            .collect();
+        for width in [0, 1, 12, 80] {
+            let wrapped = Paragraph::new(lines.clone())
+                .wrap(Wrap { trim: false })
+                .line_count(width);
+            assert_eq!(
+                row_starts(&lines, width).last(),
+                Some(&wrapped),
+                "width {width}"
+            );
+        }
+    }
 
     fn regions_for(md: &str, width: u16) -> Vec<(Rect, String)> {
         let theme = crate::ui::theme::ColorTheme::catppuccin_mocha();

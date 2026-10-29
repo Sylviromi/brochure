@@ -278,13 +278,15 @@ fn refresh_summary(total: usize, errors: &[(&'static str, String)]) -> String {
     }
 }
 
-/// Spawn background download + decode for article images not yet cached or pending.
+/// Spawn background download + decode for article images the store hasn't seen yet.
 pub fn spawn_article_image_downloads(app: &mut App, tx: &UnboundedSender<AppEvent>) {
+    let Some(store) = &mut app.image_store else {
+        return;
+    };
     for img in &app.article_images {
-        if app.image_cache.contains_key(&img.url) || !app.image_pending.insert(img.url.clone()) {
-            continue;
+        if store.start(&img.url) {
+            spawn_image_fetch(img.url.clone(), tx, AppEvent::ImageDecoded);
         }
-        spawn_image_fetch(img.url.clone(), tx, AppEvent::ImageDecoded);
     }
 }
 
@@ -336,17 +338,16 @@ pub fn on_zoom_image(app: &mut App, url: String, image: Option<DynamicImage>) {
     let Some(zoom) = app.zoom.as_mut().filter(|z| z.url == url) else {
         return;
     };
-    match (image, &app.picker) {
-        (Some(image), Some(picker)) => zoom.image = Some(picker.new_resize_protocol(image)),
+    match (image, &app.image_store) {
+        (Some(image), Some(store)) => zoom.image = Some(store.picker().new_resize_protocol(image)),
         _ => zoom.failed = true,
     }
 }
 
-/// Store a decoded image (or just clear its pending flag when decoding failed).
+/// Hand a downloaded image (or `None` when it failed) to the image store.
 pub fn on_image_decoded(app: &mut App, url: String, image: Option<DynamicImage>) {
-    app.image_pending.remove(&url);
-    if let Some(image) = image {
-        app.image_cache.insert(url, image);
+    if let Some(store) = &mut app.image_store {
+        store.finish(&url, image);
     }
 }
 

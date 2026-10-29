@@ -49,8 +49,11 @@ before changing that area.
   inputs (`is_text_input`), so handlers only match arrows. The `?` popup's tables
   live in `ui/help.rs` — update them whenever a handler's keys change.
 - **Article rendering is cached** (`ui/content/article_detail.rs`): markdown is only
-  re-rendered when `render_key` changes, and the image layout only when images load or
-  the viewport height changes; each frame draws just the visible lines. Any new input
+  re-rendered when `render_key` changes, and the image layout only when the viewport
+  height or `ImageStore::version()` changes (an image loads or fails, or the loading
+  spinner turns on a tick); each frame draws just the visible lines. Article images
+  live in `app.image_store` (limner's `ImageStore`): start downloads with
+  `store.start(url)` (safe every frame; failed images aren't retried). Any new input
   that affects the rendered article must be added to `render_key`, or it will go stale.
 - **Notifications.** Report anything to the user with `app.notify(msg)`: it shows as a
   toast (`ui/toast.rs`); a leading `✓ ` / `⚠ ` picks the success / warning style.

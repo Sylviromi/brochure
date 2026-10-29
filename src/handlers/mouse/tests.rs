@@ -410,37 +410,66 @@ async fn dragging_a_feed_moves_the_target_and_cancels_outside() {
     assert_eq!(app.feeds[0].title, "Feed 0");
 }
 
-/// Images are converted to terminal protocols on the first frame (which empties
-/// `image_cache`); later frames must keep placing them.
+/// A loading image shows the spinner in front of its placeholder; once loaded it
+/// is placed, and clickable, on every frame.
 #[tokio::test]
-async fn inline_images_survive_after_first_frame() {
+async fn inline_images_spin_then_stay_placed() {
+    use limner::render_image::{ImageStore, halfblock_picker, img_crate::DynamicImage};
     let mut app = App::new();
     app.update_available = None;
     with_test_feeds(&mut app);
-    app.picker = Some(limner::render_image::halfblock_picker());
+    app.image_store = Some(ImageStore::new(halfblock_picker()).with_spinner());
     let url = "https://img.test/a.png".to_string();
     app.feeds[0].articles[0].content = format!(
         "![pic]({url})\n\n{}",
         "x".repeat(crate::models::CONTENT_STUB_MAX_LEN)
-    );
-    app.image_cache.insert(
-        url.clone(),
-        limner::render_image::img_crate::DynamicImage::new_rgb8(40, 40),
     );
     app.selected_feed = 0;
     app.selected_article = 0;
     app.clear_category_view();
     app.state = AppState::ArticleDetail;
 
+    fn store(app: &mut App) -> &mut ImageStore {
+        app.image_store.as_mut().unwrap()
+    }
+    let screen = |app: &mut App| {
+        let mut terminal = Terminal::new(TestBackend::new(140, 40)).unwrap();
+        let frame = terminal.draw(|f| crate::ui::draw(f, app)).unwrap();
+        frame
+            .buffer
+            .content
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<String>()
+    };
+    assert!(store(&mut app).start(&url));
+    assert!(screen(&mut app).contains("⠋ "), "spinner while loading");
+    store(&mut app).tick();
+    assert!(screen(&mut app).contains("⠙ "), "spinner turns on ticks");
+
+    crate::events::on_image_decoded(&mut app, url.clone(), Some(DynamicImage::new_rgb8(40, 40)));
     draw(&mut app);
-    assert!(app.protocol_cache.contains_key(&url));
-    assert!(app.image_cache.is_empty(), "decoded image consumed");
+    assert!(store(&mut app).get(&url).is_some());
     let rows_with_image = app.content_line_count;
     for _ in 0..3 {
+        app.hit.article_images.clear();
         draw(&mut app);
     }
     assert_eq!(app.content_line_count, rows_with_image, "image rows kept");
     assert!(rows_with_image > 3);
+    assert_eq!(
+        app.hit
+            .article_images
+            .iter()
+            .map(|(_, u)| u)
+            .collect::<Vec<_>>(),
+        [&url],
+        "image stays clickable"
+    );
+    assert!(
+        !store(&mut app).start(&url),
+        "loaded images aren't fetched again"
+    );
 }
 
 /// Scrolling to the bottom and switching to the (wider) zen view must not leave
@@ -783,7 +812,9 @@ async fn clicking_an_image_zooms_it_until_a_key_or_click() {
     app.update_available = None;
     with_test_feeds(&mut app);
     app.state = AppState::ArticleDetail;
-    app.picker = Some(limner::render_image::halfblock_picker());
+    app.image_store = Some(limner::render_image::ImageStore::new(
+        limner::render_image::halfblock_picker(),
+    ));
     let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
     terminal.draw(|f| crate::ui::draw(f, &mut app)).unwrap();

@@ -179,7 +179,8 @@ async fn run(
 
     // Detect the terminal image protocol before the input thread starts reading
     // stdin, so the terminal's reply isn't swallowed as key presses.
-    app.picker = Some(detect_image_picker());
+    app.image_store =
+        Some(limner::render_image::ImageStore::new(detect_image_picker()).with_spinner());
     spawn_input_thread(tx.clone(), pixel_reports);
 
     let mut overlays = Vec::new();
@@ -227,7 +228,12 @@ async fn handle_event(
         AppEvent::Mouse(mouse, fine_row) => {
             return handlers::mouse::handle_mouse(app, mouse, fine_row, tx).await;
         }
-        AppEvent::Tick => app.tick = app.tick.wrapping_add(1),
+        AppEvent::Tick => {
+            app.tick = app.tick.wrapping_add(1);
+            if let Some(store) = &mut app.image_store {
+                store.tick();
+            }
+        }
         AppEvent::FeedFetched(idx, result) => events::on_feed_fetched(app, idx, result),
         AppEvent::FreshRssFeedPulled(idx, result) => {
             sync::apply::on_freshrss_feed_pulled(app, idx, result, tx);
