@@ -72,6 +72,7 @@ Use the `<type>: <lowercase description>` format:
 | `refactor:` | Code restructuring with no functional change |
 | `docs:`  | Documentation-only changes           |
 | `test:`  | Adding or updating tests             |
+| `style:` | Formatting only (rustfmt, whitespace), no code change |
 
 - Split refactors into one commit per concern (e.g. `refactor: extract shared
   http_get_bytes helper`, `refactor: split app.rs into submodules`).
